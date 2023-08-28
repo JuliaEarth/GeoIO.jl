@@ -5,7 +5,7 @@
 Load geospatial tables from known file formats and convert the
 geometries to [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl)
 geometries that are compatible with the
-[GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl) ecosystem. 
+[GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl) framework. 
 
 Geometries are loaded from disk in pure Julia whenever possible
 using packages such as [Shapefile.jl](https://github.com/JuliaGeo/Shapefile.jl)
