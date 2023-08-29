@@ -13,6 +13,13 @@ and [GeoJSON.jl](https://github.com/JuliaGeo/GeoJSON.jl), or
 (down)loaded from the internet using the
 [GADM.jl](https://github.com/JuliaGeo/GADM.jl) package.
 
+## Supported formats
+
+- .shapefile
+- .geojson
+- .gpkg
+- .kml
+
 ## Usage
 
 ### Loading/saving data from/to disk
@@ -27,9 +34,7 @@ table = GeoIO.load("file.shp")
 GeoIO.save("file.geojson", table)
 ```
 
-Additional keyword arguments can be passed to `load` and `save` functions. Valid
-arguments are those accepted by `GeoJSON.read`, `GeoJSON.write`, `Shapefile.Table`,
-`Shapefile.write` and `ArchGDAL.read`. See below some examples:
+Additional keyword arguments are forwarded to the backends:
 
 ```julia
 # read `.geojson` geometries with Float64 precision
