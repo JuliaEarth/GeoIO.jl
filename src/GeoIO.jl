@@ -38,7 +38,7 @@ the fly instead of converting them immediately.
 
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
-- `.png, .jpg, .jpeg, .tif, .tiff` via ImageIO.jl
+- `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
 - Other formats via ArchGDAL.jl
 """
 function load(fname; layer=0, lazy=false, kwargs...)
