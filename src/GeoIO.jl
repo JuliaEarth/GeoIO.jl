@@ -24,9 +24,12 @@ import GeoInterface as GI
 
 include("conversion.jl")
 include("geotable.jl")
+
+# helper functions
 include("ply.jl")
 include("gdal.jl")
 
+# image extensions
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 """
