@@ -15,7 +15,7 @@ and [GeoJSON.jl](https://github.com/JuliaGeo/GeoJSON.jl), or
 
 ## Supported formats
 
-- .shapefile
+- .shp
 - .geojson
 - .parquet
 - .gpkg
@@ -25,6 +25,7 @@ and [GeoJSON.jl](https://github.com/JuliaGeo/GeoJSON.jl), or
 - .png
 - .tif
 - .tiff
+- .ply
 
 ## Usage
 
