@@ -5,9 +5,7 @@
 module GeoIO
 
 using Meshes
-
-import Tables
-import Meshes
+using Tables
 
 import GADM
 import Shapefile as SHP
@@ -53,7 +51,7 @@ function load(fname; layer=0, lazy=false, kwargs...)
     table = AG.getlayer(data, layer)
   end
   gtable = GeoTable(table)
-  lazy ? gtable : Meshes.MeshData(gtable)
+  lazy ? gtable : MeshData(gtable)
 end
 
 """
