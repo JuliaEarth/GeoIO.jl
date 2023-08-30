@@ -25,7 +25,7 @@ import GeoInterface as GI
 include("conversion.jl")
 include("geotable.jl")
 include("ply.jl")
-include("agwrite.jl")
+include("gdal.jl")
 
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
@@ -45,10 +45,11 @@ the fly instead of converting them immediately.
 
 ## Supported formats
 
+- `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
+- `.ply` via PlyIO.jl
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
-- `.ply` via PlyIO.jl
-- `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
+- `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
 function load(fname; layer=0, lazy=false, kwargs...)
@@ -96,6 +97,7 @@ Optionally, specify keyword arguments accepted by
 
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
+- `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
 function save(fname, geotable; kwargs...)
