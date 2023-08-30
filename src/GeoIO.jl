@@ -36,13 +36,14 @@ the fly instead of converting them immediately.
 
 ## Supported formats
 
-- `*.shp` via Shapefile.jl
-- `*.geojson` via GeoJSON.jl
+- `.shp` via Shapefile.jl
+- `.geojson` via GeoJSON.jl
+- `.png, .jpg, .jpeg, .tif, .tiff` via ImageIO.jl
 - Other formats via ArchGDAL.jl
 """
 function load(fname; layer=0, lazy=false, kwargs...)
   # raw image formats
-  if any(endswith(fname, ext) for ext in IMGEXT)
+  if any(ext -> endswith(fname, ext), IMGEXT)
     data = FileIO.load(fname)
     dims = size(data)
     etable = (; color=vec(data))
@@ -76,8 +77,8 @@ Optionally, specify keyword arguments accepted by
 
 ## Supported formats
 
-- `*.shp` via Shapefile.jl
-- `*.geojson` via GeoJSON.jl
+- `.shp` via Shapefile.jl
+- `.geojson` via GeoJSON.jl
 - Other formats via ArchGDAL.jl
 """
 function save(fname, geotable; kwargs...)
