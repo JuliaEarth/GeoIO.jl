@@ -56,7 +56,7 @@ end
 
 function tochain(geom, is3d::Bool)
   points = topoints(geom, is3d)
-  if GI.isclosed(geom)
+  if first(points) == last(points)
     # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
     while first(points) == last(points) && length(points) ≥ 2
       pop!(points)

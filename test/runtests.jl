@@ -235,6 +235,36 @@ end
       @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa Meshes.MeshData
       @test GeoIO.load(joinpath(datadir, "lines.gpkg"), lazy=true) isa GeoIO.GeoTable
     end
+
+    @testset "GeoParquet" begin
+      table = GeoIO.load(joinpath(datadir, "points.parquet"))
+      @test length(table.geometry) == 5
+      @test table.code[1] isa Integer
+      @test table.name[1] isa String
+      @test table.variable[1] isa Real
+      @test table.geometry isa PointSet
+      @test table.geometry[1] isa Point
+
+      table = GeoIO.load(joinpath(datadir, "lines.parquet"))
+      @test length(table.geometry) == 5
+      @test table.code[1] isa Integer
+      @test table.name[1] isa String
+      @test table.variable[1] isa Real
+      @test table.geometry isa GeometrySet
+      @test table.geometry[1] isa Chain
+
+      table = GeoIO.load(joinpath(datadir, "polygons.parquet"))
+      @test length(table.geometry) == 5
+      @test table.code[1] isa Integer
+      @test table.name[1] isa String
+      @test table.variable[1] isa Real
+      @test table.geometry isa GeometrySet
+      @test table.geometry[1] isa PolyArea
+
+      # lazy loading
+      @test GeoIO.load(joinpath(datadir, "lines.parquet")) isa Meshes.MeshData
+      @test GeoIO.load(joinpath(datadir, "lines.parquet"), lazy=true) isa GeoIO.GeoTable
+    end
   end
 
   @testset "save" begin

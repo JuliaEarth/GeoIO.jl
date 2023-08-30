@@ -13,6 +13,7 @@ import GADM
 import Shapefile as SHP
 import GeoJSON as GJS
 import ArchGDAL as AG
+import GeoParquet as GPQ
 import GeoInterface as GI
 
 include("conversion.jl")
@@ -45,6 +46,8 @@ function load(fname; layer=0, lazy=false, kwargs...)
   elseif endswith(fname, ".geojson")
     data = Base.read(fname)
     table = GJS.read(data; kwargs...)
+  elseif endswith(fname, ".parquet")
+    table = GPQ.read(fname)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     table = AG.getlayer(data, layer)
@@ -73,6 +76,8 @@ function save(fname, geotable; kwargs...)
     SHP.write(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")
     GJS.write(fname, geotable; kwargs...)
+  elseif endswith(fname, ".parquet")
+    GPQ.write(fname, geotable, (:geometry,); kwargs...)
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end
