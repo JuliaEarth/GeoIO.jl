@@ -17,8 +17,14 @@ and [GeoJSON.jl](https://github.com/JuliaGeo/GeoJSON.jl), or
 
 - .shapefile
 - .geojson
+- .parquet
 - .gpkg
 - .kml
+- .jpg
+- .jpeg
+- .png
+- .tif
+- .tiff
 
 ## Usage
 
