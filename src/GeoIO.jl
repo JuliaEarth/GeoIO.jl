@@ -8,6 +8,7 @@ using Meshes
 using Tables
 
 import GADM
+import FileIO
 import Shapefile as SHP
 import GeoJSON as GJS
 import ArchGDAL as AG
@@ -16,6 +17,8 @@ import GeoInterface as GI
 include("conversion.jl")
 include("geotable.jl")
 include("agwrite.jl")
+
+const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 """
     load(fname, layer=0, lazy=false, kwargs...)
@@ -33,20 +36,32 @@ the fly instead of converting them immediately.
 
 ## Supported formats
 
-- `*.shp` via Shapefile.jl
-- `*.geojson` via GeoJSON.jl
+- `.shp` via Shapefile.jl
+- `.geojson` via GeoJSON.jl
+- `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
 - Other formats via ArchGDAL.jl
 """
 function load(fname; layer=0, lazy=false, kwargs...)
-  if endswith(fname, ".shp")
-    table = SHP.Table(fname; kwargs...)
+  # raw image formats
+  if any(ext -> endswith(fname, ext), IMGEXT)
+    data = FileIO.load(fname)
+    dims = size(data)
+    etable = (; color=vec(data))
+    domain = CartesianGrid(dims)
+    return meshdata(domain; etable)
+  end
+
+  # GIS file formats
+  table = if endswith(fname, ".shp")
+    SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
     data = Base.read(fname)
-    table = GJS.read(data; kwargs...)
+    GJS.read(data; kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
-    table = AG.getlayer(data, layer)
+    AG.getlayer(data, layer)
   end
+
   gtable = GeoTable(table)
   lazy ? gtable : MeshData(gtable)
 end
@@ -62,8 +77,8 @@ Optionally, specify keyword arguments accepted by
 
 ## Supported formats
 
-- `*.shp` via Shapefile.jl
-- `*.geojson` via GeoJSON.jl
+- `.shp` via Shapefile.jl
+- `.geojson` via GeoJSON.jl
 - Other formats via ArchGDAL.jl
 """
 function save(fname, geotable; kwargs...)
