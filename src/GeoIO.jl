@@ -18,7 +18,7 @@ include("conversion.jl")
 include("geotable.jl")
 include("agwrite.jl")
 
-const IMGEXT = (".png", ".jpg", ".gif")
+const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 """
     load(fname, layer=0, lazy=false, kwargs...)
