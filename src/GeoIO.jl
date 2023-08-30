@@ -59,7 +59,7 @@ function load(fname; layer=0, lazy=false, kwargs...)
     data = Base.read(fname)
     GJS.read(data; kwargs...)
   elseif endswith(fname, ".parquet")
-    GPQ.read(fname)
+    GPQ.read(fname; kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     AG.getlayer(data, layer)
