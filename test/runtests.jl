@@ -111,6 +111,14 @@ end
       @test length(table.color) == length(table.geometry)
     end
 
+    @testset "PLY" begin
+      table = GeoIO.load(joinpath(datadir, "beethoven.ply"))
+      @test table.geometry isa SimpleMesh
+      @test isnothing(values(table, 0))
+      @test isnothing(values(table, 1))
+      @test isnothing(values(table, 2))
+    end
+
     @testset "Shapefile" begin
       table = GeoIO.load(joinpath(datadir, "points.shp"))
       @test length(table.geometry) == 5

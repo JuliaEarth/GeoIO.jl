@@ -8,7 +8,14 @@ using Meshes
 using Tables
 
 import GADM
+
+# image formats
 import FileIO
+
+# mesh formats
+import PlyIO as PLY
+
+# GIS formats
 import Shapefile as SHP
 import GeoJSON as GJS
 import ArchGDAL as AG
@@ -17,6 +24,7 @@ import GeoInterface as GI
 
 include("conversion.jl")
 include("geotable.jl")
+include("ply.jl")
 include("agwrite.jl")
 
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
@@ -39,6 +47,7 @@ the fly instead of converting them immediately.
 
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
+- `.ply` via PlyIO.jl
 - `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
 - Other formats via ArchGDAL.jl
 """
@@ -50,6 +59,11 @@ function load(fname; layer=0, lazy=false, kwargs...)
     etable = (; color=vec(data))
     domain = CartesianGrid(dims)
     return meshdata(domain; etable)
+  end
+
+  # mesh formats
+  if endswith(fname, ".ply")
+    return plyread(fname)
   end
 
   # GIS file formats
