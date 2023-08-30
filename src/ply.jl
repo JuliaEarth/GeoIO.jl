@@ -19,10 +19,10 @@ function plyread(fname)
   enames = [PLY.plyname(p) for p in e.properties]
   vnames = setdiff(vnames, ["x", "y", "z"])
   enames = setdiff(enames, ["vertex_indices"])
-  vcols = [n => v[n] for n in vnames]
-  ecols = [n => e[n] for n in enames]
-  vtable = isempty(vcols) ? nothing : (; vcols...)
-  etable = isempty(ecols) ? nothing : (; ecols...)
+  vpairs = [Symbol(n) => v[n] for n in vnames]
+  epairs = [Symbol(n) => e[n] for n in enames]
+  vtable = isempty(vpairs) ? nothing : (; vpairs...)
+  etable = isempty(epairs) ? nothing : (; epairs...)
 
   # return geospatial data
   meshdata(domain; vtable, etable)
