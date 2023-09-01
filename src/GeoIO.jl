@@ -13,7 +13,10 @@ import GADM
 import FileIO
 
 # mesh formats
-import PlyIO as PLY
+import PlyIO
+
+# geostats formats
+import GslibIO
 
 # GIS formats
 import Shapefile as SHP
@@ -50,13 +53,14 @@ the fly instead of converting them immediately.
 
 - `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
 - `.ply` via PlyIO.jl
+- `.gslib` via GslibIO.jl
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
 - `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
 function load(fname; layer=0, lazy=false, kwargs...)
-  # raw image formats
+  # image formats
   if any(ext -> endswith(fname, ext), IMGEXT)
     data = FileIO.load(fname)
     dims = size(data)
@@ -65,12 +69,17 @@ function load(fname; layer=0, lazy=false, kwargs...)
     return meshdata(domain; etable)
   end
 
-  # mesh formats
-  if endswith(fname, ".ply")
-    return plyread(fname)
+  # geostats formats
+  if endswith(fname, ".gslib")
+    return GslibIO.load(fname; kwargs...)
   end
 
-  # GIS file formats
+  # mesh formats
+  if endswith(fname, ".ply")
+    return plyread(fname; kwargs...)
+  end
+
+  # GIS formats
   table = if endswith(fname, ".shp")
     SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
@@ -98,12 +107,19 @@ Optionally, specify keyword arguments accepted by
 
 ## Supported formats
 
+- `.gslib` via GslibIO.jl
 - `.shp` via Shapefile.jl
 - `.geojson` via GeoJSON.jl
 - `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
 function save(fname, geotable; kwargs...)
+  # geostats formats
+  if endswith(fname, ".gslib")
+    return GslibIO.save(fname, geotable; kwargs...)
+  end
+
+  # GIS formats
   if endswith(fname, ".shp")
     SHP.write(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")

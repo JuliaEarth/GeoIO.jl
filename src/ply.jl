@@ -2,10 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# helper function to read PLY properties
-function plyread(fname)
+# helper function to read PlyIO properties
+function plyread(fname; kwargs...)
   # load dictionary
-  ply = PLY.load_ply(fname)
+  ply = PlyIO.load_ply(fname; kwargs...)
 
   # load domain
   v = ply["vertex"]
@@ -15,8 +15,8 @@ function plyread(fname)
   domain = SimpleMesh(points, connec)
 
   # load tables
-  vnames = [PLY.plyname(p) for p in v.properties]
-  enames = [PLY.plyname(p) for p in e.properties]
+  vnames = [PlyIO.plyname(p) for p in v.properties]
+  enames = [PlyIO.plyname(p) for p in e.properties]
   vnames = setdiff(vnames, ["x", "y", "z"])
   enames = setdiff(enames, ["vertex_indices"])
   vpairs = [Symbol(n) => v[n] for n in vnames]

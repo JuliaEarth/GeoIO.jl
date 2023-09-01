@@ -119,6 +119,15 @@ end
       @test isnothing(values(table, 2))
     end
 
+    @testset "GSLIB" begin
+      table = GeoIO.load(joinpath(datadir, "grid.gslib"))
+      @test table.geometry isa CartesianGrid
+      @test table."Porosity"[1] isa Float64
+      @test table."Lithology"[1] isa Float64
+      @test table."Water Saturation"[1] isa Float64
+      @test isnan(table."Water Saturation"[end])
+    end
+
     @testset "Shapefile" begin
       table = GeoIO.load(joinpath(datadir, "points.shp"))
       @test length(table.geometry) == 5
@@ -281,7 +290,7 @@ end
     end
   end
 
-  @testset "save" begin
+  @testset "GIS conversion" begin
     fnames = [
       "points.geojson",
       "points.gpkg",
