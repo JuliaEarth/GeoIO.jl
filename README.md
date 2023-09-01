@@ -2,8 +2,7 @@
 
 [![][build-img]][build-url] [![][codecov-img]][codecov-url]
 
-Load geospatial data from known file formats
-as geospatial tables compatible with the
+Load/save geospatial data compatible with the
 [GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl)
 framework. 
 
