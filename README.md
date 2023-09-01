@@ -2,16 +2,15 @@
 
 [![][build-img]][build-url] [![][codecov-img]][codecov-url]
 
-Load geospatial tables from known file formats and convert the
-geometries to [Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl)
-geometries that are compatible with the
-[GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl) framework. 
+Load geospatial data from known file formats
+as geospatial tables compatible with the
+[GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl)
+framework. 
 
-Geometries are loaded from disk in pure Julia whenever possible
-using packages such as [Shapefile.jl](https://github.com/JuliaGeo/Shapefile.jl)
-and [GeoJSON.jl](https://github.com/JuliaGeo/GeoJSON.jl), or
-(down)loaded from the internet using the
-[GADM.jl](https://github.com/JuliaGeo/GADM.jl) package.
+GeoIO.jl uses various backend packages spread across
+different Julia organizations to load a universal
+representation of geospatial data as discussed in
+the book ["Geospatial Data Science with Julia"]().
 
 ## Supported formats
 
