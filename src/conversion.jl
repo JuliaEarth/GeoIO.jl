@@ -34,13 +34,13 @@ GI.ngeom(::GI.PolygonTrait, p::Polygon) = length(rings(p))
 GI.getgeom(::GI.PolygonTrait, p::Polygon, i) = rings(p)[i]
 
 GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = embeddim(m)
-GI.ngeom(::GI.AbstractGeometryTrait, m::Multi) = length(collect(m))
-GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = collect(m)[i]
+GI.ngeom(::GI.AbstractGeometryTrait, m::Multi) = length(parent(m))
+GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = parent(m)[i]
 
-GI.isfeaturecollection(::Data) = true
-GI.trait(::Data) = GI.FeatureCollectionTrait()
-GI.nfeature(::Any, d::Data) = nitems(d)
-GI.getfeature(::Any, d::Data, i) = d[i, :]
+GI.isfeaturecollection(::AbstractGeoTable) = true
+GI.trait(::AbstractGeoTable) = GI.FeatureCollectionTrait()
+GI.nfeature(::Any, d::AbstractGeoTable) = nrow(d)
+GI.getfeature(::Any, d::AbstractGeoTable, i) = d[i, :]
 
 # --------------------------------------
 # Convert geometries to Meshes.jl types
@@ -75,7 +75,7 @@ function topolygon(geom, is3d::Bool)
     PolyArea(outer)
   else
     inners = map(toring, GI.gethole(geom))
-    PolyArea(outer, inners)
+    PolyArea([outer; inners])
   end
 end
 

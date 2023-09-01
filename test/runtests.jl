@@ -1,6 +1,7 @@
 using GeoIO
 using Tables
 using Meshes
+using GeoTables
 using Test, Random
 using Dates
 import GeoInterface as GI
@@ -22,7 +23,7 @@ _isequal(g1, g2) = g1 == g2
 _isequal(m1::Multi, m2::Multi) = m1 == m2
 _isequal(g, m::Multi) = _isequal(m, g)
 function _isequal(m::Multi, g)
-  gs = collect(m)
+  gs = parent(m)
   length(gs) == 1 && first(gs) == g
 end
 
@@ -144,7 +145,7 @@ end
       @test table.variable[1] isa Real
       @test table.geometry isa GeometrySet
       @test table.geometry[1] isa Multi
-      @test collect(table.geometry[1])[1] isa Chain
+      @test parent(table.geometry[1])[1] isa Chain
 
       table = GeoIO.load(joinpath(datadir, "polygons.shp"))
       @test length(table.geometry) == 5
@@ -153,7 +154,7 @@ end
       @test table.variable[1] isa Real
       @test table.geometry isa GeometrySet
       @test table.geometry[1] isa Multi
-      @test collect(table.geometry[1])[1] isa PolyArea
+      @test parent(table.geometry[1])[1] isa PolyArea
 
       table = GeoIO.load(joinpath(datadir, "path.shp"))
       @test Tables.schema(table).names == (:ZONA, :geometry)
@@ -183,11 +184,8 @@ end
       @test table.geometry[1] isa Multi
 
       # https://github.com/JuliaEarth/GeoIO.jl/issues/32
-      @test GeoIO.load(joinpath(datadir, "issue32.shp")) isa Meshes.MeshData
-
-      # lazy loading
-      @test GeoIO.load(joinpath(datadir, "lines.shp")) isa Meshes.MeshData
-      @test GeoIO.load(joinpath(datadir, "lines.shp"), lazy=true) isa GeoIO.GeoTable
+      @test GeoIO.load(joinpath(datadir, "issue32.shp")) isa AbstractGeoTable
+      @test GeoIO.load(joinpath(datadir, "lines.shp")) isa AbstractGeoTable
     end
 
     @testset "GeoJSON" begin
@@ -215,9 +213,7 @@ end
       @test table.geometry isa GeometrySet
       @test table.geometry[1] isa PolyArea
 
-      # lazy loading
-      @test GeoIO.load(joinpath(datadir, "lines.geojson")) isa Meshes.MeshData
-      @test GeoIO.load(joinpath(datadir, "lines.geojson"), lazy=true) isa GeoIO.GeoTable
+      @test GeoIO.load(joinpath(datadir, "lines.geojson")) isa AbstractGeoTable
     end
 
     @testset "KML" begin
@@ -254,9 +250,7 @@ end
       @test table.geometry isa GeometrySet
       @test table.geometry[1] isa PolyArea
 
-      # lazy loading
-      @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa Meshes.MeshData
-      @test GeoIO.load(joinpath(datadir, "lines.gpkg"), lazy=true) isa GeoIO.GeoTable
+      @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa AbstractGeoTable
     end
 
     @testset "GeoParquet" begin
@@ -284,9 +278,7 @@ end
       @test table.geometry isa GeometrySet
       @test table.geometry[1] isa PolyArea
 
-      # lazy loading
-      @test GeoIO.load(joinpath(datadir, "lines.parquet")) isa Meshes.MeshData
-      @test GeoIO.load(joinpath(datadir, "lines.parquet"), lazy=true) isa GeoIO.GeoTable
+      @test GeoIO.load(joinpath(datadir, "lines.parquet")) isa AbstractGeoTable
     end
   end
 

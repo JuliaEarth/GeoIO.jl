@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, layer=0, lazy=false, kwargs...)
+    load(fname, layer=0, kwargs...)
 
 Load geospatial table from file `fname` and convert the
 `geometry` column to Meshes.jl geometries.
@@ -12,9 +12,6 @@ Optionally, specify the `layer` of geometries to read
 within the file and keyword arguments `kwargs` accepted
 by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 `ArchGDAL.read`.
-
-The option `lazy` can be used to convert geometries on
-the fly instead of converting them immediately.
 
 ## Supported formats
 
@@ -26,14 +23,14 @@ the fly instead of converting them immediately.
 - `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
-function load(fname; layer=0, lazy=false, kwargs...)
+function load(fname; layer=0, kwargs...)
   # image formats
   if any(ext -> endswith(fname, ext), IMGEXT)
     data = FileIO.load(fname)
     dims = size(data)
     etable = (; color=vec(data))
     domain = CartesianGrid(dims)
-    return meshdata(domain; etable)
+    return geotable(domain; etable)
   end
 
   # geostats formats
@@ -59,6 +56,5 @@ function load(fname; layer=0, lazy=false, kwargs...)
     AG.getlayer(data, layer)
   end
 
-  gtable = GeoTable(table)
-  lazy ? gtable : MeshData(gtable)
+  asgeotable(table)
 end

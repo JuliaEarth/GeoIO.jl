@@ -17,9 +17,9 @@ The options `ϵ`, `min`, `max` and `maxiter` are forwarded to the
 """
 function gadm(country, subregions...; depth=0, ϵ=nothing, min=3, max=typemax(Int), maxiter=10, kwargs...)
   table = GADM.get(country, subregions...; depth=depth, kwargs...)
-  gtable = GeoTable(table)
+  gtable = asgeotable(table)
   𝒯 = values(gtable)
   𝒟 = domain(gtable)
   𝒩 = decimate(𝒟, ϵ, min=min, max=max, maxiter=maxiter)
-  meshdata(𝒩, etable=𝒯)
+  geotable(𝒩, etable=𝒯)
 end
