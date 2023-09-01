@@ -51,7 +51,7 @@ GeoIO.save("file.shp", table, force = true)
 
 Please read the docstrings for more details.
 
-### Loading data from GADM
+### (Down)loading data from GADM
 
 The `gadm` function (down)loads data from the GADM dataset:
 
