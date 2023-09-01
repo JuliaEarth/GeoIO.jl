@@ -7,8 +7,6 @@ module GeoIO
 using Meshes
 using Tables
 
-import GADM
-
 # image formats
 import FileIO
 
@@ -24,6 +22,9 @@ import GeoJSON as GJS
 import ArchGDAL as AG
 import GeoParquet as GPQ
 import GeoInterface as GI
+
+# GADM data
+import GADM
 
 # image extensions
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
