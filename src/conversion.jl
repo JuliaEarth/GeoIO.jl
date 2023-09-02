@@ -75,7 +75,7 @@ function topolygon(geom, is3d::Bool)
     PolyArea(outer)
   else
     inners = map(toring, GI.gethole(geom))
-    PolyArea([outer; inners])
+    PolyArea([outer, inners...])
   end
 end
 
