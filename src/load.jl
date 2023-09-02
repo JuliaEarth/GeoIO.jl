@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, layer=0, kwargs...)
+    load(fname, layer=0, fix=true, kwargs...)
 
 Load geospatial table from file `fname` and convert the
 `geometry` column to Meshes.jl geometries.
@@ -23,7 +23,7 @@ by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 - `.parquet` via GeoParquet.jl
 - Other formats via ArchGDAL.jl
 """
-function load(fname; layer=0, kwargs...)
+function load(fname; layer=0, fix=true, kwargs...)
   # image formats
   if any(ext -> endswith(fname, ext), IMGEXT)
     data = FileIO.load(fname)
@@ -56,5 +56,5 @@ function load(fname; layer=0, kwargs...)
     AG.getlayer(data, layer)
   end
 
-  asgeotable(table)
+  asgeotable(table, fix)
 end

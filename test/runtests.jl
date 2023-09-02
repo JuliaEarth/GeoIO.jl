@@ -307,10 +307,10 @@ end
 
       # load and save table
       kwargs = endswith(f1, ".geojson") ? (; numbertype=Float64) : ()
-      gt1 = GeoIO.load(f1; kwargs...)
+      gt1 = GeoIO.load(f1; fix=false, kwargs...)
       GeoIO.save(f2, gt1)
       kwargs = endswith(f2, ".geojson") ? (; numbertype=Float64) : ()
-      gt2 = GeoIO.load(f2; kwargs...)
+      gt2 = GeoIO.load(f2; fix=false, kwargs...)
 
       # compare domain and values
       d1 = domain(gt1)

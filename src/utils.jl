@@ -2,14 +2,14 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function asgeotable(table)
+function asgeotable(table, fix)
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
   geoms = Tables.getcolumn(cols, gcol)
   etable = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
-  domain = GeometrySet(geom2meshes.(geoms))
+  domain = GeometrySet(geom2meshes.(geoms, fix))
   geotable(domain; etable)
 end
 

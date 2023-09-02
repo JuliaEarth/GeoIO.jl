@@ -6,7 +6,6 @@
 # Minimum GeoInterface.jl to perform IO
 # --------------------------------------
 
-GI.isgeometry(::Point) = true
 GI.isgeometry(::Geometry) = true
 
 GI.geomtrait(::Point) = GI.PointTrait()
@@ -37,10 +36,10 @@ GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = embeddim(m)
 GI.ngeom(::GI.AbstractGeometryTrait, m::Multi) = length(parent(m))
 GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = parent(m)[i]
 
-GI.isfeaturecollection(::AbstractGeoTable) = true
+GI.isfeaturecollection(::Type{<:AbstractGeoTable}) = true
 GI.trait(::AbstractGeoTable) = GI.FeatureCollectionTrait()
-GI.nfeature(::Any, d::AbstractGeoTable) = nrow(d)
-GI.getfeature(::Any, d::AbstractGeoTable, i) = d[i, :]
+GI.nfeature(::Any, gtb::AbstractGeoTable) = nrow(gtb)
+GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 
 # --------------------------------------
 # Convert geometries to Meshes.jl types
@@ -67,15 +66,15 @@ function tochain(geom, is3d::Bool)
   end
 end
 
-function topolygon(geom, is3d::Bool)
+function topolygon(geom, is3d::Bool, fix::Bool)
   # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
   toring(g) = close(tochain(g, is3d))
   outer = toring(GI.getexterior(geom))
   if GI.nhole(geom) == 0
-    PolyArea(outer)
+    PolyArea(outer; fix)
   else
     inners = map(toring, GI.gethole(geom))
-    PolyArea([outer, inners...])
+    PolyArea([outer, inners...]; fix)
   end
 end
 
@@ -91,7 +90,7 @@ GI.convert(::Type{Segment}, ::GI.LineTrait, geom) = Segment(topoints(geom, GI.is
 
 GI.convert(::Type{Chain}, ::GI.LineStringTrait, geom) = tochain(geom, GI.is3d(geom))
 
-GI.convert(::Type{Polygon}, ::GI.PolygonTrait, geom) = topolygon(geom, GI.is3d(geom))
+GI.convert(::Type{Polygon}, trait::GI.PolygonTrait, geom) = _convert_with_fix(trait, geom, true)
 
 function GI.convert(::Type{Multi}, ::GI.MultiPointTrait, geom)
   Multi(topoints(geom, GI.is3d(geom)))
@@ -102,9 +101,13 @@ function GI.convert(::Type{Multi}, ::GI.MultiLineStringTrait, geom)
   Multi([tochain(g, is3d) for g in GI.getgeom(geom)])
 end
 
-function GI.convert(::Type{Multi}, ::GI.MultiPolygonTrait, geom)
+GI.convert(::Type{Multi}, trait::GI.MultiPolygonTrait, geom) = _convert_with_fix(trait, geom, true)
+
+_convert_with_fix(::GI.PolygonTrait, geom, fix) = topolygon(geom, GI.is3d(geom), fix)
+
+function _convert_with_fix(::GI.MultiPolygonTrait, geom, fix)
   is3d = GI.is3d(geom)
-  Multi([topolygon(g, is3d) for g in GI.getgeom(geom)])
+  Multi([topolygon(g, is3d, fix) for g in GI.getgeom(geom)])
 end
 
 # -----------------------------------------
@@ -119,5 +122,7 @@ geointerface_geomtype(::GI.MultiPointTrait) = Multi
 geointerface_geomtype(::GI.MultiLineStringTrait) = Multi
 geointerface_geomtype(::GI.MultiPolygonTrait) = Multi
 
-geom2meshes(geom) = geom2meshes(GI.geomtrait(geom), geom)
-geom2meshes(trait, geom) = GI.convert(geointerface_geomtype(trait), trait, geom)
+geom2meshes(geom, fix=true) = geom2meshes(GI.geomtrait(geom), geom, fix)
+geom2meshes(trait, geom, fix) = GI.convert(geointerface_geomtype(trait), trait, geom)
+geom2meshes(trait::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fix) =
+  _convert_with_fix(trait, geom, fix)
