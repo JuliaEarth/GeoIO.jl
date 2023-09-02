@@ -25,5 +25,5 @@ function plyread(fname; kwargs...)
   etable = isempty(epairs) ? nothing : (; epairs...)
 
   # return geospatial data
-  meshdata(domain; vtable, etable)
+  geotable(domain; vtable, etable)
 end

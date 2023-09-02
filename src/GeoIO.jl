@@ -6,6 +6,7 @@ module GeoIO
 
 using Meshes
 using Tables
+using GeoTables
 
 # image formats
 import FileIO
@@ -29,11 +30,10 @@ import GADM
 # image extensions
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
+include("utils.jl")
+
 # conversions
 include("conversion.jl")
-
-# TODO: remove
-include("geotable.jl")
 
 # extra code for backends
 include("extra/ply.jl")
