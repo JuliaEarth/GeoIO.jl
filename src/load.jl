@@ -13,6 +13,9 @@ within the file and keyword arguments `kwargs` accepted
 by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 `ArchGDAL.read`.
 
+The option `fix` can be used to fix orientation and degeneracy
+issues with polygons.
+
 ## Supported formats
 
 - `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl

@@ -14,6 +14,9 @@ at a given depth starting from the given region specification.
 
 The options `ϵ`, `min`, `max` and `maxiter` are forwarded to the
 `decimate` function from Meshes.jl to reduce the number of vertices.
+
+The option `fix` can be used to fix orientation and degeneracy
+issues with polygons.
 """
 function gadm(country, subregions...; depth=0, ϵ=nothing, min=3, max=typemax(Int), maxiter=10, fix=true, kwargs...)
   table = GADM.get(country, subregions...; depth=depth, kwargs...)
