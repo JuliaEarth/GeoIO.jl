@@ -124,5 +124,4 @@ geointerface_geomtype(::GI.MultiPolygonTrait) = Multi
 
 geom2meshes(geom, fix=true) = geom2meshes(GI.geomtrait(geom), geom, fix)
 geom2meshes(trait, geom, fix) = GI.convert(geointerface_geomtype(trait), trait, geom)
-geom2meshes(trait::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fix) =
-  _convert_with_fix(trait, geom, fix)
+geom2meshes(trait::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fix) = _convert_with_fix(trait, geom, fix)
