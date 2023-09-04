@@ -31,9 +31,9 @@ function load(fname; layer=0, fix=true, kwargs...)
   if any(ext -> endswith(fname, ext), IMGEXT)
     data = FileIO.load(fname)
     dims = size(data)
-    etable = (; color=vec(data))
+    values = (; color=vec(data))
     domain = CartesianGrid(dims)
-    return geotable(domain; etable)
+    return georef(values, domain)
   end
 
   # geostats formats

@@ -24,5 +24,5 @@ function gadm(country, subregions...; depth=0, ϵ=nothing, min=3, max=typemax(In
   𝒯 = values(gtable)
   𝒟 = domain(gtable)
   𝒩 = decimate(𝒟, ϵ, min=min, max=max, maxiter=maxiter)
-  geotable(𝒩, etable=𝒯)
+  georef(𝒯, 𝒩)
 end
