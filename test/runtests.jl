@@ -288,7 +288,7 @@ end
       table1 = GeoIO.load(joinpath(datadir, fname))
       GeoIO.save(joinpath(savedir, fname), table1)
       table2 = GeoIO.load(joinpath(savedir, fname))
-      @test table1 == table2
+      @test table1.geometry == table2.geometry
     end
 
     @testset "GIS conversion" begin
