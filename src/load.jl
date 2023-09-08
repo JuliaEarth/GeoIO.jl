@@ -29,7 +29,7 @@ issues with polygons.
 function load(fname; layer=0, fix=true, kwargs...)
   # image formats
   if any(ext -> endswith(fname, ext), IMGEXT)
-    data = FileIO.load(fname)
+    data = FileIO.load(fname) |> rotr90
     dims = size(data)
     values = (; color=vec(data))
     domain = CartesianGrid(dims)

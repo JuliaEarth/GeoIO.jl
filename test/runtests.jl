@@ -3,6 +3,7 @@ using Tables
 using Meshes
 using GeoTables
 using Test, Random
+using ReferenceTests
 using Dates
 import GeoInterface as GI
 import Shapefile as SHP
@@ -280,6 +281,17 @@ end
 
       @test GeoIO.load(joinpath(datadir, "lines.parquet")) isa AbstractGeoTable
     end
+  end
+
+  @testset "save images" begin
+    fname = "image.jpg"
+    img1 = joinpath(datadir, fname)
+    img2 = joinpath(savedir, fname)
+    gtb1 = GeoIO.load(img1)
+    GeoIO.save(img2, gtb1)
+    gtb2 = GeoIO.load(img2)
+    @test gtb1.geometry == gtb2.geometry
+    @test psnr_equality()(gtb1.color, gtb2.color)
   end
 
   @testset "GIS conversion" begin
