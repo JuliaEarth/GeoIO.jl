@@ -30,7 +30,7 @@ function save(fname, geotable; kwargs...)
     @assert :color ∈ names "colors not found"
     colors = Tables.getcolumn(cols, :color)
     img = reshape(colors, size(grid)) |> rotl90
-    FileIO.save(fname, img)
+    return FileIO.save(fname, img)
   end
 
   # geostats formats
