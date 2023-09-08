@@ -20,6 +20,19 @@ Optionally, specify keyword arguments accepted by
 - Other formats via ArchGDAL.jl
 """
 function save(fname, geotable; kwargs...)
+  # image formats
+  if any(ext -> endswith(fname, ext), IMGEXT)
+    grid = domain(geotable)
+    @assert grid isa Grid "grid not found"
+    table = values(geotable)
+    cols = Tables.columns(table)
+    names = Tables.columnnames(cols)
+    @assert :color ∈ names "colors not found"
+    colors = Tables.getcolumn(cols, :color)
+    img = reshape(colors, size(grid)) |> rotl90
+    FileIO.save(fname, img)
+  end
+
   # geostats formats
   if endswith(fname, ".gslib")
     return GslibIO.save(fname, geotable; kwargs...)
