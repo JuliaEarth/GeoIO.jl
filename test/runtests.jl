@@ -3,6 +3,7 @@ using Tables
 using Meshes
 using GeoTables
 using Test, Random
+using ReferenceTests
 using Dates
 import GeoInterface as GI
 import Shapefile as SHP
@@ -285,10 +286,13 @@ end
   @testset "save" begin
     @testset "Images" begin
       fname = "image.jpg"
-      table1 = GeoIO.load(joinpath(datadir, fname))
-      GeoIO.save(joinpath(savedir, fname), table1)
-      table2 = GeoIO.load(joinpath(savedir, fname))
-      @test table1.geometry == table2.geometry
+      img1 = joinpath(datadir, fname)
+      img2 = joinpath(savedir, fname)
+      gtb1 = GeoIO.load(img1)
+      GeoIO.save(img2, gtb1)
+      gtb2 = GeoIO.load(img2)
+      @test gtb1.geometry == gtb2.geometry
+      @test psnr_equality()(gtb1.color, gtb2.color)
     end
 
     @testset "GIS conversion" begin
