@@ -286,7 +286,7 @@ end
     @testset "Images" begin
       fname = "image.jpg"
       table1 = GeoIO.load(joinpath(datadir, fname))
-      GeoIO.save(joinpath(savedir, fname))
+      GeoIO.save(joinpath(savedir, fname), table1)
       table2 = GeoIO.load(joinpath(savedir, fname))
       @test table1 == table2
     end
