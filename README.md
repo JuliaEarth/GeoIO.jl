@@ -9,7 +9,7 @@ framework.
 GeoIO.jl uses various backend packages spread across
 different Julia organizations to load a universal
 representation of geospatial data as discussed in
-the book [*Geospatial Data Science with Julia*]().
+the book [*Geospatial Data Science with Julia*](https://juliaearth.github.io/geospatial-data-science-with-julia).
 
 ## Supported formats
 
