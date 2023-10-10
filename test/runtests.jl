@@ -342,15 +342,4 @@ end
       end
     end
   end
-
-  @testset "gadm" begin
-    table = GeoIO.gadm("SVN", depth=1, ϵ=0.04)
-    @test length(table.geometry) == 12
-
-    table = GeoIO.gadm("QAT", depth=1, ϵ=0.04)
-    @test length(table.geometry) == 7
-
-    table = GeoIO.gadm("ISR", depth=1)
-    @test length(table.geometry) == 7
-  end
 end

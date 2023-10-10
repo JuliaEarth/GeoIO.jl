@@ -24,9 +24,6 @@ import ArchGDAL as AG
 import GeoParquet as GPQ
 import GeoInterface as GI
 
-# GADM data
-import GADM
-
 # image extensions
 const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
@@ -42,7 +39,6 @@ include("extra/gdal.jl")
 # user functions
 include("load.jl")
 include("save.jl")
-include("gadm.jl")
 
 # precompile popular formats
 include("precompile.jl")
