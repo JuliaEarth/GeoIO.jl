@@ -51,16 +51,6 @@ GeoIO.save("file.shp", table, force = true)
 
 Please read the docstrings for more details.
 
-### (Down)loading data from GADM
-
-The `gadm` function (down)loads data from the GADM dataset:
-
-```julia
-julia> GeoIO.gadm("BRA", depth = 1)
-```
-
-Please read the docstring for more details.
-
 ## Asking for help
 
 If you have any questions, please [contact our community](https://juliaearth.github.io/GeoStats.jl/stable/about/community.html).
