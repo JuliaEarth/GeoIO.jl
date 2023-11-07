@@ -16,15 +16,7 @@ by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 The option `fix` can be used to fix orientation and degeneracy
 issues with polygons.
 
-## Supported formats
-
-- `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` via ImageIO.jl
-- `.ply` via PlyIO.jl
-- `.gslib` via GslibIO.jl
-- `.shp` via Shapefile.jl
-- `.geojson` via GeoJSON.jl
-- `.parquet` via GeoParquet.jl
-- Other formats via ArchGDAL.jl
+To check supported formats, see the [`formats`](@ref) function.
 """
 function load(fname; layer=0, fix=true, kwargs...)
   # image formats
