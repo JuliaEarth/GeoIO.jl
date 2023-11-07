@@ -30,18 +30,18 @@ const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 # supported formats
 const FORMATS = [
-  (format=".ply", load="PlyIO.jl", save=""),
-  (format=".kml", load="ArchGDAL.jl", save=""),
-  (format=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
-  (format=".shp", load="Shapefile.jl", save="Shapefile.jl"),
-  (format=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
-  (format=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
-  (format=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
-  (format=".png", load="ImageIO.jl", save="ImageIO.jl"),
-  (format=".jgp", load="ImageIO.jl", save="ImageIO.jl"),
-  (format=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
-  (format=".tif", load="ImageIO.jl", save="ImageIO.jl"),
-  (format=".tiff", load="ImageIO.jl", save="ImageIO.jl")
+  (extension=".ply", load="PlyIO.jl", save=""),
+  (extension=".kml", load="ArchGDAL.jl", save=""),
+  (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
+  (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
+  (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
+  (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
+  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
+  (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".jgp", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".tif", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".tiff", load="ImageIO.jl", save="ImageIO.jl")
 ]
 
 """
@@ -50,11 +50,11 @@ const FORMATS = [
 Displays in `io` (defaults to `stdout` if `io` is not given) a table with 
 all formats supported by GeoIO.jl and the packages used to load and save each of them. 
 
-Optionally, sort the table by the `:format`, `:load` or `:save` columns using the `sortby` argument.
+Optionally, sort the table by the `:extension`, `:load` or `:save` columns using the `sortby` argument.
 """
-function formats(io::IO=stdout; sortby::Symbol=:format)
-  if sortby ∉ (:format, :load, :save)
-    throw(ArgumentError("`:$sortby` is not a valid column name, use one of these: `:format`, `:load` or `:save`"))
+function formats(io::IO=stdout; sortby::Symbol=:extension)
+  if sortby ∉ (:extension, :load, :save)
+    throw(ArgumentError("`:$sortby` is not a valid column name, use one of these: `:extension`, `:load` or `:save`"))
   end
   sorted = sort(FORMATS, by=(row -> row[sortby]))
   pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
