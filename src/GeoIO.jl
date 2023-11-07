@@ -50,7 +50,7 @@ const FORMATS = [
 Displays in `io` (defaults to `stdout` if `io` is not given) a table with 
 all formats supported by GeoIO.jl and the packages used to load and save each of them. 
 
-Optionally, it is possible to sort the table by the `:format`, `:load` or `:save` columns.
+Optionally, you can sort the table by the `:format`, `:load` or `:save` columns using the `sortby` argument.
 """
 function formats(io::IO=stdout; sortby::Symbol=:format)
   if sortby ∉ (:format, :load, :save)
