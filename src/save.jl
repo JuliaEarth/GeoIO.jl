@@ -11,7 +11,7 @@ Optionally, specify keyword arguments accepted by
 `Shapefile.write` and `GeoJSON.write`. For example, use
 `force = true` to force writing on existing `.shp` file.
 
-To check supported formats, see the [`formats`](@ref) function.
+To see supported formats, use the [`formats`](@ref) function.
 """
 function save(fname, geotable; kwargs...)
   # image formats

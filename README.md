@@ -11,20 +11,6 @@ different Julia organizations to load a universal
 representation of geospatial data as discussed in
 the book [*Geospatial Data Science with Julia*](https://juliaearth.github.io/geospatial-data-science-with-julia).
 
-## Supported formats
-
-- .shp
-- .geojson
-- .parquet
-- .gpkg
-- .kml
-- .jpg
-- .jpeg
-- .png
-- .tif
-- .tiff
-- .ply
-
 ## Usage
 
 ### Loading/saving data from/to disk
@@ -47,6 +33,30 @@ table = GeoIO.load("file.geojson", numbertype = Float64)
 
 # force writing on existing `.shp` file
 GeoIO.save("file.shp", table, force = true)
+```
+
+### Supported formats
+
+To see the formats supported by GeoIO.jl, use the `GeoIO.formats` function:
+
+```julia
+julia> GeoIO.formats()
+┌──────────┬───────────────┬───────────────┐
+│  format  │     load      │     save      │
+├──────────┼───────────────┼───────────────┤
+│ .geojson │  GeoJSON.jl   │  GeoJSON.jl   │
+│  .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
+│  .gslib  │  GslibIO.jl   │  GslibIO.jl   │
+│   .jgp   │  ImageIO.jl   │  ImageIO.jl   │
+│  .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
+│   .kml   │  ArchGDAL.jl  │               │
+│ .parquet │ GeoParquet.jl │ GeoParquet.jl │
+│   .ply   │   PlyIO.jl    │               │
+│   .png   │  ImageIO.jl   │  ImageIO.jl   │
+│   .shp   │ Shapefile.jl  │ Shapefile.jl  │
+│   .tif   │  ImageIO.jl   │  ImageIO.jl   │
+│  .tiff   │  ImageIO.jl   │  ImageIO.jl   │
+└──────────┴───────────────┴───────────────┘
 ```
 
 Please read the docstrings for more details.

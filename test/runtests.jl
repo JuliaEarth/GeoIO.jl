@@ -29,6 +29,76 @@ function _isequal(m::Multi, g)
 end
 
 @testset "GeoIO.jl" begin
+  @testset "formats" begin
+    io = IOBuffer()
+
+    GeoIO.formats(io)
+    iostr = String(take!(io))
+    @test iostr == """
+    ┌──────────┬───────────────┬───────────────┐
+    │  format  │     load      │     save      │
+    ├──────────┼───────────────┼───────────────┤
+    │ .geojson │  GeoJSON.jl   │  GeoJSON.jl   │
+    │  .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
+    │  .gslib  │  GslibIO.jl   │  GslibIO.jl   │
+    │   .jgp   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .kml   │  ArchGDAL.jl  │               │
+    │ .parquet │ GeoParquet.jl │ GeoParquet.jl │
+    │   .ply   │   PlyIO.jl    │               │
+    │   .png   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .shp   │ Shapefile.jl  │ Shapefile.jl  │
+    │   .tif   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .tiff   │  ImageIO.jl   │  ImageIO.jl   │
+    └──────────┴───────────────┴───────────────┘
+    """
+
+    GeoIO.formats(io, sortby=:load)
+    iostr = String(take!(io))
+    @test iostr == """
+    ┌──────────┬───────────────┬───────────────┐
+    │  format  │     load      │     save      │
+    ├──────────┼───────────────┼───────────────┤
+    │   .kml   │  ArchGDAL.jl  │               │
+    │  .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
+    │ .geojson │  GeoJSON.jl   │  GeoJSON.jl   │
+    │ .parquet │ GeoParquet.jl │ GeoParquet.jl │
+    │  .gslib  │  GslibIO.jl   │  GslibIO.jl   │
+    │   .png   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .jgp   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .tif   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .tiff   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .ply   │   PlyIO.jl    │               │
+    │   .shp   │ Shapefile.jl  │ Shapefile.jl  │
+    └──────────┴───────────────┴───────────────┘
+    """
+
+    GeoIO.formats(io, sortby=:save)
+    iostr = String(take!(io))
+    @test iostr == """
+    ┌──────────┬───────────────┬───────────────┐
+    │  format  │     load      │     save      │
+    ├──────────┼───────────────┼───────────────┤
+    │   .ply   │   PlyIO.jl    │               │
+    │   .kml   │  ArchGDAL.jl  │               │
+    │  .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
+    │ .geojson │  GeoJSON.jl   │  GeoJSON.jl   │
+    │ .parquet │ GeoParquet.jl │ GeoParquet.jl │
+    │  .gslib  │  GslibIO.jl   │  GslibIO.jl   │
+    │   .png   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .jgp   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .tif   │  ImageIO.jl   │  ImageIO.jl   │
+    │  .tiff   │  ImageIO.jl   │  ImageIO.jl   │
+    │   .shp   │ Shapefile.jl  │ Shapefile.jl  │
+    └──────────┴───────────────┴───────────────┘
+    """
+
+    # throws
+    @test_throws ArgumentError GeoIO.formats(sortby=:test)
+  end
+
   @testset "convert" begin
     points = Point2[(0, 0), (2.2, 2.2), (0.5, 2)]
     outer = Point2[(0, 0), (2.2, 2.2), (0.5, 2), (0, 0)]

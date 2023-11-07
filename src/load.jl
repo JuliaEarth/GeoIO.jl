@@ -16,7 +16,7 @@ by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 The option `fix` can be used to fix orientation and degeneracy
 issues with polygons.
 
-To check supported formats, see the [`formats`](@ref) function.
+To see supported formats, use the [`formats`](@ref) function.
 """
 function load(fname; layer=0, fix=true, kwargs...)
   # image formats

@@ -31,6 +31,7 @@ const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 # supported formats
 const FORMATS = [
   (format=".ply", load="PlyIO.jl", save=""),
+  (format=".kml", load="ArchGDAL.jl", save=""),
   (format=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (format=".shp", load="Shapefile.jl", save="Shapefile.jl"),
   (format=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
@@ -44,12 +45,20 @@ const FORMATS = [
 ]
 
 """
-    formats(io=stdout)
+    formats([io]; sortby=:format)
 
-Displays in `io` a table with all formats supported by GeoIO.jl
-and the packages used to load and save each of them. 
+Displays in `io` (defaults to `stdout` if `io` is not given) a table with 
+all formats supported by GeoIO.jl and the packages used to load and save each of them. 
+
+Optionally, it is possible to sort the table by the `:format`, `:load` or `:save` columns.
 """
-formats(io::IO=stdout) = pretty_table(io, FORMATS, alignment=:c, crop=:none, show_subheader=false)
+function formats(io::IO=stdout; sortby::Symbol=:format)
+  if sortby ∉ (:format, :load, :save)
+    throw(ArgumentError("`:$sortby` is not a valid column name, use one of these: `:format`, `:load` or `:save`"))
+  end
+  sorted = sort(FORMATS, by=(row -> row[sortby]))
+  pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
+end
 
 include("utils.jl")
 
