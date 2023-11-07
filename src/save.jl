@@ -11,13 +11,7 @@ Optionally, specify keyword arguments accepted by
 `Shapefile.write` and `GeoJSON.write`. For example, use
 `force = true` to force writing on existing `.shp` file.
 
-## Supported formats
-
-- `.gslib` via GslibIO.jl
-- `.shp` via Shapefile.jl
-- `.geojson` via GeoJSON.jl
-- `.parquet` via GeoParquet.jl
-- Other formats via ArchGDAL.jl
+To see supported formats, use the [`formats`](@ref) function.
 """
 function save(fname, geotable; kwargs...)
   # image formats
