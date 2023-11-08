@@ -37,7 +37,7 @@ GeoIO.save("file.shp", table, force = true)
 
 ### Supported formats
 
-To see the formats supported by GeoIO.jl, use the `GeoIO.formats` function:
+To see the formats supported by GeoIO.jl, use the `formats` function:
 
 ```julia
 julia> GeoIO.formats()
