@@ -152,8 +152,8 @@ end
     end
 
     @testset "VTK" begin
-      vtk = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu")
-      table = GeoIO.load(vtk)
+      file = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu")
+      table = GeoIO.load(file)
       @test table.geometry isa SimpleMesh
       @test eltype(table.cell_ids) <: Int
       @test eltype(table.element_ids) <: Int
