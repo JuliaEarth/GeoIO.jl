@@ -51,16 +51,32 @@ function vturead(fname)
   # construct mesh
   mesh = SimpleMesh(points, connec)
 
-  # extract columns with measurements
-  cols = ReadVTK.get_cell_data(vtk)
-  pairs = map(keys(cols)) do name
-    column = ReadVTK.get_data(cols[name])
-    Symbol(name) => column
+  # extract point data
+  vtable = try
+    vtkdata = ReadVTK.get_point_data(vtk)
+    _astable(vtkdata)
+  catch
+    nothing
   end
-  table = (; pairs...)
+
+  # extract element data
+  etable = try
+    vtkdata = ReadVTK.get_cell_data(vtk)
+    _astable(vtkdata)
+  catch
+    nothing
+  end
 
   # georeference
-  georef(table, mesh)
+  GeoTable(mesh; vtable, etable)
+end
+
+function _astable(vtkdata)
+  pairs = map(keys(vtkdata)) do name
+    column = ReadVTK.get_data(vtkdata[name])
+    Symbol(name) => column
+  end
+  (; pairs...)
 end
 
 # in the case of VTK_PIXEL and VTK_VOXEL
