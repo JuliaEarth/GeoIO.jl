@@ -56,6 +56,7 @@ julia> GeoIO.formats()
 │   .shp    │ Shapefile.jl  │ Shapefile.jl  │
 │   .tif    │  ImageIO.jl   │  ImageIO.jl   │
 │   .tiff   │  ImageIO.jl   │  ImageIO.jl   │
+│   .vtu    │  ReadVTK.jl   │               │
 └───────────┴───────────────┴───────────────┘
 ```
 
