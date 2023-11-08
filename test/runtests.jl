@@ -160,6 +160,15 @@ end
       @test eltype(table.levels) <: Int
       @test eltype(table.indicator_amr) <: Float64
       @test eltype(table.indicator_shock_capturing) <: Float64
+
+      # the "spiral.vtp" file was generated from the ReadVTK.jl test code
+      # link: https://github.com/JuliaVTK/ReadVTK.jl/blob/main/test/runtests.jl#L309
+      file = joinpath(datadir, "spiral.vtp")
+      table = GeoIO.load(file)
+      @test table.geometry isa SimpleMesh
+      @test eltype(table.h) <: Float64
+      vtable = values(table, 0)
+      @test eltype(vtable.theta) <: Float64
     end
 
     @testset "Shapefile" begin

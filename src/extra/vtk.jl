@@ -17,6 +17,8 @@ const GEOMTYPE = Dict(
 function vtkread(fname)
   if endswith(fname, ".vtu")
     vturead(fname)
+  elseif endswith(fname, ".vtp")
+    vtpread(fname)
   else
     error("unsupported VTK file format")
   end
@@ -71,12 +73,61 @@ function vturead(fname)
   GeoTable(mesh; vtable, etable)
 end
 
-function _astable(vtkdata)
-  pairs = map(keys(vtkdata)) do name
-    column = ReadVTK.get_data(vtkdata[name])
-    Symbol(name) => column
+function vtpread(fname)
+  vtk = ReadVTK.VTKFile(fname)
+
+  # get points
+  coords = ReadVTK.get_points(vtk)
+  points = [Point(Tuple(c)) for c in eachcol(coords)]
+
+  # get poly info
+  polys = ReadVTK.get_primitives(vtk, "Polys")
+  offsets = polys.offsets
+  connectivity = polys.connectivity .+ one(eltype(polys.connectivity))
+
+  # list of connectivity indices
+  inds = map(eachindex(offsets)) do i
+    start = i == 1 ? 1 : (offsets[i - 1] + 1)
+    Tuple(connectivity[start:offsets[i]])
   end
-  (; pairs...)
+
+  # construct connectivity elements
+  connec = [connect(ind, Ngon) for ind in inds]
+
+  # construct mesh
+  mesh = SimpleMesh(points, connec)
+
+  # extract point data
+  vtable = try
+    vtkdata = ReadVTK.get_point_data(vtk)
+    _astable(vtkdata)
+  catch
+    nothing
+  end
+
+  # extract element data
+  etable = try
+    vtkdata = ReadVTK.get_cell_data(vtk)
+    _astable(vtkdata)
+  catch
+    nothing
+  end
+
+  # georeference
+  GeoTable(mesh; vtable, etable)
+end
+
+function _astable(vtkdata)
+  names = keys(vtkdata)
+  if !isempty(names)
+    pairs = map(names) do name
+      column = ReadVTK.get_data(vtkdata[name])
+      Symbol(name) => column
+    end
+    (; pairs...)
+  else
+    nothing
+  end
 end
 
 # in the case of VTK_PIXEL and VTK_VOXEL
