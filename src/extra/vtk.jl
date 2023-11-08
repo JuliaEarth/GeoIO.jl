@@ -18,7 +18,7 @@ function vtkread(fname)
   if endswith(fname, ".vtu")
     vturead(fname)
   else
-    error("unsupported file format")
+    error("unsupported VTK file format")
   end
 end
 
