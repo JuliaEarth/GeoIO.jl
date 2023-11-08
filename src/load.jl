@@ -20,7 +20,7 @@ To see supported formats, use the [`formats`](@ref) function.
 """
 function load(fname; layer=0, fix=true, kwargs...)
   # image formats
-  if any(ext -> endswith(fname, ext), IMGEXT)
+  if any(ext -> endswith(fname, ext), IMGEXTS)
     data = FileIO.load(fname) |> rotr90
     dims = size(data)
     values = (; color=vec(data))
@@ -36,6 +36,11 @@ function load(fname; layer=0, fix=true, kwargs...)
   # mesh formats
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)
+  end
+
+  # vtk formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkread(fname)
   end
 
   # GIS formats
