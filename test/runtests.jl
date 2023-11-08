@@ -5,6 +5,7 @@ using GeoTables
 using Test, Random
 using ReferenceTests
 using Dates
+import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
 import ArchGDAL as AG
@@ -148,6 +149,17 @@ end
       @test table."Lithology"[1] isa Float64
       @test table."Water Saturation"[1] isa Float64
       @test isnan(table."Water Saturation"[end])
+    end
+
+    @testset "VTK" begin
+      vtk = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu")
+      table = GeoIO.load(vtk)
+      @test table.geometry isa SimpleMesh
+      @test eltype(table.cell_ids) <: Int
+      @test eltype(table.element_ids) <: Int
+      @test eltype(table.levels) <: Int
+      @test eltype(table.indicator_amr) <: Float64
+      @test eltype(table.indicator_shock_capturing) <: Float64
     end
 
     @testset "Shapefile" begin

@@ -15,7 +15,7 @@ To see supported formats, use the [`formats`](@ref) function.
 """
 function save(fname, geotable; kwargs...)
   # image formats
-  if any(ext -> endswith(fname, ext), IMGEXT)
+  if any(ext -> endswith(fname, ext), IMGEXTS)
     grid = domain(geotable)
     @assert grid isa Grid "grid not found"
     table = values(geotable)

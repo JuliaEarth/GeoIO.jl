@@ -18,6 +18,10 @@ import PlyIO
 # geostats formats
 import GslibIO
 
+# VTK formats
+import ReadVTK
+import VTKBase.VTKCellTypes
+
 # GIS formats
 import Shapefile as SHP
 import GeoJSON as GJS
@@ -26,11 +30,15 @@ import GeoParquet as GPQ
 import GeoInterface as GI
 
 # image extensions
-const IMGEXT = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
+const IMGEXTS = [".png", ".jpg", ".jpeg", ".tif", ".tiff"]
+
+# VTK extensions
+const VTKEXTS = [".vtu"]
 
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save=""),
+  (extension=".vtu", load="ReadVTK.jl", save=""),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
@@ -68,6 +76,7 @@ include("conversion.jl")
 # extra code for backends
 include("extra/ply.jl")
 include("extra/gdal.jl")
+include("extra/vtk.jl")
 
 # user functions
 include("load.jl")
