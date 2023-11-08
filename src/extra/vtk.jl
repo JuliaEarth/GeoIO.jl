@@ -27,11 +27,39 @@ end
 function vturead(fname)
   vtk = ReadVTK.VTKFile(fname)
 
-  # get points
-  coords = ReadVTK.get_points(vtk)
-  points = [Point(Tuple(c)) for c in eachcol(coords)]
+  # construct mesh
+  points = _points(vtk)
+  connec = _vtuconnec(vtk)
+  mesh = SimpleMesh(points, connec)
 
-  # get connectivity info
+  # extract data
+  vtable, etable = _datatables(vtk)
+
+  # georeference
+  GeoTable(mesh; vtable, etable)
+end
+
+function vtpread(fname)
+  vtk = ReadVTK.VTKFile(fname)
+
+  # construct mesh
+  points = _points(vtk)
+  connec = _vtpconnec(vtk)
+  mesh = SimpleMesh(points, connec)
+
+  # extract data
+  vtable, etable = _datatables(vtk)
+
+  # georeference
+  GeoTable(mesh; vtable, etable)
+end
+
+function _points(vtk)
+  coords = ReadVTK.get_points(vtk)
+  [Point(Tuple(c)) for c in eachcol(coords)]
+end
+
+function _vtuconnec(vtk)
   cells = ReadVTK.get_cells(vtk)
   offsets = cells.offsets
   connectivity = cells.connectivity
@@ -48,39 +76,10 @@ function vturead(fname)
   types = [GEOMTYPE[vtktype] for vtktype in vtktypes]
 
   # construct connectivity elements
-  connec = [connect(ind, G) for (ind, G) in zip(inds, types)]
-
-  # construct mesh
-  mesh = SimpleMesh(points, connec)
-
-  # extract point data
-  vtable = try
-    vtkdata = ReadVTK.get_point_data(vtk)
-    _astable(vtkdata)
-  catch
-    nothing
-  end
-
-  # extract element data
-  etable = try
-    vtkdata = ReadVTK.get_cell_data(vtk)
-    _astable(vtkdata)
-  catch
-    nothing
-  end
-
-  # georeference
-  GeoTable(mesh; vtable, etable)
+  [connect(ind, G) for (ind, G) in zip(inds, types)]
 end
 
-function vtpread(fname)
-  vtk = ReadVTK.VTKFile(fname)
-
-  # get points
-  coords = ReadVTK.get_points(vtk)
-  points = [Point(Tuple(c)) for c in eachcol(coords)]
-
-  # get poly info
+function _vtpconnec(vtk)
   polys = ReadVTK.get_primitives(vtk, "Polys")
   offsets = polys.offsets
   connectivity = polys.connectivity .+ one(eltype(polys.connectivity))
@@ -92,11 +91,10 @@ function vtpread(fname)
   end
 
   # construct connectivity elements
-  connec = [connect(ind, Ngon) for ind in inds]
+  [connect(ind, Ngon) for ind in inds]
+end
 
-  # construct mesh
-  mesh = SimpleMesh(points, connec)
-
+function _datatables(vtk)
   # extract point data
   vtable = try
     vtkdata = ReadVTK.get_point_data(vtk)
@@ -113,8 +111,7 @@ function vtpread(fname)
     nothing
   end
 
-  # georeference
-  GeoTable(mesh; vtable, etable)
+  vtable, etable
 end
 
 function _astable(vtkdata)
