@@ -82,7 +82,7 @@ end
 function _vtpconnec(vtk)
   polys = ReadVTK.get_primitives(vtk, "Polys")
   offsets = polys.offsets
-  connectivity = polys.connectivity .+ one(eltype(polys.connectivity))
+  connectivity = polys.connectivity
 
   # list of connectivity indices
   inds = map(eachindex(offsets)) do i
