@@ -147,7 +147,7 @@ end
 
 function _asvector(column)
   if ndims(column) == 2
-    SA = size(column, 1) == 9 ? SMatrix{3, 3} : SVector{3}
+    SA = size(column, 1) == 9 ? SMatrix{3,3} : SVector{3}
     [SA(c) for c in eachcol(column)]
   else
     column
