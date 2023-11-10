@@ -33,13 +33,14 @@ import GeoInterface as GI
 const IMGEXTS = [".png", ".jpg", ".jpeg", ".tif", ".tiff"]
 
 # VTK extensions
-const VTKEXTS = [".vtu", ".vtp"]
+const VTKEXTS = [".vtu", ".vtp", ".vtr"]
 
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save=""),
   (extension=".vtu", load="ReadVTK.jl", save=""),
   (extension=".vtp", load="ReadVTK.jl", save=""),
+  (extension=".vtr", load="ReadVTK.jl", save=""),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),

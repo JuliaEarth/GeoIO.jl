@@ -19,6 +19,8 @@ function vtkread(fname)
     vturead(fname)
   elseif endswith(fname, ".vtp")
     vtpread(fname)
+  elseif endswith(fname, ".vtr")
+    vtrread(fname)
   else
     error("unsupported VTK file format")
   end
@@ -52,6 +54,19 @@ function vtpread(fname)
 
   # georeference
   GeoTable(mesh; vtable, etable)
+end
+
+function vtrread(fname)
+  vtk = ReadVTK.VTKFile(fname)
+
+  x, y, z = ReadVTK.get_coordinates(vtk)
+  grid = RectilinearGrid(x, y, z)
+
+  # extract data
+  vtable, etable = _datatables(vtk)
+
+  # georeference
+  GeoTable(grid; vtable, etable)
 end
 
 function _points(vtk)
