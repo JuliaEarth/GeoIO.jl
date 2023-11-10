@@ -7,6 +7,7 @@ module GeoIO
 using Meshes
 using Tables
 using GeoTables
+using StaticArrays
 using PrettyTables
 
 # image formats

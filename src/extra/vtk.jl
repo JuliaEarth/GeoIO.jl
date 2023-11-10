@@ -60,8 +60,9 @@ function vtrread(fname)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
-  x, y, z = ReadVTK.get_coordinates(vtk)
-  grid = RectilinearGrid(x, y, z)
+  coords = ReadVTK.get_coordinates(vtk)
+  inds = map(!allequal, coords) |> collect
+  grid = RectilinearGrid(coords[inds]...)
 
   # extract data
   vtable, etable = _datatables(vtk)
@@ -72,7 +73,8 @@ end
 
 function _points(vtk)
   coords = ReadVTK.get_points(vtk)
-  [Point(Tuple(c)) for c in eachcol(coords)]
+  inds = map(!allequal, eachrow(coords))
+  [Point(Tuple(c)) for c in eachcol(coords[inds, :])]
 end
 
 function _vtuconnec(vtk)
@@ -135,11 +137,20 @@ function _astable(vtkdata)
   if !isempty(names)
     pairs = map(names) do name
       column = ReadVTK.get_data(vtkdata[name])
-      Symbol(name) => column
+      Symbol(name) => _asvector(column)
     end
     (; pairs...)
   else
     nothing
+  end
+end
+
+function _asvector(column)
+  if ndims(column) == 2
+    SA = size(column, 1) == 9 ? SMatrix{3, 3} : SVector{3}
+    [SA(c) for c in eachcol(column)]
+  else
+    column
   end
 end
 
