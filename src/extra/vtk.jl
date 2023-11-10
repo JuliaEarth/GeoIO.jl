@@ -59,6 +59,7 @@ end
 function vtrread(fname)
   vtk = ReadVTK.VTKFile(fname)
 
+  # construct grid
   x, y, z = ReadVTK.get_coordinates(vtk)
   grid = RectilinearGrid(x, y, z)
 
