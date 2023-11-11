@@ -48,7 +48,7 @@ julia> GeoIO.formats()
 │ .geojson  │  GeoJSON.jl   │  GeoJSON.jl   │
 │   .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
 │  .gslib   │  GslibIO.jl   │  GslibIO.jl   │
-│   .jgp    │  ImageIO.jl   │  ImageIO.jl   │
+│   .jpg    │  ImageIO.jl   │  ImageIO.jl   │
 │   .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
 │   .kml    │  ArchGDAL.jl  │               │
 │ .parquet  │ GeoParquet.jl │ GeoParquet.jl │

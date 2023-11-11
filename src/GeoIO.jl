@@ -49,7 +49,7 @@ const FORMATS = [
   (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
   (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
   (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".jgp", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".tif", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".tiff", load="ImageIO.jl", save="ImageIO.jl")
