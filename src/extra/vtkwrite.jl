@@ -22,7 +22,7 @@ function vtkwrite(fname, geotable)
   end
 end
 
-function vtuwrite(fname, mesh::SimpleMesh, etable, vtable)
+function vtuwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
@@ -33,7 +33,7 @@ function vtuwrite(fname, mesh::SimpleMesh, etable, vtable)
   end
 end
 
-function vtpwrite(fname, mesh::SimpleMesh, etable, vtable)
+function vtpwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
@@ -63,6 +63,7 @@ function vtiwrite(fname, grid::CartesianGrid, etable, vtable)
   xyz = map(orig, spac, dims) do o, s, d
     range(start=o, step=s, length=(d + 1))
   end
+
   WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
