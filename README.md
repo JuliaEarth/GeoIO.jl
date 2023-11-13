@@ -38,7 +38,7 @@ GeoIO.save("file.shp", table, force = true)
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on November 10th, 2023:
+Below is the output generated on November 13th, 2023:
 
 ```julia
 julia> GeoIO.formats()
@@ -57,9 +57,11 @@ julia> GeoIO.formats()
 │   .shp    │ Shapefile.jl  │ Shapefile.jl  │
 │   .tif    │  ImageIO.jl   │  ImageIO.jl   │
 │   .tiff   │  ImageIO.jl   │  ImageIO.jl   │
-│   .vtp    │  ReadVTK.jl   │               │
-│   .vtr    │  ReadVTK.jl   │               │
-│   .vtu    │  ReadVTK.jl   │               │
+│   .vti    │  ReadVTK.jl   │  WriteVTK.jl  │
+│   .vtp    │  ReadVTK.jl   │  WriteVTK.jl  │
+│   .vtr    │  ReadVTK.jl   │  WriteVTK.jl  │
+│   .vts    │  ReadVTK.jl   │  WriteVTK.jl  │
+│   .vtu    │  ReadVTK.jl   │  WriteVTK.jl  │
 └───────────┴───────────────┴───────────────┘
 ```
 
