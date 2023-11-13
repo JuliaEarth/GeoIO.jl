@@ -6,7 +6,7 @@ function vtkwrite(fname, geotable)
   dom = domain(geotable)
   etable = values(geotable)
   vtable = values(geotable, 0)
-  
+
   if endswith(fname, ".vtu")
     vtuwrite(fname, dom, etable, vtable)
   elseif endswith(fname, ".vtp")
@@ -60,7 +60,7 @@ function vtiwrite(fname, grid::CartesianGrid, etable, vtable)
   orig = coordinates(minimum(grid))
   spac = spacing(grid)
   dims = size(grid)
-  xyz = map(orig, spac, dims) do o, s, d 
+  xyz = map(orig, spac, dims) do o, s, d
     range(start=o, step=s, length=(d + 1))
   end
   WriteVTK.vtk_grid(fname, xyz...) do vtk

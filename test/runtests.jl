@@ -360,17 +360,6 @@ end
     end
   end
 
-  @testset "save images" begin
-    fname = "image.jpg"
-    img1 = joinpath(datadir, fname)
-    img2 = joinpath(savedir, fname)
-    gtb1 = GeoIO.load(img1)
-    GeoIO.save(img2, gtb1)
-    gtb2 = GeoIO.load(img2)
-    @test gtb1.geometry == gtb2.geometry
-    @test psnr_equality()(gtb1.color, gtb2.color)
-  end
-
   @testset "save" begin
     @testset "Images" begin
       fname = "image.jpg"
