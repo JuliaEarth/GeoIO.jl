@@ -46,7 +46,7 @@ const FORMATS = [
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".vti", load="ReadVTK.jl", save=""),
+  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),

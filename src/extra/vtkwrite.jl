@@ -23,6 +23,8 @@ function vtkwrite(fname, geotable)
     vtrwrite(fname, dom, etable, vtable)
   elseif endswith(fname, ".vts")
     vtswrite(fname, dom, etable, vtable)
+  elseif endswith(fname, ".vti")
+    vtiwrite(fname, dom, etable, vtable)
   else
     error("unsupported VTK file format")
   end
@@ -58,6 +60,18 @@ end
 
 function vtswrite(fname, grid::StructuredGrid, etable, vtable)
   WriteVTK.vtk_grid(fname, grid.XYZ...) do vtk
+    _writetables(vtk, etable, vtable)
+  end
+end
+
+function vtiwrite(fname, grid::CartesianGrid, etable, vtable)
+  orig = coordinates(minimum(grid))
+  spac = spacing(grid)
+  dims = size(grid)
+  xyz = map(orig, spac, dims) do o, s, d 
+    range(start=o, step=s, length=d)
+  end
+  WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
