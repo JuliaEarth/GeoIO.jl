@@ -79,13 +79,8 @@ function vtsread(fname)
   # construct grid
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
-  dims = reverse(findall(!, inds))
-  XYZ = map(coords[inds]) do coord
-    for d in dims
-      coord = dropdims(coord, dims=d)
-    end
-    coord
-  end
+  dims = findall(!, inds) |> Tuple
+  XYZ = map(A -> dropdims(A; dims), coords[inds])
   grid = StructuredGrid(XYZ...)
 
   # extract data
