@@ -23,6 +23,8 @@ function vtkread(fname)
     vtrread(fname)
   elseif endswith(fname, ".vts")
     vtsread(fname)
+  elseif endswith(fname, ".vti")
+    vtiread(fname)
   else
     error("unsupported VTK file format")
   end
@@ -82,6 +84,30 @@ function vtsread(fname)
   dims = findall(!, inds) |> Tuple
   XYZ = map(A -> dropdims(A; dims), coords[inds])
   grid = StructuredGrid(XYZ...)
+
+  # extract data
+  vtable, etable = _datatables(vtk)
+
+  # georeference
+  GeoTable(grid; vtable, etable)
+end
+
+function vtiread(fname)
+  vtk = ReadVTK.VTKFile(fname)
+
+  # construct grid
+  ext = ReadVTK.get_whole_extent(vtk)
+  # the get_origin and get_spacing functions drop the z dimension if it is empty, 
+  # but the get_whole_extent function does not
+  dims = if iszero(ext[5]) && iszero(ext[6])
+    (ext[2] - ext[1], ext[4] - ext[3])
+  else
+    (ext[2] - ext[1], ext[4] - ext[3], ext[6] - ext[5])
+  end
+  inds = findall(!iszero, dims)
+  origin = ReadVTK.get_origin(vtk) |> Tuple
+  spacing = ReadVTK.get_spacing(vtk) |> Tuple
+  grid = CartesianGrid(dims[inds], origin[inds], spacing[inds])
 
   # extract data
   vtable, etable = _datatables(vtk)
@@ -166,7 +192,18 @@ end
 
 function _asvector(column)
   if ndims(column) == 2
-    SA = size(column, 1) == 9 ? SMatrix{3,3} : SVector{3}
+    N = size(column, 1)
+    SA = if N == 9
+      SMatrix{3,3}
+    elseif N == 4
+      SMatrix{2,2}
+    elseif N == 3
+      SVector{3}
+    elseif N == 2
+      SVector{2}
+    else
+      error("data with invalid number of dimensions")
+    end
     [SA(c) for c in eachcol(column)]
   else
     column
