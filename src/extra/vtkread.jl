@@ -158,7 +158,7 @@ function _vtpconnec(vtk)
   end
 
   # construct connectivity elements
-  [connect(ind) for ind in inds]
+  [connect(ind, Ngon) for ind in inds]
 end
 
 function _datatables(vtk)
