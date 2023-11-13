@@ -32,6 +32,11 @@ function save(fname, geotable; kwargs...)
     return GslibIO.save(fname, geotable; kwargs...)
   end
 
+  # vtk formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkwrite(fname, geotable)
+  end
+
   # GIS formats
   if endswith(fname, ".shp")
     SHP.write(fname, geotable; kwargs...)

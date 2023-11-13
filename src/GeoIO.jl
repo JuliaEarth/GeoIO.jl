@@ -21,6 +21,7 @@ import GslibIO
 
 # VTK formats
 import ReadVTK
+import WriteVTK
 import VTKBase.VTKCellTypes
 
 # GIS formats
@@ -39,8 +40,8 @@ const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save=""),
-  (extension=".vtu", load="ReadVTK.jl", save=""),
-  (extension=".vtp", load="ReadVTK.jl", save=""),
+  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save=""),
   (extension=".vts", load="ReadVTK.jl", save=""),
   (extension=".vti", load="ReadVTK.jl", save=""),
@@ -81,7 +82,8 @@ include("conversion.jl")
 # extra code for backends
 include("extra/ply.jl")
 include("extra/gdal.jl")
-include("extra/vtk.jl")
+include("extra/vtkread.jl")
+include("extra/vtkwrite.jl")
 
 # user functions
 include("load.jl")
