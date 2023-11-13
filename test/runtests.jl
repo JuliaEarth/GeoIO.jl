@@ -195,6 +195,16 @@ end
       @test eltype(vtable.q_values) <: Float32
       @test size(eltype(vtable.myVector)) == (3,)
       @test eltype(eltype(vtable.myVector)) <: Float32
+
+      # the "imagedata.vti" file was generated from the WriteVTR.jl test code
+      # link: https://github.com/JuliaVTK/WriteVTK.jl/blob/master/test/imagedata.jl
+      file = joinpath(datadir, "imagedata.vti")
+      table = GeoIO.load(file)
+      @test table.geometry isa CartesianGrid
+      @test eltype(table.myCellData) <: Float32
+      vtable = values(table, 0)
+      @test size(eltype(vtable.myVector)) == (2,)
+      @test eltype(eltype(vtable.myVector)) <: Float32
     end
 
     @testset "Shapefile" begin
