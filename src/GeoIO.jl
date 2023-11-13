@@ -13,15 +13,18 @@ using PrettyTables
 # image formats
 import FileIO
 
+# VTK formats
+import ReadVTK
+import WriteVTK
+import VTKBase
+import VTKBase.PolyData
+import VTKBase.VTKCellTypes
+
 # mesh formats
 import PlyIO
 
 # geostats formats
 import GslibIO
-
-# VTK formats
-import ReadVTK
-import VTKBase.VTKCellTypes
 
 # GIS formats
 import Shapefile as SHP
@@ -39,11 +42,11 @@ const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save=""),
-  (extension=".vtu", load="ReadVTK.jl", save=""),
-  (extension=".vtp", load="ReadVTK.jl", save=""),
-  (extension=".vtr", load="ReadVTK.jl", save=""),
-  (extension=".vts", load="ReadVTK.jl", save=""),
-  (extension=".vti", load="ReadVTK.jl", save=""),
+  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
@@ -81,7 +84,8 @@ include("conversion.jl")
 # extra code for backends
 include("extra/ply.jl")
 include("extra/gdal.jl")
-include("extra/vtk.jl")
+include("extra/vtkread.jl")
+include("extra/vtkwrite.jl")
 
 # user functions
 include("load.jl")

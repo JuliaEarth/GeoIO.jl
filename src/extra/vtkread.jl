@@ -116,6 +116,10 @@ function vtiread(fname)
   GeoTable(grid; vtable, etable)
 end
 
+#-------
+# UTILS
+#-------
+
 function _points(vtk)
   coords = ReadVTK.get_points(vtk)
   inds = map(!allequal, eachrow(coords))

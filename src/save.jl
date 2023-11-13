@@ -27,6 +27,11 @@ function save(fname, geotable; kwargs...)
     return FileIO.save(fname, img)
   end
 
+  # VTK formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkwrite(fname, geotable)
+  end
+
   # geostats formats
   if endswith(fname, ".gslib")
     return GslibIO.save(fname, geotable; kwargs...)

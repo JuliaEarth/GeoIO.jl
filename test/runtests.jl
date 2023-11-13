@@ -152,7 +152,7 @@ end
     end
 
     @testset "VTK" begin
-      file = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu")
+      file = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu", output_directory=savedir)
       table = GeoIO.load(file)
       @test table.geometry isa SimpleMesh
       @test eltype(table.cell_ids) <: Int
@@ -360,15 +360,59 @@ end
     end
   end
 
-  @testset "save images" begin
-    fname = "image.jpg"
-    img1 = joinpath(datadir, fname)
-    img2 = joinpath(savedir, fname)
-    gtb1 = GeoIO.load(img1)
-    GeoIO.save(img2, gtb1)
-    gtb2 = GeoIO.load(img2)
-    @test gtb1.geometry == gtb2.geometry
-    @test psnr_equality()(gtb1.color, gtb2.color)
+  @testset "save" begin
+    @testset "Images" begin
+      fname = "image.jpg"
+      img1 = joinpath(datadir, fname)
+      img2 = joinpath(savedir, fname)
+      gtb1 = GeoIO.load(img1)
+      GeoIO.save(img2, gtb1)
+      gtb2 = GeoIO.load(img2)
+      @test gtb1.geometry == gtb2.geometry
+      @test psnr_equality()(gtb1.color, gtb2.color)
+    end
+
+    @testset "VTK" begin
+      file1 = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu", output_directory=savedir)
+      file2 = joinpath(savedir, "unstructured.vtu")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+
+      file1 = joinpath(datadir, "spiral.vtp")
+      file2 = joinpath(savedir, "spiral.vtp")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+
+      file1 = joinpath(datadir, "rectilinear.vtr")
+      file2 = joinpath(savedir, "rectilinear.vtr")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+
+      file1 = joinpath(datadir, "structured.vts")
+      file2 = joinpath(savedir, "structured.vts")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+
+      file1 = joinpath(datadir, "imagedata.vti")
+      file2 = joinpath(savedir, "imagedata.vti")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+    end
   end
 
   @testset "GIS conversion" begin
