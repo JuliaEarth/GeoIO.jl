@@ -26,7 +26,7 @@ function vtuwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
-  cells = map(c -> VTKBase.MeshCell(_vtktype(pltype(c)), indices(c)), connec)
+  cells = [VTKBase.MeshCell(_vtktype(pltype(c)), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
     _writetables(vtk, etable, vtable)
@@ -37,7 +37,7 @@ function vtpwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
-  cells = map(c -> VTKBase.MeshCell(PolyData.Polys(), indices(c)), connec)
+  cells = [VTKBase.MeshCell(PolyData.Polys(), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
     _writetables(vtk, etable, vtable)
