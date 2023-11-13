@@ -77,10 +77,16 @@ function vtsread(fname)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
-  xyz = ReadVTK.get_coordinates(vtk)
-  inds = map(!allequal, xyz) |> collect
-  coords = map(c -> reshape(c, size(c)[inds]), xyz[inds])
-  grid = StructuredGrid(coords...)
+  coords = ReadVTK.get_coordinates(vtk)
+  inds = map(!allequal, coords) |> collect
+  dims = reverse(findall(!, inds))
+  XYZ = map(coords[inds]) do coord
+    for d in dims
+      coord = dropdims(coord, dims=d)
+    end
+    coord
+  end
+  grid = StructuredGrid(XYZ...)
 
   # extract data
   vtable, etable = _datatables(vtk)
