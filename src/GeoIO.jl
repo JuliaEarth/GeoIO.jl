@@ -16,6 +16,8 @@ import FileIO
 # VTK formats
 import ReadVTK
 import WriteVTK
+import VTKBase
+import VTKBase.PolyData
 import VTKBase.VTKCellTypes
 
 # mesh formats
@@ -42,8 +44,8 @@ const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save=""),
   (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".vtr", load="ReadVTK.jl", save=""),
-  (extension=".vts", load="ReadVTK.jl", save=""),
+  (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vti", load="ReadVTK.jl", save=""),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),

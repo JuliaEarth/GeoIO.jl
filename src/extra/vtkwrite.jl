@@ -12,45 +12,64 @@ vtktype(::Type{<:Pyramid}) = VTKCellTypes.VTK_PYRAMID
 
 function vtkwrite(fname, geotable)
   dom = domain(geotable)
-  edata = values(geotable)
-  pdata = values(geotable, 0)
+  etable = values(geotable)
+  vtable = values(geotable, 0)
   
   if endswith(fname, ".vtu")
-    vtuwrite(fname, dom, edata, pdata)
+    vtuwrite(fname, dom, etable, vtable)
   elseif endswith(fname, ".vtp")
-    vtpwrite(fname, dom, edata, pdata)
+    vtpwrite(fname, dom, etable, vtable)
+  elseif endswith(fname, ".vtr")
+    vtrwrite(fname, dom, etable, vtable)
+  elseif endswith(fname, ".vts")
+    vtswrite(fname, dom, etable, vtable)
   else
     error("unsupported VTK file format")
   end
 end
 
-function vtuwrite(fname, mesh::SimpleMesh, edata, pdata)
+function vtuwrite(fname, mesh::SimpleMesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
   cells = map(c -> (vtktype(pltype(c)), indices(c)), connec)
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
-    _writetable(vtk, WriteVTK.VTKCellData(), edata)
-    _writetable(vtk, WriteVTK.VTKPointData(), pdata)
+    _writetables(vtk, etable, vtable)
   end
 end
 
-function vtpwrite(fname, mesh::SimpleMesh, edata, pdata)
+function vtpwrite(fname, mesh::SimpleMesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
   points = stack(coordinates, verts)
   cells = map(c -> (WriteVTK.PolyData.Polys(), indices(c)), connec)
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
-    _writetable(vtk, WriteVTK.VTKCellData(), edata)
-    _writetable(vtk, WriteVTK.VTKPointData(), pdata)
+    _writetables(vtk, etable, vtable)
+  end
+end
+
+function vtrwrite(fname, grid::RectilinearGrid, etable, vtable)
+  WriteVTK.vtk_grid(fname, grid.xyz...) do vtk
+    _writetables(vtk, etable, vtable)
+  end
+end
+
+function vtswrite(fname, grid::StructuredGrid, etable, vtable)
+  WriteVTK.vtk_grid(fname, grid.XYZ...) do vtk
+    _writetables(vtk, etable, vtable)
   end
 end
 
 #-------
 # UTILS
 #-------
+
+function _writetables(vtk, etable, vtable)
+  _writetable(vtk, VTKBase.VTKCellData(), etable)
+  _writetable(vtk, VTKBase.VTKPointData(), vtable)
+end
 
 function _writetable(vtk, datatype, table)
   if !isnothing(table)
