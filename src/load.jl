@@ -28,6 +28,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return georef(values, domain)
   end
 
+  # VTK formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkread(fname)
+  end
+
   # geostats formats
   if endswith(fname, ".gslib")
     return GslibIO.load(fname; kwargs...)
@@ -36,11 +41,6 @@ function load(fname; layer=0, fix=true, kwargs...)
   # mesh formats
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)
-  end
-
-  # vtk formats
-  if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkread(fname)
   end
 
   # GIS formats

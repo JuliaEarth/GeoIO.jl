@@ -13,16 +13,16 @@ using PrettyTables
 # image formats
 import FileIO
 
+# VTK formats
+import ReadVTK
+import WriteVTK
+import VTKBase.VTKCellTypes
+
 # mesh formats
 import PlyIO
 
 # geostats formats
 import GslibIO
-
-# VTK formats
-import ReadVTK
-import WriteVTK
-import VTKBase.VTKCellTypes
 
 # GIS formats
 import Shapefile as SHP
