@@ -21,6 +21,8 @@ function vtkread(fname)
     vtpread(fname)
   elseif endswith(fname, ".vtr")
     vtrread(fname)
+  elseif endswith(fname, ".vts")
+    vtsread(fname)
   else
     error("unsupported VTK file format")
   end
@@ -63,6 +65,22 @@ function vtrread(fname)
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
   grid = RectilinearGrid(coords[inds]...)
+
+  # extract data
+  vtable, etable = _datatables(vtk)
+
+  # georeference
+  GeoTable(grid; vtable, etable)
+end
+
+function vtsread(fname)
+  vtk = ReadVTK.VTKFile(fname)
+
+  # construct grid
+  xyz = ReadVTK.get_coordinates(vtk)
+  inds = map(!allequal, xyz) |> collect
+  coords = map(c -> reshape(c, size(c)[inds]), xyz[inds])
+  grid = StructuredGrid(coords...)
 
   # extract data
   vtable, etable = _datatables(vtk)
