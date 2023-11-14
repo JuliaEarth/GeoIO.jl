@@ -19,7 +19,7 @@ issues with polygons.
 To see supported formats, use the [`formats`](@ref) function.
 """
 function load(fname; layer=0, fix=true, kwargs...)
-  # image formats
+  # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     data = FileIO.load(fname) |> rotr90
     dims = size(data)
@@ -33,14 +33,14 @@ function load(fname; layer=0, fix=true, kwargs...)
     return vtkread(fname)
   end
 
-  # geostats formats
-  if endswith(fname, ".gslib")
-    return GslibIO.load(fname; kwargs...)
-  end
-
-  # mesh formats
+  # PLY format
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)
+  end
+
+  # GSLIB format
+  if endswith(fname, ".gslib")
+    return GslibIO.load(fname; kwargs...)
   end
 
   # GIS formats

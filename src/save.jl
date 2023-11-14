@@ -14,7 +14,7 @@ Optionally, specify keyword arguments accepted by
 To see supported formats, use the [`formats`](@ref) function.
 """
 function save(fname, geotable; kwargs...)
-  # image formats
+  # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     grid = domain(geotable)
     @assert grid isa Grid "grid not found"
@@ -32,7 +32,7 @@ function save(fname, geotable; kwargs...)
     return vtkwrite(fname, geotable)
   end
 
-  # geostats formats
+  # GSLIB format
   if endswith(fname, ".gslib")
     return GslibIO.save(fname, geotable; kwargs...)
   end
