@@ -23,6 +23,6 @@ function geomcolumn(names)
   elseif Symbol("") ∈ names
     Symbol("")
   else
-    throw(ErrorException("geometry column not found"))
+    error("geometry column not found")
   end
 end

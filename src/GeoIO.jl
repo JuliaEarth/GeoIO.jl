@@ -41,7 +41,7 @@ const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
 # supported formats
 const FORMATS = [
-  (extension=".ply", load="PlyIO.jl", save=""),
+  (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
   (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
