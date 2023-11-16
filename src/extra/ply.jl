@@ -27,3 +27,54 @@ function plyread(fname; kwargs...)
   # return geospatial data
   GeoTable(domain; vtable, etable)
 end
+
+function plywrite(fname, geotable; kwargs...)
+  mesh = domain(geotable)
+  if !(mesh isa Mesh{3})
+    error("the ply format only supports 3D meshes")
+  end
+
+  # retrive data
+  etable = values(geotable)
+  vtable = values(geotable, 0)
+
+  # retrive vertices and connectivity
+  verts = vertices(mesh)
+  connec = elements(topology(mesh))
+
+  # create ply dictionary
+  ply = PlyIO.Ply()
+
+  # push vertices
+  plyverts = PlyIO.PlyElement(
+    "vertex",
+    PlyIO.ArrayProperty("x", _getcoord(verts, 1)),
+    PlyIO.ArrayProperty("y", _getcoord(verts, 2)),
+    PlyIO.ArrayProperty("z", _getcoord(verts, 3)),
+    _tableprops(vtable)...
+  )
+  push!(ply, plyverts)
+
+  # push connectivity
+  plyinds = PlyIO.ListProperty("vertex_indices", [collect(indices(c) .- 1) for c in connec])
+  plyconnec = PlyIO.PlyElement("face", plyinds, _tableprops(etable)...)
+  push!(ply, plyconnec)
+
+  # save file
+  PlyIO.save_ply(ply, fname; kwargs...)
+end
+
+_getcoord(verts, i) = map(p -> coordinates(p)[i], verts)
+
+function _tableprops(table)
+  if !isnothing(table)
+    cols = Tables.columns(table)
+    names = Tables.columnnames(cols)
+    map(names) do name
+      column = Tables.getcolumn(cols, name)
+      PlyIO.ArrayProperty(string(name), column)
+    end
+  else
+    ()
+  end
+end

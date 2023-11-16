@@ -372,6 +372,16 @@ end
       @test psnr_equality()(gtb1.color, gtb2.color)
     end
 
+    @testset "PLY" begin
+      file1 = joinpath(datadir, "beethoven.ply")
+      file2 = joinpath(savedir, "beethoven.ply")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
+    end
+
     @testset "VTK" begin
       file1 = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu", output_directory=savedir)
       file2 = joinpath(savedir, "unstructured.vtu")
