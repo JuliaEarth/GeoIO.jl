@@ -452,6 +452,10 @@ end
       @test nvertices(table2.geometry) == nvertices(table1.geometry)
       @test vertices(table2.geometry) == vertices(table1.geometry)
       @test values(table2) == values(table1)
+
+      # throw: the vtr format does not support structured grids
+      table = GeoIO.load(joinpath(datadir, "structured.vts"))
+      @test_throws ErrorException GeoIO.save(joinpath(savedir, "structured.vtr"), table)
     end
   end
 
