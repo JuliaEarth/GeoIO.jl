@@ -44,14 +44,19 @@ function vtpwrite(fname, mesh::Mesh, etable, vtable)
   end
 end
 
-function vtrwrite(fname, grid::RectilinearGrid, etable, vtable)
-  WriteVTK.vtk_grid(fname, grid.xyz...) do vtk
+function vtrwrite(fname, grid::Grid, etable, vtable)
+  if !(grid isa Union{RectilinearGrid,CartesianGrid})
+    error("the vtr format only supports rectilinear or cartesian grids")
+  end
+
+  xyz = map(collect, Meshes.xyz(grid))
+  WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
 
-function vtswrite(fname, grid::StructuredGrid, etable, vtable)
-  WriteVTK.vtk_grid(fname, grid.XYZ...) do vtk
+function vtswrite(fname, grid::Grid, etable, vtable)
+  WriteVTK.vtk_grid(fname, Meshes.XYZ(grid)...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
