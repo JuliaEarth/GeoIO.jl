@@ -49,7 +49,8 @@ function vtrwrite(fname, grid::Grid, etable, vtable)
     error("the vtr format only supports rectilinear or cartesian grids")
   end
 
-  WriteVTK.vtk_grid(fname, Meshes.xyz(grid)...) do vtk
+  xyz = map(collect, Meshes.xyz(grid))
+  WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
