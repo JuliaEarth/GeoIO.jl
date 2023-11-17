@@ -422,6 +422,36 @@ end
       table2 = GeoIO.load(file2)
       @test table1 == table2
       @test values(table1, 0) == values(table2, 0)
+
+      # save cartesian grid in vtr file
+      file = joinpath(savedir, "cartesian.vtr")
+      table1 = georef((; a=rand(100)), CartesianGrid(10, 10))
+      GeoIO.save(file, table1)
+      table2 = GeoIO.load(file)
+      @test table2.geometry isa RectilinearGrid
+      @test nvertices(table2.geometry) == nvertices(table1.geometry)
+      @test vertices(table2.geometry) == vertices(table1.geometry)
+      @test values(table2) == values(table1)
+
+      # save cartesian grid in vts file
+      file = joinpath(savedir, "cartesian.vts")
+      table1 = georef((; a=rand(100)), CartesianGrid(10, 10))
+      GeoIO.save(file, table1)
+      table2 = GeoIO.load(file)
+      @test table2.geometry isa StructuredGrid
+      @test nvertices(table2.geometry) == nvertices(table1.geometry)
+      @test vertices(table2.geometry) == vertices(table1.geometry)
+      @test values(table2) == values(table1)
+
+      # save rectilinear grid in vts file
+      file = joinpath(savedir, "rectilinear.vts")
+      table1 = georef((; a=rand(100)), RectilinearGrid(0:10, 0:10))
+      GeoIO.save(file, table1)
+      table2 = GeoIO.load(file)
+      @test table2.geometry isa StructuredGrid
+      @test nvertices(table2.geometry) == nvertices(table1.geometry)
+      @test vertices(table2.geometry) == vertices(table1.geometry)
+      @test values(table2) == values(table1)
     end
   end
 

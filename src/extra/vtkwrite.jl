@@ -44,14 +44,15 @@ function vtpwrite(fname, mesh::Mesh, etable, vtable)
   end
 end
 
+vtrwrite(fname, grid::CartesianGrid, etable, vtable) = vtrwrite(fname, convert(RectilinearGrid, grid), etable, vtable)
 function vtrwrite(fname, grid::RectilinearGrid, etable, vtable)
   WriteVTK.vtk_grid(fname, grid.xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
 
-function vtswrite(fname, grid::StructuredGrid, etable, vtable)
-  WriteVTK.vtk_grid(fname, grid.XYZ...) do vtk
+function vtswrite(fname, grid::Grid, etable, vtable)
+  WriteVTK.vtk_grid(fname, XYZ(grid)...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
