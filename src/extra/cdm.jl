@@ -16,6 +16,10 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing)
   zcoord = _coord(ds, _znames(z))
   coords = filter(!isnothing, [xcoord, ycoord, zcoord])
 
+  if isempty(coords)
+    error("coordinates not found")
+  end
+
   xyz = last.(coords)
   grid = if all(ndims(a) == 1 for a in xyz)
     RectilinearGrid(xyz...)
