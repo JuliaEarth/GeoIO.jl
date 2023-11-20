@@ -20,22 +20,25 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing)
     error("coordinates not found")
   end
 
-  xyz = last.(coords)
-  grid = if all(ndims(a) == 1 for a in xyz)
-    RectilinearGrid(xyz...)
-  elseif allequal(ndims(a) for a in xyz)
-    StructuredGrid(xyz...)
+  grid = if all(ndims(a) == 1 for a in coords)
+    RectilinearGrid(coords...)
+  elseif allequal(ndims(a) for a in coords)
+    StructuredGrid(coords...)
   else
     error("invalid grid arrays")
   end
   
-  cnames = first.(coords)
-  vnames = setdiff(keys(ds), [cnames..., CDM.dimnames(ds)...])
-  table = (; (Symbol(v) => ds[v] for v in vnames)...)
+  esize = size(grid)
+  vsize = esize .+ 1
+  names = setdiff(keys(ds), CDM.dimnames(ds))
+  enames = filter(nm -> size(ds[nm]) == esize, names)
+  vnames = filter(nm -> size(ds[nm]) == vsize, names)
+  etable = isempty(enames) ? nothing : (; (Symbol(nm) => ds[nm][:] for nm in enames)...)
+  vtable = isempty(vnames) ? nothing : (; (Symbol(nm) => ds[nm][:] for nm in vnames)...)
 
   close(ds)
 
-  georef(table, grid)
+  GeoTable(grid; etable, vtable)
 end
 
 const XNAMES = ["x", "X", "lon", "longitude"]
@@ -47,9 +50,10 @@ _ynames(y) = isnothing(y) ? YNAMES : [y]
 _znames(z) = isnothing(z) ? ZNAMES : [z]
 
 function _coord(ds, cnames)
+  dnames = CDM.dimnames(ds)
   for name in cnames
-    if haskey(ds, name)
-      return name => ds[name]
+    if name ∈ dnames
+      return ds[name]
     end
   end
   nothing
