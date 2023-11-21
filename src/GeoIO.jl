@@ -20,6 +20,11 @@ import VTKBase
 import VTKBase.PolyData
 import VTKBase.VTKCellTypes
 
+# CDM formats
+import CommonDataModel as CDM
+import GRIBDatasets
+import NCDatasets
+
 # mesh formats
 import PlyIO
 
@@ -39,6 +44,9 @@ const IMGEXTS = [".png", ".jpg", ".jpeg", ".tif", ".tiff"]
 # VTK extensions
 const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
+# Common Data Model extensions
+const CDMEXTS = [".grib", ".nc"]
+
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
@@ -47,6 +55,8 @@ const FORMATS = [
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".grib", load="GRIBDatasets.jl", save=""),
+  (extension=".nc", load="NCDatasets.jl", save=""),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
@@ -83,6 +93,7 @@ include("conversion.jl")
 
 # extra code for backends
 include("extra/ply.jl")
+include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/vtkread.jl")
 include("extra/vtkwrite.jl")

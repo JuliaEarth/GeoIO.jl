@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
+
 # adapted from https://github.com/evetion/GeoDataFrames.jl/blob/master/src/io.jl
 # and from https://github.com/yeesian/ArchGDAL.jl/blob/master/test/test_tables.jl#L264
 

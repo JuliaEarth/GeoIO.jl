@@ -33,6 +33,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return vtkread(fname)
   end
 
+  # Common Data Model formats
+  if any(ext -> endswith(fname, ext), CDMEXTS)
+    return cdmread(fname; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)
