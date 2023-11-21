@@ -37,8 +37,12 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, time=nothing, lazy=fals
     pairs = map(vnames) do name
       var = ds[name]
       arr = _var2array(var, lazy)
-      tdim = _timedim(var, tname)
-      data = isnothing(tdim) ? arr : eachslice(arr, dims=tdim)
+      data = if isnothing(tname)
+        arr
+      else
+        dims = _slicedims(var, tname)
+        vec(eachslice(arr; dims))
+      end
       Symbol(name) => data
     end
     (; pairs...)
@@ -69,9 +73,9 @@ function _dimname(ds, names)
   nothing
 end
 
-function _timedim(var, tname)
+function _slicedims(var, tname)
   dnames = CDM.dimnames(var)
-  isnothing(tname) ? nothing : findfirst(==(tname), dnames)
+  Tuple(findall(≠(tname), dnames))
 end
 
 _var2array(var, lazy) = lazy ? var : var[ntuple(i -> :, ndims(var))...]

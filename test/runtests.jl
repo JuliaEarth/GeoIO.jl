@@ -207,6 +207,18 @@ end
       @test eltype(eltype(vtable.myVector)) <: Float32
     end
 
+    @testset "NetCDF" begin
+      # the "test.nc" file is a slice of the "gistemp250_GHCNv4.nc" file from NASA
+      # link: https://data.giss.nasa.gov/pub/gistemp/gistemp250_GHCNv4.nc.gz
+      file = joinpath(datadir, "test.nc")
+      table = GeoIO.load(file)
+      @test table.geometry isa RectilinearGrid
+      @test isnothing(values(table))
+      vtable = values(table, 0)
+      @test length(vtable.tempanomaly) == nvertices(table.geometry)
+      @test length(first(vtable.tempanomaly)) == 100
+    end
+
     @testset "Shapefile" begin
       table = GeoIO.load(joinpath(datadir, "points.shp"))
       @test length(table.geometry) == 5
