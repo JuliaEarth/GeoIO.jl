@@ -219,6 +219,16 @@ end
       @test length(first(vtable.tempanomaly)) == 100
     end
 
+    @testset "GRIB" begin
+      # the "regular_gg_ml.grib" file is a test file from the GRIBDatasets.jl package
+      # link: https://github.com/JuliaGeo/GRIBDatasets.jl/blob/main/test/sample-data/regular_gg_ml.grib
+      file = joinpath(datadir, "regular_gg_ml.grib")
+      table = GeoIO.load(file)
+      @test table.geometry isa RectilinearGrid
+      @test isnothing(values(table))
+      @test isnothing(values(table, 0))
+    end
+
     @testset "Shapefile" begin
       table = GeoIO.load(joinpath(datadir, "points.shp"))
       @test length(table.geometry) == 5

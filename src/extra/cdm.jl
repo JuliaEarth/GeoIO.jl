@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function cdmread(fname; x=nothing, y=nothing, z=nothing, time=nothing, lazy=false)
+function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   ds = if endswith(fname, ".grib")
     GRIBDatasets.GRIBDataset(fname)
   elseif endswith(fname, ".nc")
@@ -14,7 +14,7 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, time=nothing, lazy=fals
   xname = _dimname(ds, _xnames(x))
   yname = _dimname(ds, _ynames(y))
   zname = _dimname(ds, _znames(z))
-  tname = _dimname(ds, _timenames(time))
+  tname = _dimname(ds, _tnames(t))
 
   cnames = filter(!isnothing, [xname, yname, zname])
   isempty(cnames) && error("coordinates not found")
@@ -56,12 +56,12 @@ end
 const XNAMES = ["x", "X", "lon", "longitude"]
 const YNAMES = ["y", "Y", "lat", "latitude"]
 const ZNAMES = ["z", "Z", "depth", "height"]
-const TIMENAMES = ["time", "TIME"]
+const TNAMES = ["t", "time", "TIME"]
 
 _xnames(x) = isnothing(x) ? XNAMES : [x]
 _ynames(y) = isnothing(y) ? YNAMES : [y]
 _znames(z) = isnothing(z) ? ZNAMES : [z]
-_timenames(time) = isnothing(time) ? TIMENAMES : [time]
+_tnames(t) = isnothing(t) ? TNAMES : [t]
 
 function _dimname(ds, names)
   dnames = CDM.dimnames(ds)
