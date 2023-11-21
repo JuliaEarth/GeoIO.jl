@@ -217,6 +217,16 @@ end
       vtable = values(table, 0)
       @test length(vtable.tempanomaly) == nvertices(table.geometry)
       @test length(first(vtable.tempanomaly)) == 100
+
+      # the "test_kw.nc" file is a slice of the "gistemp250_GHCNv4.nc" file from NASA
+      # link: https://data.giss.nasa.gov/pub/gistemp/gistemp250_GHCNv4.nc.gz
+      file = joinpath(datadir, "test_kw.nc")
+      table = GeoIO.load(file, x="lon_x", y="lat_y", t="time_t")
+      @test table.geometry isa RectilinearGrid
+      @test isnothing(values(table))
+      vtable = values(table, 0)
+      @test length(vtable.tempanomaly) == nvertices(table.geometry)
+      @test length(first(vtable.tempanomaly)) == 100
     end
 
     @testset "GRIB" begin
