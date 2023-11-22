@@ -42,27 +42,29 @@ Below is the output generated on November 16th, 2023:
 
 ```julia
 julia> GeoIO.formats()
-┌───────────┬───────────────┬───────────────┐
-│ extension │     load      │     save      │
-├───────────┼───────────────┼───────────────┤
-│ .geojson  │  GeoJSON.jl   │  GeoJSON.jl   │
-│   .gpkg   │  ArchGDAL.jl  │  ArchGDAL.jl  │
-│  .gslib   │  GslibIO.jl   │  GslibIO.jl   │
-│   .jpeg   │  ImageIO.jl   │  ImageIO.jl   │
-│   .jpg    │  ImageIO.jl   │  ImageIO.jl   │
-│   .kml    │  ArchGDAL.jl  │               │
-│ .parquet  │ GeoParquet.jl │ GeoParquet.jl │
-│   .ply    │   PlyIO.jl    │   PlyIO.jl    │
-│   .png    │  ImageIO.jl   │  ImageIO.jl   │
-│   .shp    │ Shapefile.jl  │ Shapefile.jl  │
-│   .tif    │  ImageIO.jl   │  ImageIO.jl   │
-│   .tiff   │  ImageIO.jl   │  ImageIO.jl   │
-│   .vti    │  ReadVTK.jl   │  WriteVTK.jl  │
-│   .vtp    │  ReadVTK.jl   │  WriteVTK.jl  │
-│   .vtr    │  ReadVTK.jl   │  WriteVTK.jl  │
-│   .vts    │  ReadVTK.jl   │  WriteVTK.jl  │
-│   .vtu    │  ReadVTK.jl   │  WriteVTK.jl  │
-└───────────┴───────────────┴───────────────┘
+┌───────────┬─────────────────┬───────────────┐
+│ extension │      load       │     save      │
+├───────────┼─────────────────┼───────────────┤
+│ .geojson  │   GeoJSON.jl    │  GeoJSON.jl   │
+│   .gpkg   │   ArchGDAL.jl   │  ArchGDAL.jl  │
+│   .grib   │ GRIBDatasets.jl │               │
+│  .gslib   │   GslibIO.jl    │  GslibIO.jl   │
+│   .jpeg   │   ImageIO.jl    │  ImageIO.jl   │
+│   .jpg    │   ImageIO.jl    │  ImageIO.jl   │
+│   .kml    │   ArchGDAL.jl   │               │
+│    .nc    │  NCDatasets.jl  │               │
+│ .parquet  │  GeoParquet.jl  │ GeoParquet.jl │
+│   .ply    │    PlyIO.jl     │   PlyIO.jl    │
+│   .png    │   ImageIO.jl    │  ImageIO.jl   │
+│   .shp    │  Shapefile.jl   │ Shapefile.jl  │
+│   .tif    │   ImageIO.jl    │  ImageIO.jl   │
+│   .tiff   │   ImageIO.jl    │  ImageIO.jl   │
+│   .vti    │   ReadVTK.jl    │  WriteVTK.jl  │
+│   .vtp    │   ReadVTK.jl    │  WriteVTK.jl  │
+│   .vtr    │   ReadVTK.jl    │  WriteVTK.jl  │
+│   .vts    │   ReadVTK.jl    │  WriteVTK.jl  │
+│   .vtu    │   ReadVTK.jl    │  WriteVTK.jl  │
+└───────────┴─────────────────┴───────────────┘
 ```
 
 Please read the docstrings for more details.
