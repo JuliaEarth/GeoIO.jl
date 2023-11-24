@@ -227,6 +227,17 @@ end
       vtable = values(table, 0)
       @test length(vtable.tempanomaly) == nvertices(table.geometry)
       @test length(first(vtable.tempanomaly)) == 100
+
+      # timeless vertex data
+      file = joinpath(datadir, "test_data.nc")
+      table = GeoIO.load(file)
+      @test table.geometry isa RectilinearGrid
+      @test isnothing(values(table))
+      vtable = values(table, 0)
+      @test length(vtable.tempanomaly) == nvertices(table.geometry)
+      @test length(first(vtable.tempanomaly)) == 100
+      @test length(vtable.data) == nvertices(table.geometry)
+      @test eltype(vtable.data) <: Float64
     end
 
     @testset "GRIB" begin

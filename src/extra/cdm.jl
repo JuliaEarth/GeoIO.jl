@@ -29,19 +29,24 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   end
 
   names = setdiff(keys(ds), CDM.dimnames(ds))
+  # all dimension names
   dnames = isnothing(tname) ? cnames : [tname, cnames...]
-  vnames = filter(nm -> issetequal(CDM.dimnames(ds[nm]), dnames), names)
+  # variables with vertex data
+  vnames = filter(names) do name
+    vdims = CDM.dimnames(ds[name])
+    issetequal(vdims, cnames) || issetequal(vdims, dnames)
+  end
   vtable = if isempty(vnames)
     nothing
   else
     pairs = map(vnames) do name
       var = ds[name]
-      arr = _var2array(var, lazy)
-      data = if isnothing(tname)
-        arr
-      else
+      data = if _hastime(var, tname)
+        arr = _var2array(var, lazy)
         dims = _slicedims(var, tname)
         vec(eachslice(arr; dims))
+      else
+        _var2vec(var, lazy)
       end
       Symbol(name) => data
     end
@@ -68,10 +73,10 @@ const YNAMES = ["y", "Y", "lat", "latitude"]
 const ZNAMES = ["z", "Z", "depth", "height"]
 const TNAMES = ["t", "time", "TIME"]
 
-_xnames(x) = isnothing(x) ? XNAMES : [x]
-_ynames(y) = isnothing(y) ? YNAMES : [y]
-_znames(z) = isnothing(z) ? ZNAMES : [z]
-_tnames(t) = isnothing(t) ? TNAMES : [t]
+_xnames(x) = isnothing(x) ? XNAMES : [string(x)]
+_ynames(y) = isnothing(y) ? YNAMES : [string(y)]
+_znames(z) = isnothing(z) ? ZNAMES : [string(z)]
+_tnames(t) = isnothing(t) ? TNAMES : [string(t)]
 
 function _dimname(ds, names)
   dnames = CDM.dimnames(ds)
@@ -83,9 +88,12 @@ function _dimname(ds, names)
   nothing
 end
 
+_hastime(var, tname) = !isnothing(tname) && tname ∈ CDM.dimnames(var)
+
 function _slicedims(var, tname)
   dnames = CDM.dimnames(var)
   Tuple(findall(≠(tname), dnames))
 end
 
-_var2array(var, lazy) = lazy ? var : var[ntuple(i -> :, ndims(var))...]
+_var2vec(var, lazy) = lazy ? reshape(var, :) : var[:]
+_var2array(var, lazy) = lazy ? var : Array(var)
