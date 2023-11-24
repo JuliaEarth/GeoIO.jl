@@ -73,10 +73,10 @@ const YNAMES = ["y", "Y", "lat", "latitude"]
 const ZNAMES = ["z", "Z", "depth", "height"]
 const TNAMES = ["t", "time", "TIME"]
 
-_xnames(x) = isnothing(x) ? XNAMES : [x]
-_ynames(y) = isnothing(y) ? YNAMES : [y]
-_znames(z) = isnothing(z) ? ZNAMES : [z]
-_tnames(t) = isnothing(t) ? TNAMES : [t]
+_xnames(x) = isnothing(x) ? XNAMES : [string(x)]
+_ynames(y) = isnothing(y) ? YNAMES : [string(y)]
+_znames(z) = isnothing(z) ? ZNAMES : [string(z)]
+_tnames(t) = isnothing(t) ? TNAMES : [string(t)]
 
 function _dimname(ds, names)
   dnames = CDM.dimnames(ds)
