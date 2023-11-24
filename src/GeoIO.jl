@@ -22,8 +22,10 @@ import VTKBase.VTKCellTypes
 
 # CDM formats
 import CommonDataModel as CDM
-import GRIBDatasets
 import NCDatasets
+@static if !Sys.iswindows()
+  import GRIBDatasets
+end
 
 # mesh formats
 import PlyIO
