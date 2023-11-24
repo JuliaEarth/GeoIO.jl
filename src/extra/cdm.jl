@@ -54,7 +54,7 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
 end
 
 function _gribdataset(fname)
-  @static if Sys.iswindows()
+  if Sys.iswindows()
     error("loading GRIB files is currently not supported on Windows")
   else
     GRIBDatasets.GRIBDataset(fname)
