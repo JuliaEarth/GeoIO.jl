@@ -4,9 +4,9 @@
 
 function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   ds = if endswith(fname, ".grib")
-    GRIBDatasets.GRIBDataset(fname)
+    _gribdataset(fname)
   elseif endswith(fname, ".nc")
-    NCDatasets.NCDataset(fname, "r")
+    _ncdataset(fname)
   else
     error("unsupported Common Data Model file format")
   end
@@ -52,6 +52,16 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
 
   GeoTable(grid; vtable)
 end
+
+function _gribdataset(fname)
+  if Sys.iswindows()
+    error("loading GRIB files is currently not supported on Windows")
+  else
+    GRIBDatasets.GRIBDataset(fname)
+  end
+end
+
+_ncdataset(fname) = NCDatasets.NCDataset(fname, "r")
 
 const XNAMES = ["x", "X", "lon", "longitude"]
 const YNAMES = ["y", "Y", "lat", "latitude"]
