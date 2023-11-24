@@ -237,7 +237,7 @@ end
       @test length(vtable.tempanomaly) == nvertices(table.geometry)
       @test length(first(vtable.tempanomaly)) == 100
       @test length(vtable.data) == nvertices(table.geometry)
-      @tesr eltype(vtable.data) <: Float64
+      @test eltype(vtable.data) <: Float64
     end
 
     @testset "GRIB" begin
