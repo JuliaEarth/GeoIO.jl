@@ -55,7 +55,7 @@ end
 
 function _gribdataset(fname)
   @static if Sys.iswindows()
-    error("loading GRIB files is not supported on Windows")
+    error("loading GRIB files is currently not supported on Windows")
   else
     GRIBDatasets.GRIBDataset(fname)
   end
