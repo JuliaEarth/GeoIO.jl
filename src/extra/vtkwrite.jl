@@ -3,9 +3,7 @@
 # ------------------------------------------------------------------
 
 function vtkwrite(fname, geotable)
-  dom = domain(geotable)
-  etable = values(geotable)
-  vtable = values(geotable, 0)
+  dom, etable, vtable = _extractvals(geotable)
 
   if endswith(fname, ".vtu")
     vtuwrite(fname, dom, etable, vtable)
@@ -77,6 +75,42 @@ end
 #-------
 # UTILS
 #-------
+
+function _extractvals(geotable) 
+  dom = domain(geotable)
+  etable = values(geotable)
+  vtable = values(geotable, 0)
+  if dom isa Meshes.SubDomain
+    _subdomvals(dom, etable)
+  else
+    dom, etable, vtable
+  end
+end
+
+function _subdomvals(subdom, table)
+  dom = parent(subdom)
+  inds = parentindices(subdom)
+
+  cols = Tables.columns(table)
+  names = Tables.columnnames(cols)
+  pairs = map(names) do name
+    x = Tables.getcolumn(cols, name)
+    y = fill(NaN, nelements(dom))
+    y[inds] .= x
+    name => y
+  end
+
+  mask = :MASK
+  # make unique
+  while mask ∈ names
+    mask = Symbol(mask, :_)
+  end
+  maskcol = zeros(UInt8, nelements(dom))
+  maskcol[inds] .= 1
+
+  newtable = (; pairs..., mask => maskcol)
+  dom, newtable, nothing
+end
 
 _vtktype(::Type{<:Segment}) = VTKCellTypes.VTK_LINE
 _vtktype(::Type{<:Triangle}) = VTKCellTypes.VTK_TRIANGLE

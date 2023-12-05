@@ -30,7 +30,7 @@ function load(fname; layer=0, fix=true, kwargs...)
 
   # VTK formats
   if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkread(fname)
+    return vtkread(fname; kwargs...)
   end
 
   # Common Data Model formats
