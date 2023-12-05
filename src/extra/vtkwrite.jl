@@ -76,26 +76,18 @@ end
 # UTILS
 #-------
 
-function _extractvals(geotable) 
-  dom = domain(geotable)
-  etable = values(geotable)
-  vtable = values(geotable, 0)
-  if dom isa Meshes.SubDomain
-    _subdomvals(dom, etable)
-  else
-    dom, etable, vtable
-  end
-end
-
-function _subdomvals(subdom, table)
+_extractvals(gtb) = _extractvals(domain(gtb), values(gtb), values(gtb, 0))
+_extractvals(dom::Domain, etable, vtable) = dom, etable, vtable
+function _extractvals(subdom::SubDomain, etable, vtable)
   dom = parent(subdom)
   inds = parentindices(subdom)
+  nelems = nelements(dom)
 
-  cols = Tables.columns(table)
+  cols = Tables.columns(etable)
   names = Tables.columnnames(cols)
   pairs = map(names) do name
     x = Tables.getcolumn(cols, name)
-    y = fill(NaN, nelements(dom))
+    y = fill(NaN, nelems)
     y[inds] .= x
     name => y
   end
@@ -105,7 +97,7 @@ function _subdomvals(subdom, table)
   while mask ∈ names
     mask = Symbol(mask, :_)
   end
-  maskcol = zeros(UInt8, nelements(dom))
+  maskcol = zeros(UInt8, nelems)
   maskcol[inds] .= 1
 
   newtable = (; pairs..., mask => maskcol)
