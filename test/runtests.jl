@@ -500,6 +500,62 @@ end
       @test vertices(table2.geometry) == vertices(table1.geometry)
       @test values(table2) == values(table1)
 
+      # save views
+      grid = CartesianGrid(10, 10)
+      mesh = convert(SimpleMesh, grid)
+      rgrid = convert(RectilinearGrid, grid)
+      sgrid = convert(StructuredGrid, grid)
+      etable = (; a=rand(100))
+
+      gtb = georef(etable, mesh)
+      file = joinpath(savedir, "unstructured_view.vtu")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file)
+      @test vgtb.a == view(gtb.a, 1:25)
+      @test parent(vgtb.geometry) isa SimpleMesh
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
+      gtb = georef(etable, mesh)
+      file = joinpath(savedir, "polydata_view.vtp")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file)
+      @test vgtb.a == view(gtb.a, 1:25)
+      @test parent(vgtb.geometry) isa SimpleMesh
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
+      gtb = georef(etable, rgrid)
+      file = joinpath(savedir, "rectilinear_view.vtr")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file)
+      @test vgtb.a == view(gtb.a, 1:25)
+      @test parent(vgtb.geometry) isa RectilinearGrid
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
+      gtb = georef(etable, sgrid)
+      file = joinpath(savedir, "structured_view.vts")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file)
+      @test vgtb.a == view(gtb.a, 1:25)
+      @test parent(vgtb.geometry) isa StructuredGrid
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
+      gtb = georef(etable, grid)
+      file = joinpath(savedir, "imagedata_view.vti")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file)
+      @test vgtb.a == view(gtb.a, 1:25)
+      @test parent(vgtb.geometry) isa CartesianGrid
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
+      # mask column with different name
+      gtb = georef((; MASK=rand(100)), grid)
+      file = joinpath(savedir, "imagedata_view.vti")
+      GeoIO.save(file, view(gtb, 1:25))
+      vgtb = GeoIO.load(file, mask=:MASK_)
+      @test vgtb.MASK == view(gtb.MASK, 1:25)
+      @test parent(vgtb.geometry) isa CartesianGrid
+      @test vgtb.geometry == view(gtb.geometry, 1:25)
+
       # throw: the vtr format does not support structured grids
       table = GeoIO.load(joinpath(datadir, "structured.vts"))
       @test_throws ErrorException GeoIO.save(joinpath(savedir, "structured.vtr"), table)

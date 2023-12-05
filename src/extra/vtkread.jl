@@ -14,8 +14,8 @@ const GEOMTYPE = Dict(
   VTKCellTypes.VTK_PYRAMID => Pyramid
 )
 
-function vtkread(fname)
-  if endswith(fname, ".vtu")
+function vtkread(fname; mask=:MASK)
+  gtb = if endswith(fname, ".vtu")
     vturead(fname)
   elseif endswith(fname, ".vtp")
     vtpread(fname)
@@ -27,6 +27,15 @@ function vtkread(fname)
     vtiread(fname)
   else
     error("unsupported VTK file format")
+  end
+
+  names = propertynames(gtb)
+  if mask ∈ names
+    inds = findall(==(1), gtb[:, mask])
+    other = setdiff(names, [mask, :geometry])
+    view(gtb[:, other], inds)
+  else
+    gtb
   end
 end
 

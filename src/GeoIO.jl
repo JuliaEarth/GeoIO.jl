@@ -9,6 +9,7 @@ using Tables
 using GeoTables
 using StaticArrays
 using PrettyTables
+using Meshes: SubDomain
 
 # image formats
 import FileIO
