@@ -30,9 +30,10 @@ function vtkread(fname; mask=:MASK)
   end
 
   names = propertynames(gtb)
-  if mask ∈ names
-    inds = findall(==(1), gtb[:, mask])
-    other = setdiff(names, [mask, :geometry])
+  masknm = Symbol(mask)
+  if masknm ∈ names
+    inds = findall(==(1), gtb[:, masknm])
+    other = setdiff(names, [masknm, :geometry])
     view(gtb[:, other], inds)
   else
     gtb
