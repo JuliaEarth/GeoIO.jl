@@ -28,7 +28,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
 ArchGDAL = "0.10"
-CommonDataModel = "0.2"
+CommonDataModel = "0.2, 0.3"
 FileIO = "1.16"
 GRIBDatasets = "0.3"
 GeoInterface = "1.0"
