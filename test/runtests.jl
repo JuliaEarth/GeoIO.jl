@@ -467,6 +467,21 @@ end
       @test gtb1.X2 == gtb2.X2
       @test gtb1.geometry == gtb2.geometry
 
+      # float format
+      x = [0.6895, 0.9878, 0.3654, 0.1813, 0.9138, 0.7121]
+      y = [0.3925, 0.4446, 0.6582, 0.3511, 0.1831, 0.8398]
+      a = [0.1409, 0.7653, 0.4576, 0.8148, 0.5576, 0.7857]
+      pset = PointSet(Point.(x, y))
+      gtb1 = georef((; a), pset)
+      file = joinpath(savedir, "pset2.csv")
+      GeoIO.save(file, gtb1, floatformat="%.2f")
+      gtb2 = GeoIO.load(file, coords=[:X1, :X2])
+      xf = [0.69, 0.99, 0.37, 0.18, 0.91, 0.71]
+      yf = [0.39, 0.44, 0.66, 0.35, 0.18, 0.84]
+      af = [0.14, 0.77, 0.46, 0.81, 0.56, 0.79]
+      @test gtb2.a == af
+      @test gtb2.geometry == PointSet(Point.(xf, yf))
+
       # throw: invalid number of coordinate names
       @test_throws ArgumentError GeoIO.save(file, gtb1, coords=["X", "Y", "Z"])
     end
