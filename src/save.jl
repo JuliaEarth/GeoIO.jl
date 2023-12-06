@@ -37,6 +37,11 @@ function save(fname, geotable; kwargs...)
     return plywrite(fname, geotable; kwargs...)
   end
 
+  # CSV format
+  if endswith(fname, ".csv")
+    return csvwrite(fname, geotable; kwargs...)
+  end
+
   # GSLIB format
   if endswith(fname, ".gslib")
     return GslibIO.save(fname, geotable; kwargs...)

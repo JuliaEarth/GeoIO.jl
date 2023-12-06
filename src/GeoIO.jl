@@ -29,6 +29,9 @@ import NCDatasets
 # mesh formats
 import PlyIO
 
+# CSV format
+import CSV
+
 # geostats formats
 import GslibIO
 
@@ -51,6 +54,7 @@ const CDMEXTS = [".grib", ".nc"]
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
+  (extension=".csv", load="CSV.jl", save="CSV.jl"),
   (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
@@ -94,6 +98,7 @@ include("conversion.jl")
 
 # extra code for backends
 include("extra/ply.jl")
+include("extra/csv.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/vtkread.jl")

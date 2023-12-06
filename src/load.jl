@@ -43,6 +43,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return plyread(fname; kwargs...)
   end
 
+  # CSV format
+  if endswith(fname, ".csv")
+    return csvread(fname; kwargs...)
+  end
+
   # GSLIB format
   if endswith(fname, ".gslib")
     return GslibIO.load(fname; kwargs...)

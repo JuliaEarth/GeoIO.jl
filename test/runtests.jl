@@ -142,6 +142,15 @@ end
       @test isnothing(values(table, 2))
     end
 
+    @testset "CSV" begin
+      table = GeoIO.load(joinpath(datadir, "points.csv"), coords=["X1", "X2"])
+      @test eltype(table.code) <: Integer
+      @test eltype(table.name) <: AbstractString
+      @test eltype(table.variable) <: Real
+      @test table.geometry isa PointSet
+      @test length(table.geometry) == 5
+    end
+
     @testset "GSLIB" begin
       table = GeoIO.load(joinpath(datadir, "grid.gslib"))
       @test table.geometry isa CartesianGrid
@@ -427,6 +436,39 @@ end
       table2 = GeoIO.load(file2)
       @test table1 == table2
       @test values(table1, 0) == values(table2, 0)
+    end
+
+    @testset "CSV" begin
+      file1 = joinpath(datadir, "points.csv")
+      file2 = joinpath(savedir, "points.csv")
+      gtb1 = GeoIO.load(file1, coords=[:X1, :X2])
+      GeoIO.save(file2, gtb1, coords=["X1", "X2"])
+      gtb2 = GeoIO.load(file2, coords=[:X1, :X2])
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
+
+      grid = CartesianGrid(2, 2, 2)
+      gtb1 = georef((; a=rand(8)), grid)
+      file = joinpath(savedir, "grid.csv")
+      GeoIO.save(file, gtb1)
+      gtb2 = GeoIO.load(file, coords=[:X1, :X2, :X3])
+      @test gtb1.a == gtb2.a
+      @test nelements(gtb1.geometry) == nelements(gtb2.geometry)
+      @test collect(gtb2.geometry) == centroid.(gtb1.geometry)
+
+      # make coordinate names unique
+      pset = PointSet(rand(Point2, 10))
+      gtb1 = georef((X1=rand(10), X2=rand(10)), pset)
+      file = joinpath(savedir, "pset.csv")
+      GeoIO.save(file, gtb1)
+      gtb2 = GeoIO.load(file, coords=[:X1_, :X2_])
+      @test propertynames(gtb1) == propertynames(gtb2)
+      @test gtb1.X1 == gtb2.X1
+      @test gtb1.X2 == gtb2.X2
+      @test gtb1.geometry == gtb2.geometry
+
+      # throw: invalid number of coordinate names
+      @test_throws ArgumentError GeoIO.save(file, gtb1, coords=["X", "Y", "Z"])
     end
 
     @testset "VTK" begin
