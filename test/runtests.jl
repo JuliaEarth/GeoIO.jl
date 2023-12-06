@@ -143,7 +143,7 @@ end
     end
 
     @testset "CSV" begin
-      table = GeoIO.load(joinpath(datadir, "points.csv"), coords=["X1", "X2"])
+      table = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"])
       @test eltype(table.code) <: Integer
       @test eltype(table.name) <: AbstractString
       @test eltype(table.variable) <: Real
@@ -441,9 +441,9 @@ end
     @testset "CSV" begin
       file1 = joinpath(datadir, "points.csv")
       file2 = joinpath(savedir, "points.csv")
-      gtb1 = GeoIO.load(file1, coords=[:X1, :X2])
-      GeoIO.save(file2, gtb1, coords=["X1", "X2"])
-      gtb2 = GeoIO.load(file2, coords=[:X1, :X2])
+      gtb1 = GeoIO.load(file1, coords=[:x, :y])
+      GeoIO.save(file2, gtb1, coords=["x", "y"])
+      gtb2 = GeoIO.load(file2, coords=[:x, :y])
       @test gtb1 == gtb2
       @test values(gtb1, 0) == values(gtb2, 0)
 
@@ -451,20 +451,20 @@ end
       gtb1 = georef((; a=rand(8)), grid)
       file = joinpath(savedir, "grid.csv")
       GeoIO.save(file, gtb1)
-      gtb2 = GeoIO.load(file, coords=[:X1, :X2, :X3])
+      gtb2 = GeoIO.load(file, coords=[:x, :y, :z])
       @test gtb1.a == gtb2.a
       @test nelements(gtb1.geometry) == nelements(gtb2.geometry)
       @test collect(gtb2.geometry) == centroid.(gtb1.geometry)
 
       # make coordinate names unique
       pset = PointSet(rand(Point2, 10))
-      gtb1 = georef((X1=rand(10), X2=rand(10)), pset)
+      gtb1 = georef((x=rand(10), y=rand(10)), pset)
       file = joinpath(savedir, "pset.csv")
       GeoIO.save(file, gtb1)
-      gtb2 = GeoIO.load(file, coords=[:X1_, :X2_])
+      gtb2 = GeoIO.load(file, coords=[:x_, :y_])
       @test propertynames(gtb1) == propertynames(gtb2)
-      @test gtb1.X1 == gtb2.X1
-      @test gtb1.X2 == gtb2.X2
+      @test gtb1.x == gtb2.x
+      @test gtb1.y == gtb2.y
       @test gtb1.geometry == gtb2.geometry
 
       # float format
@@ -475,7 +475,7 @@ end
       gtb1 = georef((; a), pset)
       file = joinpath(savedir, "pset2.csv")
       GeoIO.save(file, gtb1, floatformat="%.2f")
-      gtb2 = GeoIO.load(file, coords=[:X1, :X2])
+      gtb2 = GeoIO.load(file, coords=[:x, :y])
       xf = [0.69, 0.99, 0.37, 0.18, 0.91, 0.71]
       yf = [0.39, 0.44, 0.66, 0.35, 0.18, 0.84]
       af = [0.14, 0.77, 0.46, 0.81, 0.56, 0.79]
@@ -483,7 +483,12 @@ end
       @test gtb2.geometry == PointSet(Point.(xf, yf))
 
       # throw: invalid number of coordinate names
-      @test_throws ArgumentError GeoIO.save(file, gtb1, coords=["X", "Y", "Z"])
+      file = joinpath(savedir, "throw.csv")
+      gtb = georef((; a=rand(10)), rand(Point2, 10))
+      @test_throws ArgumentError GeoIO.save(file, gtb, coords=["x", "y", "z"])
+      # throw: geometries with more than 3 dimensions
+      gtb = georef((; a=rand(10)), rand(Point{4,Float64}, 10))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
     @testset "VTK" begin

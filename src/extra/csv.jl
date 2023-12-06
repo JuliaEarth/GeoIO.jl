@@ -11,11 +11,15 @@ function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs..
   names = Tables.columnnames(tab)
   Dim = embeddim(dom)
 
+  if Dim > 3
+    throw(ArgumentError("embedding dimensions greater than 3 are not supported"))
+  end
+
   cnames = if isnothing(coords)
     _cnames(Dim, names)
   else
     if length(coords) ≠ Dim
-      throw(ArgumentError("the number of coordinates names must be equal to $Dim (embedding dimension)"))
+      throw(ArgumentError("the number of coordinate names must be equal to $Dim (embedding dimension)"))
     end
     Symbol.(coords)
   end
@@ -36,9 +40,16 @@ _floatformat(val, format) = val
 _floatformat(val::AbstractFloat, format) = isnothing(format) ? val : generate_formatter(format)(val)
 
 function _cnames(Dim, names)
-  map(1:Dim) do d
-    name = Symbol(:X, d)
-    # make unique
+  cnames = if Dim == 1
+    [:x]
+  elseif Dim == 2
+    [:x, :y]
+  else
+    [:x, :y, :z]
+  end
+
+  # make unique
+  map(cnames) do name
     while name ∈ names
       name = Symbol(name, :_)
     end
