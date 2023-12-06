@@ -7,6 +7,7 @@ module GeoIO
 using Meshes
 using Tables
 using GeoTables
+using Formatting
 using StaticArrays
 using PrettyTables
 using Meshes: SubDomain

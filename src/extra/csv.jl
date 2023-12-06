@@ -4,7 +4,7 @@
 
 csvread(fname; coords, kwargs...) = georef(CSV.File(fname; kwargs...), coords)
 
-function csvwrite(fname, geotable; coords=nothing, kwargs...)
+function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs...)
   dom = domain(geotable)
   tab = values(geotable)
   cols = Tables.columns(tab)
@@ -28,8 +28,12 @@ function csvwrite(fname, geotable; coords=nothing, kwargs...)
   pairs = (nm => Tables.getcolumn(cols, nm) for nm in names)
   newtab = (; cpairs..., pairs...)
 
-  CSV.write(fname, newtab; kwargs...)
+  transform(col, val) = _floatformat(val, floatformat)
+  CSV.write(fname, newtab; transform, kwargs...)
 end
+
+_floatformat(val, format) = val
+_floatformat(val::AbstractFloat, format) = isnothing(format) ? val : generate_formatter(format)(val)
 
 function _cnames(Dim, names)
   map(1:Dim) do d
