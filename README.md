@@ -38,13 +38,14 @@ GeoIO.save("file.shp", table, force = true)
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on November 16th, 2023:
+Below is the output generated on December 6th, 2023:
 
 ```julia
 julia> GeoIO.formats()
 ┌───────────┬─────────────────┬───────────────┐
 │ extension │      load       │     save      │
 ├───────────┼─────────────────┼───────────────┤
+│   .csv    │     CSV.jl      │    CSV.jl     │
 │ .geojson  │   GeoJSON.jl    │  GeoJSON.jl   │
 │   .gpkg   │   ArchGDAL.jl   │  ArchGDAL.jl  │
 │   .grib   │ GRIBDatasets.jl │               │
