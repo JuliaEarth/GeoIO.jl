@@ -5,6 +5,7 @@ version = "1.5.6"
 
 [deps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CommonDataModel = "1fbeeb36-5f17-413c-809b-666fb144f157"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
@@ -28,6 +29,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
 ArchGDAL = "0.10"
+CSV = "0.10"
 CommonDataModel = "0.2, 0.3"
 FileIO = "1.16"
 GRIBDatasets = "0.3"
