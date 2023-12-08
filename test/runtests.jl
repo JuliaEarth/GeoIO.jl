@@ -446,7 +446,7 @@ end
       @test values(table1, 0) == values(table2, 0)
     end
 
-    @testset "PLY" begin
+    @testset "STL" begin
       file1 = joinpath(datadir, "tetrahedron.stl-ascii")
       file2 = joinpath(savedir, "tetrahedron.stl-ascii")
       gtb1 = GeoIO.load(file1)
