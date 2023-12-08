@@ -79,7 +79,7 @@ function stlasciiwrite(fname, geotable)
       end
 
       write(io, "    endloop\n")
-      write(io,"endfacet\n")
+      write(io, "endfacet\n")
     end
 
     write(io, "endsolid $name\n")
