@@ -38,8 +38,8 @@ function load(fname; layer=0, fix=true, kwargs...)
     return cdmread(fname; kwargs...)
   end
 
-  # STL formats
-  if any(ext -> endswith(fname, ext), STLEXTS)
+  # STL format
+  if endswith(fname, ".stl")
     return stlraed(fname; kwargs...)
   end
 

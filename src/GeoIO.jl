@@ -52,11 +52,9 @@ const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 # Common Data Model extensions
 const CDMEXTS = [".grib", ".nc"]
 
-# STL formats
-const STLEXTS = [".stl-ascii"]
-
 # supported formats
 const FORMATS = [
+  (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
   (extension=".csv", load="CSV.jl", save="CSV.jl"),
   (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
@@ -101,9 +99,9 @@ include("utils.jl")
 include("conversion.jl")
 
 # extra code for backends
+include("extra/stl.jl")
 include("extra/ply.jl")
 include("extra/csv.jl")
-include("extra/stl.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/vtkread.jl")

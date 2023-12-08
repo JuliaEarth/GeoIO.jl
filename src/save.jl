@@ -33,7 +33,7 @@ function save(fname, geotable; kwargs...)
   end
 
   # STL formats
-  if any(ext -> endswith(fname, ext), STLEXTS)
+  if endswith(fname, ".stl")
     return stlwrite(fname, geotable)
   end
 

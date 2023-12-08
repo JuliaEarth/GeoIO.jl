@@ -3,22 +3,16 @@
 # ------------------------------------------------------------------
 
 function stlraed(fname)
-  if endswith(fname, ".stl-ascii")
-    _asciiread(fname)
-  else
-    error("unsupported STL file format")
-  end
+  # TODO STL Binary
+  stlasciiread(fname)
 end
 
 function stlwrite(fname, geotable)
-  if endswith(fname, ".stl-ascii")
-    _asciiwrite(fname, geotable)
-  else
-    error("unsupported STL file format")
-  end
+  # TODO STL Binary
+  stlasciiwrite(fname, geotable)
 end
 
-function _asciiread(fname)
+function stlasciiread(fname)
   normals = Vec3[]
   vertices = Vector{Point3}[]
 
@@ -56,7 +50,7 @@ function _asciiread(fname)
   georef(table, mesh)
 end
 
-function _asciiwrite(fname, geotable)
+function stlasciiwrite(fname, geotable)
   mesh = domain(geotable)
 
   if !(embeddim(mesh) == 3 && eltype(mesh) <: Triangle)

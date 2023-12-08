@@ -135,7 +135,7 @@ end
     end
 
     @testset "STL" begin
-      gtb = GeoIO.load(joinpath(datadir, "tetrahedron.stl-ascii"))
+      gtb = GeoIO.load(joinpath(datadir, "tetrahedron.stl"))
       @test eltype(gtb.NORMAL) <: Vec3
       @test gtb.geometry isa SimpleMesh{3}
       @test eltype(gtb.geometry) <: Triangle
@@ -447,8 +447,8 @@ end
     end
 
     @testset "STL" begin
-      file1 = joinpath(datadir, "tetrahedron.stl-ascii")
-      file2 = joinpath(savedir, "tetrahedron.stl-ascii")
+      file1 = joinpath(datadir, "tetrahedron.stl")
+      file2 = joinpath(savedir, "tetrahedron.stl")
       gtb1 = GeoIO.load(file1)
       GeoIO.save(file2, gtb1)
       gtb2 = GeoIO.load(file2)
@@ -457,7 +457,7 @@ end
 
       # error: STL format only supports 3D triangle meshes
       gtb = GeoTable(CartesianGrid(2, 2, 2))
-      file = joinpath(savedir, "error.stl-ascii")
+      file = joinpath(savedir, "error.stl")
       @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
