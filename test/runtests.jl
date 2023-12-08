@@ -436,16 +436,6 @@ end
       @test psnr_equality()(gtb1.color, gtb2.color)
     end
 
-    @testset "PLY" begin
-      file1 = joinpath(datadir, "beethoven.ply")
-      file2 = joinpath(savedir, "beethoven.ply")
-      table1 = GeoIO.load(file1)
-      GeoIO.save(file2, table1)
-      table2 = GeoIO.load(file2)
-      @test table1 == table2
-      @test values(table1, 0) == values(table2, 0)
-    end
-
     @testset "STL" begin
       file1 = joinpath(datadir, "tetrahedron.stl")
       file2 = joinpath(savedir, "tetrahedron.stl")
@@ -459,6 +449,16 @@ end
       gtb = GeoTable(CartesianGrid(2, 2, 2))
       file = joinpath(savedir, "error.stl")
       @test_throws ArgumentError GeoIO.save(file, gtb)
+    end
+
+    @testset "PLY" begin
+      file1 = joinpath(datadir, "beethoven.ply")
+      file2 = joinpath(savedir, "beethoven.ply")
+      table1 = GeoIO.load(file1)
+      GeoIO.save(file2, table1)
+      table2 = GeoIO.load(file2)
+      @test table1 == table2
+      @test values(table1, 0) == values(table2, 0)
     end
 
     @testset "CSV" begin
