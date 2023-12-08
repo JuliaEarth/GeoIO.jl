@@ -134,6 +134,14 @@ end
       @test length(table.color) == length(table.geometry)
     end
 
+    @testset "STL" begin
+      gtb = GeoIO.load(joinpath(datadir, "tetrahedron.stl-ascii"))
+      @test eltype(gtb.NORMAL) <: Vec3
+      @test gtb.geometry isa SimpleMesh{3}
+      @test eltype(gtb.geometry) <: Triangle
+      @test length(gtb.geometry) == 4
+    end
+
     @testset "PLY" begin
       table = GeoIO.load(joinpath(datadir, "beethoven.ply"))
       @test table.geometry isa SimpleMesh
@@ -436,6 +444,21 @@ end
       table2 = GeoIO.load(file2)
       @test table1 == table2
       @test values(table1, 0) == values(table2, 0)
+    end
+
+    @testset "PLY" begin
+      file1 = joinpath(datadir, "tetrahedron.stl-ascii")
+      file2 = joinpath(savedir, "tetrahedron.stl-ascii")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
+
+      # error: STL format only supports 3D triangle meshes
+      gtb = GeoTable(CartesianGrid(2, 2, 2))
+      file = joinpath(savedir, "error.stl-ascii")
+      @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
     @testset "CSV" begin

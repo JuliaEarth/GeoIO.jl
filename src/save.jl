@@ -32,6 +32,11 @@ function save(fname, geotable; kwargs...)
     return vtkwrite(fname, geotable)
   end
 
+  # STL formats
+  if any(ext -> endswith(fname, ext), STLEXTS)
+    return stlwrite(fname, geotable)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plywrite(fname, geotable; kwargs...)

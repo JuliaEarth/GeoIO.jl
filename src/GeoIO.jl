@@ -52,6 +52,9 @@ const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 # Common Data Model extensions
 const CDMEXTS = [".grib", ".nc"]
 
+# STL formats
+const STLEXTS = [".stl-ascii"]
+
 # supported formats
 const FORMATS = [
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
@@ -100,6 +103,7 @@ include("conversion.jl")
 # extra code for backends
 include("extra/ply.jl")
 include("extra/csv.jl")
+include("extra/stl.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/vtkread.jl")
