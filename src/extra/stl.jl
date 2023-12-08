@@ -59,7 +59,7 @@ end
 function _asciiwrite(fname, geotable)
   mesh = domain(geotable)
 
-  if !(mesh isa Mesh{3} && eltype(mesh) <: Triangle)
+  if !(embeddim(mesh) == 3 && eltype(mesh) <: Triangle)
     throw(ArgumentError("STL format only supports 3D triangle meshes"))
   end
 
