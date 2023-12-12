@@ -125,9 +125,7 @@ end
 
 function stlbinwrite(fname, mesh)
   open(fname, write=true) do io
-    for i in 1:80 # empty header
-      write(io, 0x00)
-    end
+    foreach(i -> write(io, 0x00), 1:80) # empty header
 
     write(io, UInt32(nelements(mesh))) # number of triangles
 
