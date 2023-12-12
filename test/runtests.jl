@@ -135,9 +135,19 @@ end
     end
 
     @testset "STL" begin
-      gtb = GeoIO.load(joinpath(datadir, "tetrahedron.stl"))
+      gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"))
       @test eltype(gtb.NORMAL) <: Vec3
-      @test gtb.geometry isa SimpleMesh{3}
+      @test gtb.geometry isa SimpleMesh
+      @test embeddim(gtb.geometry) == 3
+      @test coordtype(gtb.geometry) <: Float64
+      @test eltype(gtb.geometry) <: Triangle
+      @test length(gtb.geometry) == 4
+
+      gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"))
+      @test eltype(gtb.NORMAL) <: Vec3f
+      @test gtb.geometry isa SimpleMesh
+      @test embeddim(gtb.geometry) == 3
+      @test coordtype(gtb.geometry) <: Float32
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
     end
@@ -437,8 +447,18 @@ end
     end
 
     @testset "STL" begin
-      file1 = joinpath(datadir, "tetrahedron.stl")
-      file2 = joinpath(savedir, "tetrahedron.stl")
+      # STL ASCII
+      file1 = joinpath(datadir, "tetrahedron_ascii.stl")
+      file2 = joinpath(savedir, "tetrahedron_ascii.stl")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1, ascii=true)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
+
+      # STL Binary
+      file1 = joinpath(datadir, "tetrahedron_bin.stl")
+      file2 = joinpath(savedir, "tetrahedron_bin.stl")
       gtb1 = GeoIO.load(file1)
       GeoIO.save(file2, gtb1)
       gtb2 = GeoIO.load(file2)

@@ -34,7 +34,7 @@ function save(fname, geotable; kwargs...)
 
   # STL formats
   if endswith(fname, ".stl")
-    return stlwrite(fname, geotable)
+    return stlwrite(fname, geotable; kwargs...)
   end
 
   # PLY format
