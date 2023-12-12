@@ -28,7 +28,7 @@ end
 
 function stlasciiread(fname)
   normals = Vec3[]
-  vertices = Vector{Point3}[]
+  vertices = NTuple{3,Point3}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -40,7 +40,7 @@ function stlasciiread(fname)
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = map(1:3) do _
+        points = ntuple(3) do _
           coords = _splitline(io)[2:end]
           Point(_parsecoords(coords))
         end
@@ -57,7 +57,7 @@ end
 
 function stlbinread(fname)
   normals = Vec3f[]
-  vertices = Vector{Point3f}[]
+  vertices = NTuple{3,Point3f}[]
 
   open(fname) do io
     skip(io, 80) # skip header
@@ -65,7 +65,7 @@ function stlbinread(fname)
     for _ in 1:ntriangles
       normal = Vec(ntuple(i -> read(io, Float32), 3))
       push!(normals, normal)
-      points = map(1:3) do _
+      points = ntuple(3) do _
         Point(ntuple(i -> read(io, Float32), 3))
       end
       push!(vertices, points)
@@ -108,7 +108,6 @@ function stlasciiwrite(fname, mesh)
     for triangle in elements(mesh)
       n = normal(triangle)
       write(io, "facet normal $(frmtcoords(n))\n")
-
       write(io, "    outer loop\n")
 
       for point in vertices(triangle)
