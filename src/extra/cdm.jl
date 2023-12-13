@@ -22,8 +22,6 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
 
   grid = if all(ndims(a) == 1 for a in coords)
     RectilinearGrid(coords...)
-  elseif allequal(ndims(a) for a in coords)
-    StructuredGrid(coords...)
   else
     error("invalid grid arrays")
   end
