@@ -36,6 +36,7 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
     vdims = CDM.dimnames(ds[name])
     issetequal(vdims, cnames) || issetequal(vdims, dnames)
   end
+
   vtable = if isempty(vnames)
     nothing
   else
@@ -56,6 +57,56 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   lazy || close(ds)
 
   GeoTable(grid; vtable)
+end
+
+function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t=nothing)
+  if endswith(fname, ".grib")
+    error("saving GRIB files is currently not supported")
+  end
+
+  grid = domain(geotable)
+  vtable = values(geotable, 0)
+  Dim = embeddim(grid)
+
+  if !(grid isa Union{RectilinearGrid,CartesianGrid})
+    throw(ArgumentError("NC format only supports rectilinear or cartesian grids"))
+  end
+
+  if Dim > 3
+    throw(ArgumentError("embedding dimensions greater than 3 are not supported"))
+  end
+
+  xyz = Meshes.xyz(grid)
+  dnames = if !isnothing(vtable)
+    names = Tables.schema(vtable).names
+    _dimnames(Dim, x, y, z, t, string.(names))
+  else
+    _dimnames(Dim, x, y, z, t, String[])
+  end
+  cnames = dnames[1:(end - 1)]
+
+  sz = size(grid) .+ 1
+  NCDatasets.Dataset(fname, "c") do ds
+    for (d, x) in zip(dnames, xyz)
+      NCDatasets.defVar(ds, d, x, [d])
+    end
+
+    if !isnothing(vtable)
+      cols = Tables.columns(vtable)
+      names = Tables.columnnames(cols)
+      for name in names
+        x = Tables.getcolumn(cols, name)
+        nmstr = string(name)
+        if eltype(x) <: AbstractArray
+          y = reshape(transpose(stack(x)), sz..., :)
+          NCDatasets.defVar(ds, nmstr, y, dnames)
+        else
+          y = reshape(x, sz...)
+          NCDatasets.defVar(ds, nmstr, y, cnames)
+        end
+      end
+    end
+  end
 end
 
 function _gribdataset(fname)
@@ -97,3 +148,26 @@ end
 
 _var2vec(var, lazy) = lazy ? reshape(var, :) : var[:]
 _var2array(var, lazy) = lazy ? var : Array(var)
+
+function _dimnames(Dim, xnm, ynm, znm, tnm, names)
+  xstr = isnothing(xnm) ? "x" : string(xnm)
+  ystr = isnothing(ynm) ? "y" : string(ynm)
+  zstr = isnothing(znm) ? "z" : string(znm)
+  tstr = isnothing(tnm) ? "t" : string(tnm)
+
+  dnames = if Dim == 1
+    [xstr, tstr]
+  elseif Dim == 2
+    [xstr, ystr, tstr]
+  else
+    [xstr, ystr, zstr, tstr]
+  end
+
+  # make unique
+  map(dnames) do name
+    while name ∈ names
+      name = name * "_"
+    end
+    name
+  end
+end

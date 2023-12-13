@@ -675,6 +675,46 @@ end
       table = GeoIO.load(joinpath(datadir, "structured.vts"))
       @test_throws ErrorException GeoIO.save(joinpath(savedir, "structured.vtr"), table)
     end
+
+    @testset "NetCDF" begin
+      file1 = joinpath(datadir, "test.nc")
+      file2 = joinpath(savedir, "test.nc")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test isequal(values(gtb1, 0).tempanomaly, values(gtb2, 0).tempanomaly)
+
+      # grids
+      grid = CartesianGrid(10, 10)
+      rgrid = convert(RectilinearGrid, grid)
+
+      file = joinpath(savedir, "cartesian.nc")
+      gtb1 = GeoTable(grid)
+      GeoIO.save(file, gtb1)
+      gtb2 = GeoIO.load(file)
+      @test gtb2.geometry isa RectilinearGrid
+      @test gtb2.geometry == rgrid
+
+      file = joinpath(savedir, "rectilinear.nc")
+      gtb1 = GeoTable(rgrid)
+      GeoIO.save(file, gtb1)
+      gtb2 = GeoIO.load(file)
+      @test gtb2.geometry isa RectilinearGrid
+      @test gtb2.geometry == rgrid
+
+      # error: domain is not a grid
+      file = joinpath(savedir, "error.nc")
+      gtb = georef((; a=rand(10)), rand(Point2, 10))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
+    end
+
+    @testset "GRIB" begin
+      # error: saving GRIB files is not supported
+      file = joinpath(savedir, "error.grib")
+      gtb = georef((; a=rand(4)), CartesianGrid(2, 2))
+      @test_throws ErrorException GeoIO.save(file, gtb)
+    end
   end
 
   @testset "GIS conversion" begin
