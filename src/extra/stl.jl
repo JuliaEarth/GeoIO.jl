@@ -124,6 +124,13 @@ function stlasciiwrite(fname, mesh)
 end
 
 function stlbinwrite(fname, mesh)
+  if coordtype(mesh) <: Float64
+    @warn """
+    The STL Binary format stores data with 32-bit precision.
+    Use STL ASCII format, with `ascii=true`, to store data with full precision.
+    """
+  end
+
   open(fname, write=true) do io
     foreach(i -> write(io, 0x00), 1:80) # empty header
 

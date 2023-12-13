@@ -465,6 +465,15 @@ end
       @test gtb1 == gtb2
       @test values(gtb1, 0) == values(gtb2, 0)
 
+      # STL Binary: conversion to Float32
+      file1 = joinpath(datadir, "tetrahedron_ascii.stl")
+      file2 = joinpath(savedir, "tetrahedron_converted.stl")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test coordtype(gtb1.geometry) <: Float64
+      @test coordtype(gtb2.geometry) <: Float32
+
       # error: STL format only supports 3D triangle meshes
       gtb = GeoTable(CartesianGrid(2, 2, 2))
       file = joinpath(savedir, "error.stl")
