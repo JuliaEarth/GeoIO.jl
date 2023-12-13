@@ -32,6 +32,11 @@ function save(fname, geotable; kwargs...)
     return vtkwrite(fname, geotable)
   end
 
+  # Common Data Model formats
+  if any(ext -> endswith(fname, ext), CDMEXTS)
+    return cdmwrite(fname, geotable; kwargs...)
+  end
+
   # STL formats
   if endswith(fname, ".stl")
     return stlwrite(fname, geotable; kwargs...)
