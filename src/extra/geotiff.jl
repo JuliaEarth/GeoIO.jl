@@ -27,8 +27,8 @@ function geotiffwrite(fname, geotable; kwargs...)
   names = Tables.columnnames(cols)
 
   driver = AG.getdriver("GTiff")
-  nbands = length(names)
   width, height = dims
+  nbands = length(names)
   dtype = eltype(Tables.getcolumn(cols, first(names)))
 
   for name in names
