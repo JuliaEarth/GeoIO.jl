@@ -44,13 +44,16 @@ import GeoParquet as GPQ
 import GeoInterface as GI
 
 # image extensions
-const IMGEXTS = [".png", ".jpg", ".jpeg", ".tif", ".tiff"]
+const IMGEXTS = [".png", ".jpg", ".jpeg"]
 
 # VTK extensions
 const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
 # Common Data Model extensions
 const CDMEXTS = [".grib", ".nc"]
+
+# GeoTiff extensions
+const GEOTIFFEXTS = [".tif", ".tiff"]
 
 # supported formats
 const FORMATS = [
@@ -73,8 +76,8 @@ const FORMATS = [
   (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".tif", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".tiff", load="ImageIO.jl", save="ImageIO.jl")
+  (extension=".tif", load="ArchGDAL.jl", save="ArchGDAL.jl"),
+  (extension=".tiff", load="ArchGDAL.jl", save="ArchGDAL.jl")
 ]
 
 """
@@ -104,6 +107,7 @@ include("extra/ply.jl")
 include("extra/csv.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
+include("extra/geotiff.jl")
 include("extra/vtkread.jl")
 include("extra/vtkwrite.jl")
 
