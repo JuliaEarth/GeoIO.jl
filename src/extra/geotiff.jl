@@ -38,10 +38,7 @@ function geotiffwrite(fname, geotable; kwargs...)
     end
   end
 
-  AG.create(fname; driver, width, height, nbands, dtype) do dataset
-    table = values(geotable)
-    cols = Tables.columns(table)
-    names = Tables.columnnames(cols)
+  AG.create(fname; driver, width, height, nbands, dtype, kwargs...) do dataset
     for (i, name) in enumerate(names)
       column = Tables.getcolumn(cols, name)
       band = reshape(column, dims) |> rotl90 |> permutedims
