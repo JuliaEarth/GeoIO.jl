@@ -281,6 +281,17 @@ end
       end
     end
 
+    @testset "GeoTiff" begin
+      file = joinpath(datadir, "test.tif")
+      gtb = GeoIO.load(file)
+      @test propertynames(gtb) == [:BAND1, :BAND2, :BAND3, :geometry]
+      @test eltype(gtb.BAND1) <: UInt8
+      @test eltype(gtb.BAND2) <: UInt8
+      @test eltype(gtb.BAND3) <: UInt8
+      @test gtb.geometry isa CartesianGrid
+      @test size(gtb.geometry) == (100, 100)
+    end
+
     @testset "Shapefile" begin
       table = GeoIO.load(joinpath(datadir, "points.shp"))
       @test length(table.geometry) == 5
@@ -714,6 +725,16 @@ end
       file = joinpath(savedir, "error.grib")
       gtb = georef((; a=rand(4)), CartesianGrid(2, 2))
       @test_throws ErrorException GeoIO.save(file, gtb)
+    end
+
+    @testset "GeoTiff" begin
+      file1 = joinpath(datadir, "test.tif")
+      file2 = joinpath(savedir, "test.tif")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
     end
   end
 

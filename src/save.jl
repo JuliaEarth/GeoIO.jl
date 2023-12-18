@@ -37,6 +37,11 @@ function save(fname, geotable; kwargs...)
     return cdmwrite(fname, geotable; kwargs...)
   end
 
+  # GeoTiff formats
+  if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
+    return geotiffwrite(fname, geotable; kwargs...)
+  end
+
   # STL formats
   if endswith(fname, ".stl")
     return stlwrite(fname, geotable; kwargs...)

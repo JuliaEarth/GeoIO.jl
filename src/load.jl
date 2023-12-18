@@ -38,6 +38,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return cdmread(fname; kwargs...)
   end
 
+  # GeoTiff formats
+  if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
+    return geotiffread(fname; kwargs...)
+  end
+
   # STL format
   if endswith(fname, ".stl")
     return stlraed(fname; kwargs...)
