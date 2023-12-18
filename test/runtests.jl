@@ -735,6 +735,14 @@ end
       gtb2 = GeoIO.load(file2)
       @test gtb1 == gtb2
       @test values(gtb1, 0) == values(gtb2, 0)
+
+      # error: GeoTiff format only supports 2D grids
+      file = joinpath(savedir, "error.tif")
+      gtb = georef((; a=rand(8)), CartesianGrid(2, 2, 2))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
+      # error: all variables must have the same type
+      gtb = georef((a=rand(1:9, 25), b=rand(25)), CartesianGrid(5, 5))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
     end
   end
 
