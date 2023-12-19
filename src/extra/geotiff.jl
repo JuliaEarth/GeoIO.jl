@@ -8,7 +8,7 @@ function geotiffread(fname; kwargs...)
   gt = AG.getgeotransform(dataset)
   ps = [AG.applygeotransform(gt, Float64(x), Float64(y)) for x in (0, dims[1]) for y in (0, dims[2])]
   box = boundingbox([Point(p...) for p in ps])
-  domain = CartesianGrid(minimum(box), maximum(box), dims = dims)
+  domain = CartesianGrid(minimum(box), maximum(box); dims)
   pairs = map(1:AG.nraster(dataset)) do i
     name = Symbol(:BAND, i)
     column = AG.read(dataset, i) |> transpose |> rotr90
