@@ -21,10 +21,11 @@ To see supported formats, use the [`formats`](@ref) function.
 function load(fname; layer=0, fix=true, kwargs...)
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
-    data = FileIO.load(fname) |> rotr90
+    data = FileIO.load(fname)
     dims = size(data)
     values = (; color=vec(data))
-    domain = CartesianGrid(dims)
+    # translating before rotating is faster than the opposite order
+    domain = CartesianGrid(dims) |> Translate(-dims[1], 0) |> Rotate(Angle2d(-π / 2))
     return georef(values, domain)
   end
 

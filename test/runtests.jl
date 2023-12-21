@@ -130,7 +130,7 @@ end
   @testset "load" begin
     @testset "Images" begin
       table = GeoIO.load(joinpath(datadir, "image.jpg"))
-      @test table.geometry isa CartesianGrid
+      @test table.geometry isa TransformedGrid
       @test length(table.color) == length(table.geometry)
     end
 
