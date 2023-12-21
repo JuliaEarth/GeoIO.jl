@@ -23,7 +23,7 @@ function save(fname, geotable; kwargs...)
     names = Tables.columnnames(cols)
     @assert :color ∈ names "colors not found"
     colors = Tables.getcolumn(cols, :color)
-    img = reshape(colors, size(grid)) |> rotl90
+    img = reshape(colors, size(grid))
     return FileIO.save(fname, img)
   end
 
