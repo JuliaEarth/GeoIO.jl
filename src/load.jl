@@ -24,8 +24,9 @@ function load(fname; layer=0, fix=true, kwargs...)
     data = FileIO.load(fname)
     dims = size(data)
     values = (; color=vec(data))
-    # translating before rotating is faster than the opposite order
-    domain = CartesianGrid(dims) |> Translate(-dims[1], 0) |> Rotate(Angle2d(-π / 2))
+    # translation followed by rotation is faster
+    transform = Translate(-dims[1], 0) → Rotate(Angle2d(-π / 2))
+    domain = CartesianGrid(dims) |> transform
     return georef(values, domain)
   end
 
