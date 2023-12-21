@@ -2,16 +2,18 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-struct GDALTransform <: Transform
-  gt::Vector{Float64}
+struct GDALTransform{T} <: CoordinateTransform
+  gt::NTuple{6,T}
 end
 
-function apply(transform::GDALTransform, point::Point{2})
+GDALTransform(gt::AbstractVector) = GDALTransform(ntuple(i -> gt[i], 6))
+
+function applycoord(transform::GDALTransform, vec::Vec{2})
+  x, y = vec
   gt = transform.gt
-  x, y = coordinates(point)
   xnew = gt[1] + x * gt[2] + y * gt[3]
   ynew = gt[4] + x * gt[5] + y * gt[6]
-  Point(xnew, ynew), nothing
+  Vec(xnew, ynew)
 end
 
 function geotiffread(fname; kwargs...)
