@@ -12,7 +12,8 @@ using Formatting
 using StaticArrays
 using PrettyTables
 using Meshes: SubDomain
-using TransformsBase: →
+using TransformsBase: Transform, →
+import TransformsBase: apply
 
 # image formats
 import FileIO

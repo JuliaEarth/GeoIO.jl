@@ -288,7 +288,7 @@ end
       @test eltype(gtb.BAND1) <: UInt8
       @test eltype(gtb.BAND2) <: UInt8
       @test eltype(gtb.BAND3) <: UInt8
-      @test gtb.geometry isa CartesianGrid
+      @test gtb.geometry isa TransformedGrid
       @test size(gtb.geometry) == (100, 100)
     end
 
