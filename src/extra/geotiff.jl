@@ -2,16 +2,28 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+struct GDALTransform{T} <: CoordinateTransform
+  gt::NTuple{6,T}
+end
+
+GDALTransform(gt::AbstractVector) = GDALTransform(ntuple(i -> gt[i], 6))
+
+function applycoord(transform::GDALTransform, vec::Vec{2})
+  x, y = vec
+  gt = transform.gt
+  xnew = gt[1] + x * gt[2] + y * gt[3]
+  ynew = gt[4] + x * gt[5] + y * gt[6]
+  Vec(xnew, ynew)
+end
+
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
   dims = (Int(AG.width(dataset)), Int(AG.height(dataset)))
-  gt = AG.getgeotransform(dataset)
-  ps = [AG.applygeotransform(gt, Float64(x), Float64(y)) for x in (0, dims[1]) for y in (0, dims[2])]
-  box = boundingbox([Point(p...) for p in ps])
-  domain = CartesianGrid(minimum(box), maximum(box); dims)
+  transform = GDALTransform(AG.getgeotransform(dataset))
+  domain = TransformedGrid(CartesianGrid(dims), transform)
   pairs = map(1:AG.nraster(dataset)) do i
     name = Symbol(:BAND, i)
-    column = AG.read(dataset, i) |> transpose |> rotr90
+    column = AG.read(dataset, i)
     name => vec(column)
   end
   table = (; pairs...)
@@ -44,7 +56,7 @@ function geotiffwrite(fname, geotable; kwargs...)
   AG.create(fname; driver, width, height, nbands, dtype, kwargs...) do dataset
     for (i, name) in enumerate(names)
       column = Tables.getcolumn(cols, name)
-      band = reshape(column, dims) |> rotl90 |> permutedims
+      band = reshape(column, dims)
       AG.write!(dataset, band, i)
     end
   end
