@@ -6,6 +6,7 @@ function csvread(fname; coords, kwargs...)
   csv = CSV.File(fname; kwargs...)
   rows = Tables.rows(csv)
   cnames = Symbol.(coords)
+ 
   # select only rows where coordinates don't have missing values
   pred(row) = all(!ismissing(Tables.getcolumn(row, nm)) for nm in cnames)
 
