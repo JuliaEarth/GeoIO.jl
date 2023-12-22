@@ -50,6 +50,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return stlraed(fname; kwargs...)
   end
 
+  # OBJ format
+  if endswith(fname, ".obj")
+    return objread(fname; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)

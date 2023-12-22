@@ -42,9 +42,14 @@ function save(fname, geotable; kwargs...)
     return geotiffwrite(fname, geotable; kwargs...)
   end
 
-  # STL formats
+  # STL format
   if endswith(fname, ".stl")
     return stlwrite(fname, geotable; kwargs...)
+  end
+
+  # OBJ format
+  if endswith(fname, ".obj")
+    return objwrite(fname, geotable; kwargs...)
   end
 
   # PLY format
