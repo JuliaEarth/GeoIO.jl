@@ -161,12 +161,23 @@ end
     end
 
     @testset "CSV" begin
-      table = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"])
-      @test eltype(table.code) <: Integer
-      @test eltype(table.name) <: AbstractString
-      @test eltype(table.variable) <: Real
-      @test table.geometry isa PointSet
-      @test length(table.geometry) == 5
+      gtb1 = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"])
+      @test eltype(gtb1.code) <: Integer
+      @test eltype(gtb1.name) <: AbstractString
+      @test eltype(gtb1.variable) <: Real
+      @test gtb1.geometry isa PointSet
+      @test length(gtb1.geometry) == 5
+
+      # coordinates with missing values
+      gtb2 = GeoIO.load(joinpath(datadir, "points_missing.csv"), coords=[:x, :y])
+      @test eltype(gtb2.code) <: Integer
+      @test eltype(gtb2.name) <: AbstractString
+      @test eltype(gtb2.variable) <: Real
+      @test gtb2.geometry isa PointSet
+      @test length(gtb2.geometry) == 3
+      @test gtb2[1, :] == gtb1[1, :]
+      @test gtb2[2, :] == gtb1[3, :]
+      @test gtb2[3, :] == gtb1[5, :]
     end
 
     @testset "GSLIB" begin
