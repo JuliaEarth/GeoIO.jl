@@ -169,7 +169,7 @@ end
       @test length(gtb1.geometry) == 5
 
       # coordinates with missing values
-      gtb2 = GeoIO.load(joinpath(datadir, "points_missing.csv"), coords=[:x, :y])
+      gtb2 = GeoIO.load(joinpath(datadir, "missingcoords.csv"), coords=[:x, :y])
       @test eltype(gtb2.code) <: Integer
       @test eltype(gtb2.name) <: AbstractString
       @test eltype(gtb2.variable) <: Real
