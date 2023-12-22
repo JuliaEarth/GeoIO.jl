@@ -2,7 +2,21 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-csvread(fname; coords, kwargs...) = georef(CSV.File(fname; kwargs...), coords)
+function csvread(fname; coords, kwargs...)
+  csv = CSV.File(fname; kwargs...)
+  rows = Tables.rows(csv)
+  cnames = Symbol.(coords)
+  # select only rows where coordinates don't have missing values
+  pred(row) = all(!ismissing(Tables.getcolumn(row, nm)) for nm in cnames)
+
+  sinds = Int[]
+  for (i, row) in enumerate(rows)
+    pred(row) && push!(sinds, i)
+  end
+
+  srows = Tables.subset(rows, sinds)
+  georef(srows, cnames)
+end
 
 function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs...)
   dom = domain(geotable)
