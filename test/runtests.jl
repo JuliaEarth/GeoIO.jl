@@ -500,7 +500,7 @@ end
       file1 = joinpath(datadir, "tetrahedron_ascii.stl")
       file2 = joinpath(savedir, "tetrahedron_converted.stl")
       gtb1 = GeoIO.load(file1)
-      GeoIO.save(file2, gtb1)
+      @test_logs (:warn,) GeoIO.save(file2, gtb1)
       gtb2 = GeoIO.load(file2)
       @test coordtype(gtb1.geometry) <: Float64
       @test coordtype(gtb2.geometry) <: Float32
