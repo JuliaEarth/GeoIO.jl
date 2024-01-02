@@ -38,7 +38,7 @@ GeoIO.save("file.shp", table, force = true)
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on December 22th, 2023:
+Below is the output generated on January 2th, 2024:
 
 ```julia
 GeoIO.formats()
@@ -53,8 +53,9 @@ GeoIO.formats()
 │   .jpeg   │   ImageIO.jl    │  ImageIO.jl   │
 │   .jpg    │   ImageIO.jl    │  ImageIO.jl   │
 │   .kml    │   ArchGDAL.jl   │               │
-│    .nc    │  NCDatasets.jl  │               │
+│    .nc    │  NCDatasets.jl  │ NCDatasets.jl │
 │   .obj    │    GeoIO.jl     │   GeoIO.jl    │
+│   .off    │    GeoIO.jl     │   GeoIO.jl    │
 │ .parquet  │  GeoParquet.jl  │ GeoParquet.jl │
 │   .ply    │    PlyIO.jl     │   PlyIO.jl    │
 │   .png    │   ImageIO.jl    │  ImageIO.jl   │

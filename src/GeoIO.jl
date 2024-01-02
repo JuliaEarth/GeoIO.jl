@@ -72,7 +72,7 @@ const FORMATS = [
   (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".grib", load="GRIBDatasets.jl", save=""),
-  (extension=".nc", load="NCDatasets.jl", save=""),
+  (extension=".nc", load="NCDatasets.jl", save="NCDatasets.jl"),
   (extension=".kml", load="ArchGDAL.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
