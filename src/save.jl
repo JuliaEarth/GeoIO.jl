@@ -52,6 +52,11 @@ function save(fname, geotable; kwargs...)
     return objwrite(fname, geotable; kwargs...)
   end
 
+  # OFF format
+  if endswith(fname, ".off")
+    return offwrite(fname, geotable; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plywrite(fname, geotable; kwargs...)

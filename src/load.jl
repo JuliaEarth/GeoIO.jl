@@ -55,6 +55,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return objread(fname; kwargs...)
   end
 
+  # OFF format
+  if endswith(fname, ".off")
+    return offread(fname; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)
