@@ -15,7 +15,7 @@ function mshread(fname)
         if line == "\$MeshFormat"
           _checkversion(io)
         elseif line == "\$Nodes"
-          _parsenodes!(io, nodetags, vertices)  
+          _parsenodes!(io, nodetags, vertices)
         elseif line == "\$Elements"
           _parseelements!(io, elemtypes, elemnodes)
         else
@@ -91,14 +91,8 @@ end
 # HELPER FUNCTIONS
 # -----------------
 
-const ELEMTYPE2GEOM = Dict(
-  1 => Segment,
-  2 => Triangle,
-  3 => Quadrangle,
-  4 => Tetrahedron,
-  5 => Hexahedron,
-  7 => Pyramid
-)
+const ELEMTYPE2GEOM =
+  Dict(1 => Segment, 2 => Triangle, 3 => Quadrangle, 4 => Tetrahedron, 5 => Hexahedron, 7 => Pyramid)
 
 _elemtype(::Type{<:Segment}) = 1
 _elemtype(::Type{<:Triangle}) = 2
