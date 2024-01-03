@@ -57,6 +57,11 @@ function save(fname, geotable; kwargs...)
     return offwrite(fname, geotable; kwargs...)
   end
 
+  # MSH format
+  if endswith(fname, ".msh")
+    return mshwrite(fname, geotable; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plywrite(fname, geotable; kwargs...)

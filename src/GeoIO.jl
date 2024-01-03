@@ -64,6 +64,7 @@ const FORMATS = [
   (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".obj", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".off", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".msh", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
   (extension=".csv", load="CSV.jl", save="CSV.jl"),
   (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
@@ -111,6 +112,7 @@ include("conversion.jl")
 include("extra/stl.jl")
 include("extra/obj.jl")
 include("extra/off.jl")
+include("extra/msh.jl")
 include("extra/ply.jl")
 include("extra/csv.jl")
 include("extra/cdm.jl")
