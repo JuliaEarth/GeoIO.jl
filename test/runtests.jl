@@ -566,7 +566,7 @@ end
       @test_throws ArgumentError GeoIO.save(file, gtb, color="COLOR")
     end
 
-    @testset "OFF" begin
+    @testset "MSH" begin
       file1 = joinpath(datadir, "tetrahedron.msh")
       file2 = joinpath(savedir, "tetrahedron.msh")
       gtb1 = GeoIO.load(file1)
