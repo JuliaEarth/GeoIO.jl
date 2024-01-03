@@ -60,6 +60,11 @@ function load(fname; layer=0, fix=true, kwargs...)
     return offread(fname; kwargs...)
   end
 
+  # MSH format
+  if endswith(fname, ".msh")
+    return mshread(fname; kwargs...)
+  end
+
   # PLY format
   if endswith(fname, ".ply")
     return plyread(fname; kwargs...)

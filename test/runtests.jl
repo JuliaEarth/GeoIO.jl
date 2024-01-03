@@ -172,6 +172,15 @@ end
       @test length(gtb.geometry) == 4
     end
 
+    @testset "MSH" begin
+      gtb = GeoIO.load(joinpath(datadir, "tetrahedron.msh"))
+      @test gtb.geometry isa SimpleMesh
+      @test embeddim(gtb.geometry) == 3
+      @test coordtype(gtb.geometry) <: Float64
+      @test eltype(gtb.geometry) <: Triangle
+      @test length(gtb.geometry) == 4
+    end
+
     @testset "PLY" begin
       table = GeoIO.load(joinpath(datadir, "beethoven.ply"))
       @test table.geometry isa SimpleMesh
@@ -555,6 +564,21 @@ end
       gtb = georef((; COLOR=rand(4)), mesh)
       file = joinpath(savedir, "error.off")
       @test_throws ArgumentError GeoIO.save(file, gtb, color="COLOR")
+    end
+
+    @testset "MSH" begin
+      file1 = joinpath(datadir, "tetrahedron.msh")
+      file2 = joinpath(savedir, "tetrahedron.msh")
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
+
+      # error: MSH format only supports 3D meshes
+      gtb = GeoTable(CartesianGrid(2, 2))
+      file = joinpath(savedir, "error.msh")
+      @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
     @testset "PLY" begin
