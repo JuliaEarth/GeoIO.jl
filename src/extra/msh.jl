@@ -32,8 +32,7 @@ function mshread(fname)
   end
 
   connec = map(elemtypes, eleminds) do elemtype, inds
-    PL = ELEMTYPE2GEOM[elemtype]
-    connect(ntuple(i -> inds[i], nvertices(PL)), PL)
+    connect(Tuple(inds), ELEMTYPE2GEOM[elemtype])
   end
   mesh = SimpleMesh(vertices, connec)
 
