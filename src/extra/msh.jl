@@ -5,19 +5,27 @@
 function mshread(fname)
   nodetags = Int[]
   vertices = Point3[]
+  nodedata = Dict{Int,Any}()
+
+  elemtags = Int[]
   elemtypes = Int[]
   elemnodes = Vector{Int}[]
+  elemdata = Dict{Int,Any}()
 
   open(fname) do io
     while !eof(io)
-      line = readline(io)
+      line = strip(readline(io))
       if !isempty(line)
         if line == "\$MeshFormat"
           _checkversion(io)
         elseif line == "\$Nodes"
           _parsenodes!(io, nodetags, vertices)
         elseif line == "\$Elements"
-          _parseelements!(io, elemtypes, elemnodes)
+          _parseelements!(io, elemtags, elemtypes, elemnodes)
+        elseif line == "\$NodeData"
+          _parsedata!(io, nodedata)
+        elseif line == "\$ElementData"
+          _parsedata!(io, elemdata)
         else
           _skipblock(io)
         end
@@ -36,14 +44,22 @@ function mshread(fname)
   end
   mesh = SimpleMesh(vertices, connec)
 
-  GeoTable(mesh)
+  vtable = _datatable(nodetags, nodedata)
+  etable = _datatable(elemtags, elemdata)
+
+  GeoTable(mesh; vtable, etable)
 end
 
-function mshwrite(fname, geotable)
+function mshwrite(fname, geotable; vcolumn=nothing, ecolumn=nothing)
   mesh = domain(geotable)
   if !(mesh isa Mesh{3})
     throw(ArgumentError("MSH format only supports 3D meshes"))
   end
+
+  etable = values(geotable)
+  vtable = values(geotable, 0)
+  edata = !isnothing(ecolumn) ? _datacolumn(etable, Symbol(ecolumn)) : nothing
+  vdata = !isnothing(vcolumn) ? _datacolumn(vtable, Symbol(vcolumn)) : nothing
 
   geom = eltype(mesh)
   pdim = paramdim(geom)
@@ -84,6 +100,18 @@ function mshwrite(fname, geotable)
       write(io, "$i $(join(inds, " "))\n")
     end
     write(io, "\$EndElements\n")
+
+    if !isnothing(vdata)
+      write(io, "\$NodeData\n")
+      _writecolumn(io, vdata)
+      write(io, "\$EndNodeData\n")
+    end
+
+    if !isnothing(edata)
+      write(io, "\$ElementData\n")
+      _writecolumn(io, edata)
+      write(io, "\$EndElementData\n")
+    end
   end
 end
 
@@ -135,7 +163,7 @@ function _parsenodes!(io, nodetags, vertices)
   readline(io) # $EndNodes
 end
 
-function _parseelements!(io, elemtypes, elemnodes)
+function _parseelements!(io, elemtags, elemtypes, elemnodes)
   strs = split(readline(io))
   # number of entity blocks
   # ignoring numElements, minElementTag, maxElementTag
@@ -149,6 +177,8 @@ function _parseelements!(io, elemtypes, elemnodes)
       strs = split(readline(io))
       if haskey(ELEMTYPE2GEOM, elemtype)
         push!(elemtypes, elemtype)
+        tag = parse(Int, strs[1])
+        push!(elemtags, tag)
         # node tags for current element
         nodes = parse.(Int, strs[2:end])
         push!(elemnodes, nodes)
@@ -160,11 +190,109 @@ function _parseelements!(io, elemtypes, elemnodes)
   readline(io) # $EndElements
 end
 
+function _parsedata!(io, data)
+  # skip string tags
+  nstrtags = parse(Int, readline(io))
+  for _ in 1:nstrtags
+    readline(io)
+  end
+
+  # skip real tags
+  nrealtags = parse(Int, readline(io))
+  for _ in 1:nrealtags
+    readline(io)
+  end
+
+  # integer tags
+  ninttags = parse(Int, readline(io))
+  if ninttags < 3
+    error("missing one or more of the required tags: number of field components, number of entities")
+  end
+
+  inttags = [parse(Int, readline(io)) for _ in 1:ninttags]
+  ncomp = inttags[2] # number of field components (dimensions)
+  nvals = inttags[3] # number of entities
+  for _ in 1:nvals
+    strs = split(readline(io))
+    tag = parse(Int, strs[1])
+    value = if ncomp == 9
+      SMatrix{3,3}(ntuple(i -> parse(Float64, strs[i + 1]), 9))
+    elseif ncomp == 3
+      SVector{3}(ntuple(i -> parse(Float64, strs[i + 1]), 3))
+    elseif ncomp == 1
+      parse(Float64, strs[2])
+    else
+      error("invalid number of field components")
+    end
+    push!(data, tag => value)
+  end
+  readline(io) # $End[Node or Element]Data
+end
+
+function _datatable(tags, data)
+  if !isempty(data)
+    column = [get(data, tag, missing) for tag in tags]
+    (; DATA=column)
+  else
+    nothing
+  end
+end
+
 function _skipblock(io)
   while !eof(io)
     line = readline(io)
     if startswith(line, "\$End")
       break
     end
+  end
+end
+
+function _datacolumn(table, name)
+  if !isnothing(table)
+    cols = Tables.columns(table)
+    column = Tables.getcolumn(cols, name)
+    T = nonmissingtype(eltype(column))
+    if T <: AbstractMatrix
+      if !all(size(v) == (3, 3) for v in skipmissing(column))
+        error("matrix data must have size equal to 3x3")
+      end
+    elseif T <: AbstractVector
+      if !all(length(v) == 3 for v in skipmissing(column))
+        error("vector data must have size equal to 3")
+      end
+    end
+    float.(column)
+  else
+    nothing
+  end
+end
+
+function _writecolumn(io, column)
+  # string tags
+  write(io, "1\n")
+  write(io, "\"node data\"\n") # view name
+  # real tags
+  write(io, "1\n")
+  write(io, "0.0\n") # time value
+  # integer tags
+  write(io, "3\n")
+  write(io, "0\n") # time step
+  write(io, "$(_ncomps(column))\n") # number of field components
+  write(io, "$(count(!ismissing, column))\n") # number of entities
+  for (i, v) in enumerate(column)
+    if !ismissing(v)
+      write(io, "$i $(join(v, " "))\n")
+    end
+  end
+end
+
+function _ncomps(column)
+  T = nonmissingtype(eltype(column))
+  if T <: AbstractMatrix
+    9
+  elseif T <: AbstractVector
+    3
+  else
+    1
   end
 end
