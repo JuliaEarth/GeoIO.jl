@@ -270,7 +270,7 @@ end
 function _writecolumn(io, column)
   # string tags
   write(io, "1\n")
-  write(io, "\"node data\"\n") # view name
+  write(io, "\"data\"\n") # view name
   # real tags
   write(io, "1\n")
   write(io, "0.0\n") # time value
