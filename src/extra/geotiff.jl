@@ -2,24 +2,14 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-struct GDALTransform{T} <: CoordinateTransform
-  gt::NTuple{6,T}
-end
-
-GDALTransform(gt::AbstractVector) = GDALTransform(ntuple(i -> gt[i], 6))
-
-function applycoord(transform::GDALTransform, vec::Vec{2})
-  x, y = vec
-  gt = transform.gt
-  xnew = gt[1] + x * gt[2] + y * gt[3]
-  ynew = gt[4] + x * gt[5] + y * gt[6]
-  Vec(xnew, ynew)
-end
-
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
+  gt = AG.getgeotransform(dataset)
   dims = (Int(AG.width(dataset)), Int(AG.height(dataset)))
-  transform = GDALTransform(AG.getgeotransform(dataset))
+  # GDAL transform:
+  # xnew = gt[1] + x * gt[2] + y * gt[3]
+  # ynew = gt[4] + x * gt[5] + y * gt[6]
+  transform = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]])
   domain = TransformedGrid(CartesianGrid(dims), transform)
   pairs = map(1:AG.nraster(dataset)) do i
     name = Symbol(:BAND, i)
