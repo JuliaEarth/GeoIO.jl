@@ -1,7 +1,7 @@
 name = "GeoIO"
 uuid = "f5a160d5-e41d-4189-8b61-d57781c419e3"
 authors = ["Elias Carvalho <eliascarvdev@gmail.com> and contributors"]
-version = "1.12.6"
+version = "1.12.7"
 
 [deps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
@@ -45,7 +45,7 @@ GeoParquet = "0.1, 0.2"
 GeoTables = "1.7"
 GslibIO = "1.4"
 ImageIO = "0.6"
-Meshes = "0.39.2"
+Meshes = "0.40"
 NCDatasets = "0.13, 0.14"
 PlyIO = "1.1"
 PrecompileTools = "1.2"
