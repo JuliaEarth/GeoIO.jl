@@ -9,10 +9,10 @@ using Tables
 using Colors
 using GeoTables
 using Rotations
-using Formatting
 using StaticArrays
 using PrettyTables
 using Meshes: SubDomain
+using Format: generate_formatter
 using TransformsBase: →
 
 # image formats
