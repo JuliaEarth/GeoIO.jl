@@ -911,4 +911,30 @@ end
       end
     end
   end
+
+  @testset "GeoTables without attributes" begin
+    pset = PointSet(rand(Point2, 10))
+    gtb1 = georef(nothing, pset)
+
+    # GeoJSON
+    file = joinpath(savedir, "noattribs.geojson")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file, numbertype=Float64)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
+    # GeoParquet
+    file = joinpath(savedir, "noattribs.parquet")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
+    # GeoPackage
+    file = joinpath(savedir, "noattribs.gpkg")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+  end
 end
