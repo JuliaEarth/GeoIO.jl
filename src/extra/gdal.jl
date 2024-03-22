@@ -49,7 +49,7 @@ function agwrite(fname, geotable; layername="data", options=Dict("geometry_name"
         for (name, type) in zip(schema.names, agtypes)
           AG.addfielddefn!(layer, String(name), type)
         end
-  
+
         for (row, geom) in zip(rows, geoms)
           AG.addfeature(layer) do feature
             for name in schema.names
@@ -61,7 +61,7 @@ function agwrite(fname, geotable; layername="data", options=Dict("geometry_name"
                 AG.setfield!(feature, i, x)
               end
             end
-  
+
             AG.setgeom!(feature, GI.convert(AG.IGeometry, geom))
           end
         end
