@@ -13,8 +13,8 @@ asstrings(options::Dict{<:AbstractString,<:AbstractString}) =
 function agwrite(fname, geotable; layername="data", options=Dict("geometry_name" => "geometry"))
   geoms = domain(geotable)
   table = values(geotable)
-  rows = Tables.rows(table)
-  schema = Tables.schema(table)
+  rows = isnothing(table) ? nothing : Tables.rows(table)
+  schema = isnothing(table) ? nothing : Tables.schema(table)
 
   # Set geometry name in options
   if !haskey(options, "geometry_name")
@@ -24,34 +24,46 @@ function agwrite(fname, geotable; layername="data", options=Dict("geometry_name"
   ext = last(splitext(fname))
   driver = AG.getdriver(DRIVER[ext])
   optionlist = asstrings(options)
-  agtypes = map(schema.types) do type
-    try
-      T = nonmissingtype(type)
-      convert(AG.OGRFieldType, T)
-    catch
-      error("type $type not supported")
+  agtypes = if isnothing(table)
+    nothing
+  else
+    map(schema.types) do type
+      try
+        T = nonmissingtype(type)
+        convert(AG.OGRFieldType, T)
+      catch
+        error("type $type not supported")
+      end
     end
   end
 
   AG.create(fname; driver) do dataset
     AG.createlayer(; dataset, name=layername, options=optionlist) do layer
-      for (name, type) in zip(schema.names, agtypes)
-        AG.addfielddefn!(layer, String(name), type)
-      end
-
-      for (row, geom) in zip(rows, geoms)
-        AG.addfeature(layer) do feature
-          for name in schema.names
-            x = Tables.getcolumn(row, name)
-            i = AG.findfieldindex(feature, name)
-            if ismissing(x)
-              AG.setfieldnull!(feature, i)
-            else
-              AG.setfield!(feature, i, x)
-            end
+      if isnothing(table)
+        for geom in geoms
+          AG.addfeature(layer) do feature
+            AG.setgeom!(feature, GI.convert(AG.IGeometry, geom))
           end
-
-          AG.setgeom!(feature, GI.convert(AG.IGeometry, geom))
+        end
+      else
+        for (name, type) in zip(schema.names, agtypes)
+          AG.addfielddefn!(layer, String(name), type)
+        end
+  
+        for (row, geom) in zip(rows, geoms)
+          AG.addfeature(layer) do feature
+            for name in schema.names
+              x = Tables.getcolumn(row, name)
+              i = AG.findfieldindex(feature, name)
+              if ismissing(x)
+                AG.setfieldnull!(feature, i)
+              else
+                AG.setfield!(feature, i, x)
+              end
+            end
+  
+            AG.setgeom!(feature, GI.convert(AG.IGeometry, geom))
+          end
         end
       end
     end
