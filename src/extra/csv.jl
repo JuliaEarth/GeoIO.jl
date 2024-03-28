@@ -52,7 +52,6 @@ function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs..
     (; zip(ucnames, ccolumns)..., pairs...)
   end
 
-
   transform(col, val) = _floatformat(val, floatformat)
   CSV.write(fname, newtab; transform, kwargs...)
 end
