@@ -511,6 +511,17 @@ end
       gtb2 = GeoIO.load(img2)
       @test gtb1.geometry == gtb2.geometry
       @test psnr_equality()(gtb1.color, gtb2.color)
+
+      # error: image formats only support grids
+      file = joinpath(savedir, "error.jpg")
+      gtb = georef((; a=rand(10)), rand(Point2, 10))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
+      # error: image formats need data to save
+      gtb = georef(nothing, CartesianGrid(2, 2))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
+      # error: color column not found
+      gtb = georef((; a=rand(4)), CartesianGrid(2, 2))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
     @testset "STL" begin
@@ -611,11 +622,19 @@ end
     @testset "PLY" begin
       file1 = joinpath(datadir, "beethoven.ply")
       file2 = joinpath(savedir, "beethoven.ply")
-      table1 = GeoIO.load(file1)
-      GeoIO.save(file2, table1)
-      table2 = GeoIO.load(file2)
-      @test table1 == table2
-      @test values(table1, 0) == values(table2, 0)
+      gtb1 = GeoIO.load(file1)
+      GeoIO.save(file2, gtb1)
+      gtb2 = GeoIO.load(file2)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
+
+      mesh = gtb1.geometry
+      gtb1 = georef((; a=rand(nelements(mesh))), mesh)
+      file = joinpath(savedir, "plywithdata.ply")
+      GeoIO.save(file, gtb1)
+      gtb2 = GeoIO.load(file)
+      @test gtb1 == gtb2
+      @test values(gtb1, 0) == values(gtb2, 0)
     end
 
     @testset "CSV" begin
@@ -857,6 +876,9 @@ end
       file = joinpath(savedir, "error.tif")
       gtb = georef((; a=rand(8)), CartesianGrid(2, 2, 2))
       @test_throws ArgumentError GeoIO.save(file, gtb)
+      # error: GeoTiff format needs data to save
+      gtb = georef(nothing, CartesianGrid(2, 2))
+      @test_throws ArgumentError GeoIO.save(file, gtb)
       # error: all variables must have the same type
       gtb = georef((a=rand(1:9, 25), b=rand(25)), CartesianGrid(5, 5))
       @test_throws ArgumentError GeoIO.save(file, gtb)
@@ -916,6 +938,13 @@ end
     pset = PointSet(rand(Point2, 10))
     gtb1 = georef(nothing, pset)
 
+    # Shapefile
+    file = joinpath(savedir, "noattribs.shp")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test all(ismissing, gtb2[:, 1])
+    @test gtb2.geometry == gtb1.geometry
+
     # GeoJSON
     file = joinpath(savedir, "noattribs.geojson")
     GeoIO.save(file, gtb1)
@@ -932,6 +961,31 @@ end
 
     # GeoPackage
     file = joinpath(savedir, "noattribs.gpkg")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
+    # CSV
+    file = joinpath(savedir, "noattribs.csv")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file, coords=[:x, :y])
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
+    # VTK
+    file = joinpath(savedir, "noattribs.vts")
+    gtb1 = georef(nothing, CartesianGrid(10, 10))
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
+    # MSH
+    gtb = GeoIO.load(joinpath(datadir, "tetrahedron1.msh"))
+    mesh = gtb.geometry
+    file = joinpath(savedir, "noattribs.msh")
+    gtb1 = georef(nothing, mesh)
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test isnothing(values(gtb2))

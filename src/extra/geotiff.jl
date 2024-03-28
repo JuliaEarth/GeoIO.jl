@@ -28,6 +28,10 @@ function geotiffwrite(fname, geotable; kwargs...)
   dims = size(grid)
 
   table = values(geotable)
+  if isnothing(table)
+    throw(ArgumentError("GeoTiff format needs data to save"))
+  end
+
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
 
