@@ -26,3 +26,19 @@ function geomcolumn(names)
     error("geometry column not found")
   end
 end
+
+# add "_" to `name` until it is unique compared to the table `names`
+function uniquename(names, name)
+  uname = name
+  while uname ∈ names
+    uname = Symbol(uname, :_)
+  end
+  uname
+end
+
+# make `newnames` unique compared to the table `names`
+function uniquenames(names, newnames)
+  map(newnames) do name
+    uniquename(names, name)
+  end
+end
