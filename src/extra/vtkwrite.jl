@@ -80,27 +80,29 @@ _extractvals(gtb) = _extractvals(domain(gtb), values(gtb), values(gtb, 0))
 _extractvals(dom::Domain, etable, vtable) = dom, etable, vtable
 function _extractvals(subdom::SubDomain, etable, vtable)
   dom = parent(subdom)
-  inds = parentindices(subdom)
-  nelems = nelements(dom)
 
-  cols = Tables.columns(etable)
-  names = Tables.columnnames(cols)
-  pairs = map(names) do name
-    x = Tables.getcolumn(cols, name)
-    y = fill(NaN, nelems)
-    y[inds] .= x
-    name => y
+  newtable = if isnothing(etable)
+    nothing
+  else
+    inds = parentindices(subdom)
+    nelems = nelements(dom)
+
+    cols = Tables.columns(etable)
+    names = Tables.columnnames(cols)
+    pairs = map(names) do name
+      x = Tables.getcolumn(cols, name)
+      y = fill(NaN, nelems)
+      y[inds] .= x
+      name => y
+    end
+
+    mask = uniquename(names, :MASK)
+    maskcol = zeros(UInt8, nelems)
+    maskcol[inds] .= 1
+
+    (; pairs..., mask => maskcol)
   end
 
-  mask = :MASK
-  # make unique
-  while mask ∈ names
-    mask = Symbol(mask, :_)
-  end
-  maskcol = zeros(UInt8, nelems)
-  maskcol[inds] .= 1
-
-  newtable = (; pairs..., mask => maskcol)
   dom, newtable, nothing
 end
 
