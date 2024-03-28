@@ -973,6 +973,13 @@ end
     @test isnothing(values(gtb2))
     @test gtb2 == gtb1
 
+    # GSLIB
+    file = joinpath(savedir, "noattribs.gslib")
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test isnothing(values(gtb2))
+    @test gtb2 == gtb1
+
     # VTK
     file = joinpath(savedir, "noattribs.vts")
     gtb1 = georef(nothing, CartesianGrid(10, 10))
