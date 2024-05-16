@@ -503,7 +503,7 @@ end
 
   @testset "save" begin
     @testset "Error: saving domains" begin
-      @test_throws ErrorException GeoIO.save("error.vti", CartesianGrid(10, 10))
+      @test_throws ArgumentError GeoIO.save("error.vti", CartesianGrid(10, 10))
     end
 
     @testset "Images" begin

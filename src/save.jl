@@ -96,5 +96,8 @@ function save(fname, geotable; kwargs...)
   end
 end
 
-save(fname, ::Domain; kwargs...) =
-  error("`GeoIO.save` can only save `GeoTable`. In order to save a `Domain`, please use `georef(nothing, domain)`")
+save(fname, ::Domain; kwargs...) = throw(
+  ArgumentError(
+    "`GeoIO.save` can only save `GeoTable`. In order to save a `Domain`, please save `georef(nothing, domain)`"
+  )
+)
