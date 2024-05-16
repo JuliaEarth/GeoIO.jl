@@ -502,6 +502,10 @@ end
   end
 
   @testset "save" begin
+    @testset "Error: saving domains" begin
+      @test_throws ArgumentError GeoIO.save("error.vti", CartesianGrid(10, 10))
+    end
+
     @testset "Images" begin
       fname = "image.jpg"
       img1 = joinpath(datadir, fname)

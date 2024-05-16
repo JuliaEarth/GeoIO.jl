@@ -95,3 +95,6 @@ function save(fname, geotable; kwargs...)
     agwrite(fname, geotable; kwargs...)
   end
 end
+
+save(fname, ::Domain; kwargs...) =
+  throw(ArgumentError("`GeoIO.save` can only save `GeoTable`s. Please save `georef(nothing, domain)` instead"))
