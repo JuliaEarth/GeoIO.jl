@@ -3,8 +3,9 @@
 # ------------------------------------------------------------------
 
 function mshread(fname)
+  P3 = typeof(rand(Point{3}))
   nodetags = Int[]
-  vertices = Point3[]
+  vertices = P3[]
   nodedata = Dict{Int,Any}()
 
   elemtags = Int[]
@@ -83,7 +84,7 @@ function mshwrite(fname, geotable; vcolumn=nothing, ecolumn=nothing)
     end
     # node coordinates
     for point in vertices(mesh)
-      coords = coordinates(point)
+      coords = ustrip.(to(point))
       write(io, "$(join(coords, " "))\n")
     end
     write(io, "\$EndNodes\n")

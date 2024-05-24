@@ -23,7 +23,7 @@ end
 function vtuwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
-  points = stack(coordinates, verts)
+  points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(_vtktype(pltype(c)), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
@@ -34,7 +34,7 @@ end
 function vtpwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
-  points = stack(coordinates, verts)
+  points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(PolyData.Polys(), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
@@ -60,8 +60,8 @@ function vtswrite(fname, grid::Grid, etable, vtable)
 end
 
 function vtiwrite(fname, grid::CartesianGrid, etable, vtable)
-  orig = coordinates(minimum(grid))
-  spac = spacing(grid)
+  orig = ustrip.(to(minimum(grid)))
+  spac = ustrip.(spacing(grid))
   dims = size(grid)
   xyz = map(orig, spac, dims) do o, s, d
     range(start=o, step=s, length=(d + 1))

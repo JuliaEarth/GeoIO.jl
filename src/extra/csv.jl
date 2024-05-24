@@ -39,7 +39,7 @@ function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs..
 
   points = [centroid(dom, i) for i in 1:nelements(dom)]
   ccolumns = map(1:Dim) do d
-    [coordinates(p)[d] for p in points]
+    [ustrip(to(p)[d]) for p in points]
   end
 
   newtab = if isnothing(tab)

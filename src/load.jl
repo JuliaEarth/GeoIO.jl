@@ -25,7 +25,7 @@ function load(fname; layer=0, fix=true, kwargs...)
     dims = size(data)
     values = (; color=vec(data))
     # translation followed by rotation is faster
-    transform = Translate(-dims[1], 0) → Rotate(Angle2d(-π / 2))
+    transform = Translate(-dims[1], 0) → Rotate(-π / 2)
     domain = CartesianGrid(dims) |> transform
     return georef(values, domain)
   end

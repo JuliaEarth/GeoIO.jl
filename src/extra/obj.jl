@@ -3,7 +3,8 @@
 # ------------------------------------------------------------------
 
 function objread(fname)
-  vertices = Point3[]
+  P3 = typeof(rand(Point{3}))
+  vertices = P3[]
   faceinds = Vector{Int}[]
 
   open(fname) do io
@@ -52,7 +53,7 @@ function objwrite(fname, geotable)
 
   open(fname, write=true) do io
     for point in vertices(mesh)
-      coords = coordinates(point)
+      coords = ustrip.(to(point))
       write(io, "v $(join(coords, " "))\n")
     end
 

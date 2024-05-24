@@ -3,7 +3,8 @@
 # ------------------------------------------------------------------
 
 function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
-  vertices = Point3[]
+  P3 = typeof(rand(Point{3}))
+  vertices = P3[]
   faceinds = Vector{Int}[]
   facecolors = RGBA{Float64}[]
   default = convert(RGBA{Float64}, defaultcolor)
@@ -84,7 +85,7 @@ function offwrite(fname, geotable; color=nothing)
     write(io, "$nverts $nfaces 0\n")
 
     for point in vertices(mesh)
-      coords = coordinates(point)
+      coords = ustrip.(to(point))
       write(io, "$(join(coords, " "))\n")
     end
 

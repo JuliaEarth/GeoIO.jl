@@ -27,8 +27,10 @@ function stlraed(fname)
 end
 
 function stlasciiread(fname)
-  normals = Vec3[]
-  vertices = NTuple{3,Point3}[]
+  P3 = typeof(rand(Point{3}))
+  V3 = typeof(rand(Vec{3}))
+  normals = V3[]
+  vertices = NTuple{3,P3}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -111,7 +113,7 @@ function stlasciiwrite(fname, mesh)
       write(io, "    outer loop\n")
 
       for point in vertices(triangle)
-        c = coordinates(point)
+        c = ustrip.(to(point))
         write(io, "        vertex $(frmtcoords(c))\n")
       end
 
@@ -140,7 +142,7 @@ function stlbinwrite(fname, mesh)
       n = normal(triangle)
       foreach(c -> write(io, Float32(c)), n)
       for point in vertices(triangle)
-        foreach(c -> write(io, Float32(c)), coordinates(point))
+        foreach(c -> write(io, Float32(c)), ustrip.(to(point)))
       end
       write(io, 0x0000) # empty attribute byte count
     end
