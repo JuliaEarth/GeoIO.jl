@@ -3,8 +3,7 @@
 # ------------------------------------------------------------------
 
 function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
-  P3 = typeof(rand(Point{3}))
-  vertices = P3[]
+  vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
   facecolors = RGBA{Float64}[]
   default = convert(RGBA{Float64}, defaultcolor)
@@ -22,7 +21,7 @@ function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
 
     for _ in 1:nverts
       strs = split(_readline(io))
-      point = Point(ntuple(i -> parse(Float64, strs[i]), 3))
+      point = ntuple(i -> parse(Float64, strs[i]), 3)
       push!(vertices, point)
     end
 

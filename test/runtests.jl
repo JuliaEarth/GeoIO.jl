@@ -108,8 +108,8 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
     @test GeoIO.geom2meshes(chain) == Ring((2.2, 2.2))
 
     # GeoJSON.jl
-    points = Point2f[(0, 0), (2.2, 2.2), (0.5, 2)]
-    outer = Point2f[(0, 0), (2.2, 2.2), (0.5, 2)]
+    points = Point.([(0.0f0, 0.0f0), (2.2f0, 2.2f0), (0.5f0, 2.0f0)])
+    outer = Point.([(0.0f0, 0.0f0), (2.2f0, 2.2f0), (0.5f0, 2.0f0)])
     point = GJS.read("""{"type":"Point","coordinates":[1,1]}""")
     chain = GJS.read("""{"type":"LineString","coordinates":[[0,0],[2.2,2.2],[0.5,2]]}""")
     poly = GJS.read("""{"type":"Polygon","coordinates":[[[0,0],[2.2,2.2],[0.5,2],[0,0]]]}""")
@@ -119,7 +119,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
     multipoly = GJS.read(
       """{"type":"MultiPolygon","coordinates":[[[[0,0],[2.2,2.2],[0.5,2],[0,0]]],[[[0,0],[2.2,2.2],[0.5,2],[0,0]]]]}"""
     )
-    @test GeoIO.geom2meshes(point) == Point2f(1.0, 1.0)
+    @test GeoIO.geom2meshes(point) == Point(1.0f0, 1.0f0)
     @test GeoIO.geom2meshes(chain) == Rope(points)
     @test GeoIO.geom2meshes(poly) == PolyArea(outer)
     @test GeoIO.geom2meshes(multipoint) == Multi(points)
@@ -127,7 +127,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
     @test GeoIO.geom2meshes(multipoly) == Multi([PolyArea(outer), PolyArea(outer)])
     # degenerate chain with 2 equal points
     chain = GJS.read("""{"type":"LineString","coordinates":[[2.2,2.2],[2.2,2.2]]}""")
-    @test GeoIO.geom2meshes(chain) == Ring(Point2f(2.2, 2.2))
+    @test GeoIO.geom2meshes(chain) == Ring(Point(2.2f0, 2.2f0))
   end
 
   @testset "load" begin
@@ -139,18 +139,18 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
 
     @testset "STL" begin
       gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"))
-      @test eltype(gtb.NORMAL) <: Vec3
+      @test eltype(gtb.NORMAL) <: Vec{3,Meshes.Met{Float64}}
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float64
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
 
       gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"))
-      @test eltype(gtb.NORMAL) <: Vec3f
+      @test eltype(gtb.NORMAL) <: Vec{3,Meshes.Met{Float32}}
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float32
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
     end
@@ -159,7 +159,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       gtb = GeoIO.load(joinpath(datadir, "tetrahedron.obj"))
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float64
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
     end
@@ -169,7 +169,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       @test eltype(gtb.COLOR) <: RGBA{Float64}
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float64
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
     end
@@ -182,7 +182,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       @test eltype(vtable.DATA) <: Float64
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float64
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
 
@@ -194,7 +194,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       @test length(first(skipmissing(vtable.DATA))) == 3
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
-      @test coordtype(gtb.geometry) <: Float64
+      @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
       @test eltype(gtb.geometry) <: Triangle
       @test length(gtb.geometry) == 4
     end
@@ -555,8 +555,8 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       gtb1 = GeoIO.load(file1)
       @test_logs (:warn,) GeoIO.save(file2, gtb1)
       gtb2 = GeoIO.load(file2)
-      @test coordtype(gtb1.geometry) <: Float64
-      @test coordtype(gtb2.geometry) <: Float32
+      @test Meshes.lentype(gtb1.geometry) <: Meshes.Met{Float64}
+      @test Meshes.lentype(gtb2.geometry) <: Meshes.Met{Float32}
 
       # error: STL format only supports 3D triangle meshes
       gtb = GeoTable(CartesianGrid(2, 2, 2))
@@ -692,7 +692,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       gtb = georef((; a=rand(10)), randpoint2(10))
       @test_throws ArgumentError GeoIO.save(file, gtb, coords=["x", "y", "z"])
       # throw: geometries with more than 3 dimensions
-      gtb = georef((; a=rand(10)), rand(Point{4,Float64}, 10))
+      gtb = georef((; a=rand(10)), [rand(Point{4}) for _ in 1:10])
       @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 

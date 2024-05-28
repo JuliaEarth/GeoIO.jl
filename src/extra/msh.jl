@@ -3,9 +3,8 @@
 # ------------------------------------------------------------------
 
 function mshread(fname)
-  P3 = typeof(rand(Point{3}))
   nodetags = Int[]
-  vertices = P3[]
+  vertices = NTuple{3,Float64}[]
   nodedata = Dict{Int,Any}()
 
   elemtags = Int[]
@@ -157,7 +156,7 @@ function _parsenodes!(io, nodetags, vertices)
 
     for _ in 1:nnodes
       strs = split(readline(io))
-      point = Point(ntuple(i -> parse(Float64, strs[i]), 3))
+      point = ntuple(i -> parse(Float64, strs[i]), 3)
       push!(vertices, point)
     end
   end

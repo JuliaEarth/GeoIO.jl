@@ -3,8 +3,7 @@
 # ------------------------------------------------------------------
 
 function objread(fname)
-  P3 = typeof(rand(Point{3}))
-  vertices = P3[]
+  vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
 
   open(fname) do io
@@ -12,7 +11,7 @@ function objread(fname)
       line = split(readline(io))
       if !isempty(line)
         if line[1] == "v"
-          point = Point(ntuple(i -> parse(Float64, line[i + 1]), 3))
+          point = ntuple(i -> parse(Float64, line[i + 1]), 3)
           push!(vertices, point)
         end
 

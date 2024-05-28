@@ -21,16 +21,14 @@ function stlraed(fname)
   end
 
   mesh = SimpleMesh(upoints, connec)
-  table = (; NORMAL=normals)
+  table = (; NORMAL=Vec.(normals))
 
   georef(table, mesh)
 end
 
 function stlasciiread(fname)
-  P3 = typeof(rand(Point{3}))
-  V3 = typeof(rand(Vec{3}))
-  normals = V3[]
-  vertices = NTuple{3,P3}[]
+  normals = NTuple{3,Float64}[]
+  vertices = NTuple{3,NTuple{3,Float64}}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -38,14 +36,11 @@ function stlasciiread(fname)
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = Vec(_parsecoords(line[3:end]))
+        normal = _parsecoords(line[3:end])
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(3) do _
-          coords = _splitline(io)[2:end]
-          Point(_parsecoords(coords))
-        end
+        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end]), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -58,18 +53,16 @@ function stlasciiread(fname)
 end
 
 function stlbinread(fname)
-  normals = Vec3f[]
-  vertices = NTuple{3,Point3f}[]
+  normals = NTuple{3,Float32}[]
+  vertices = NTuple{3,NTuple{3,Float32}}[]
 
   open(fname) do io
     skip(io, 80) # skip header
     ntriangles = read(io, UInt32)
     for _ in 1:ntriangles
-      normal = Vec(ntuple(i -> read(io, Float32), 3))
+      normal = ntuple(_ -> read(io, Float32), 3)
       push!(normals, normal)
-      points = ntuple(3) do _
-        Point(ntuple(i -> read(io, Float32), 3))
-      end
+      points = ntuple(_ -> ntuple(_ -> read(io, Float32), 3), 3)
       push!(vertices, points)
       skip(io, 2) # skip attribute byte count
     end
@@ -108,7 +101,7 @@ function stlasciiwrite(fname, mesh)
     write(io, "solid $name\n")
 
     for triangle in elements(mesh)
-      n = normal(triangle)
+      n = ustrip.(normal(triangle))
       write(io, "facet normal $(frmtcoords(n))\n")
       write(io, "    outer loop\n")
 
@@ -126,7 +119,7 @@ function stlasciiwrite(fname, mesh)
 end
 
 function stlbinwrite(fname, mesh)
-  if coordtype(mesh) <: Float64
+  if Unitful.numtype(Meshes.lentype(mesh)) <: Float64
     @warn """
     The STL Binary format stores data with 32-bit precision.
     Use STL ASCII format, with `ascii=true`, to store data with full precision.
@@ -139,7 +132,7 @@ function stlbinwrite(fname, mesh)
     write(io, UInt32(nelements(mesh))) # number of triangles
 
     for triangle in elements(mesh)
-      n = normal(triangle)
+      n = ustrip.(normal(triangle))
       foreach(c -> write(io, Float32(c)), n)
       for point in vertices(triangle)
         foreach(c -> write(io, Float32(c)), ustrip.(to(point)))

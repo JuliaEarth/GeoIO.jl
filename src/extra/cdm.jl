@@ -74,7 +74,7 @@ function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t=nothing)
     throw(ArgumentError("embedding dimensions greater than 3 are not supported"))
   end
 
-  xyz = Meshes.xyz(grid)
+  xyz = map(x -> ustrip.(x), Meshes.xyz(grid))
   dnames = if !isnothing(vtable)
     names = Tables.schema(vtable).names
     _dimnames(Dim, x, y, z, t, string.(names))
