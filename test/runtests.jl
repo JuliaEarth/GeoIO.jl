@@ -139,7 +139,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
 
     @testset "STL" begin
       gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"))
-      @test eltype(gtb.NORMAL) <: Vec{3,Meshes.Met{Float64}}
+      @test eltype(gtb.NORMAL) <: Vec{3}
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
       @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
@@ -147,7 +147,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       @test length(gtb.geometry) == 4
 
       gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"))
-      @test eltype(gtb.NORMAL) <: Vec{3,Meshes.Met{Float32}}
+      @test eltype(gtb.NORMAL) <: Vec{3}
       @test gtb.geometry isa SimpleMesh
       @test embeddim(gtb.geometry) == 3
       @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}
