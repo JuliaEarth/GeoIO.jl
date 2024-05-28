@@ -23,7 +23,7 @@ end
 function vtuwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
-  points = stack(coordinates, verts)
+  points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(_vtktype(pltype(c)), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
@@ -34,7 +34,7 @@ end
 function vtpwrite(fname, mesh::Mesh, etable, vtable)
   verts = vertices(mesh)
   connec = elements(topology(mesh))
-  points = stack(coordinates, verts)
+  points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(PolyData.Polys(), indices(c)) for c in connec]
 
   WriteVTK.vtk_grid(fname, points, cells) do vtk
@@ -47,26 +47,21 @@ function vtrwrite(fname, grid::Grid, etable, vtable)
     error("the vtr format only supports rectilinear or cartesian grids")
   end
 
-  xyz = map(collect, Meshes.xyz(grid))
+  xyz = map(x -> collect(ustrip.(x)), Meshes.xyz(grid))
   WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
 
 function vtswrite(fname, grid::Grid, etable, vtable)
-  WriteVTK.vtk_grid(fname, Meshes.XYZ(grid)...) do vtk
+  XYZ = map(X -> ustrip.(X), Meshes.XYZ(grid))
+  WriteVTK.vtk_grid(fname, XYZ...) do vtk
     _writetables(vtk, etable, vtable)
   end
 end
 
 function vtiwrite(fname, grid::CartesianGrid, etable, vtable)
-  orig = coordinates(minimum(grid))
-  spac = spacing(grid)
-  dims = size(grid)
-  xyz = map(orig, spac, dims) do o, s, d
-    range(start=o, step=s, length=(d + 1))
-  end
-
+  xyz = map(x -> ustrip.(x), Meshes.xyz(grid))
   WriteVTK.vtk_grid(fname, xyz...) do vtk
     _writetables(vtk, etable, vtable)
   end

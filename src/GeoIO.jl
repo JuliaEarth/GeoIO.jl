@@ -7,8 +7,8 @@ module GeoIO
 using Meshes
 using Tables
 using Colors
+using Unitful
 using GeoTables
-using Rotations
 using StaticArrays
 using PrettyTables
 using Meshes: SubDomain

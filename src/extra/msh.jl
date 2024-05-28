@@ -4,7 +4,7 @@
 
 function mshread(fname)
   nodetags = Int[]
-  vertices = Point3[]
+  vertices = NTuple{3,Float64}[]
   nodedata = Dict{Int,Any}()
 
   elemtags = Int[]
@@ -83,7 +83,7 @@ function mshwrite(fname, geotable; vcolumn=nothing, ecolumn=nothing)
     end
     # node coordinates
     for point in vertices(mesh)
-      coords = coordinates(point)
+      coords = ustrip.(to(point))
       write(io, "$(join(coords, " "))\n")
     end
     write(io, "\$EndNodes\n")
@@ -156,7 +156,7 @@ function _parsenodes!(io, nodetags, vertices)
 
     for _ in 1:nnodes
       strs = split(readline(io))
-      point = Point(ntuple(i -> parse(Float64, strs[i]), 3))
+      point = ntuple(i -> parse(Float64, strs[i]), 3)
       push!(vertices, point)
     end
   end

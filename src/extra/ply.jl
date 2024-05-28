@@ -10,7 +10,7 @@ function plyread(fname; kwargs...)
   # load domain
   v = ply["vertex"]
   e = ply["face"]
-  points = Point3.(v["x"], v["y"], v["z"])
+  points = Point.(v["x"], v["y"], v["z"])
   connec = [connect(Tuple(c .+ 1)) for c in e["vertex_indices"]]
   domain = SimpleMesh(points, connec)
 
@@ -64,7 +64,7 @@ function plywrite(fname, geotable; kwargs...)
   PlyIO.save_ply(ply, fname; kwargs...)
 end
 
-_getcoord(verts, i) = map(p -> coordinates(p)[i], verts)
+_getcoord(verts, i) = map(p -> ustrip(to(p)[i]), verts)
 
 function _tableprops(table)
   if !isnothing(table)

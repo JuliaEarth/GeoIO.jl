@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 function objread(fname)
-  vertices = Point3[]
+  vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
 
   open(fname) do io
@@ -11,7 +11,7 @@ function objread(fname)
       line = split(readline(io))
       if !isempty(line)
         if line[1] == "v"
-          point = Point(ntuple(i -> parse(Float64, line[i + 1]), 3))
+          point = ntuple(i -> parse(Float64, line[i + 1]), 3)
           push!(vertices, point)
         end
 
@@ -52,7 +52,7 @@ function objwrite(fname, geotable)
 
   open(fname, write=true) do io
     for point in vertices(mesh)
-      coords = coordinates(point)
+      coords = ustrip.(to(point))
       write(io, "v $(join(coords, " "))\n")
     end
 
