@@ -30,8 +30,6 @@ function _isequal(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-randpoint2(n) = [rand(Point{2}) for _ in 1:n]
-
 @testset "GeoIO.jl" begin
   @testset "formats" begin
     io = IOBuffer()
@@ -520,7 +518,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
 
       # error: image formats only support grids
       file = joinpath(savedir, "error.jpg")
-      gtb = georef((; a=rand(10)), randpoint2(10))
+      gtb = georef((; a=rand(10)), rand(Point{2}, 10))
       @test_throws ArgumentError GeoIO.save(file, gtb)
       # error: image formats need data to save
       gtb = georef(nothing, CartesianGrid(2, 2))
@@ -662,7 +660,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
       @test collect(gtb2.geometry) == centroid.(gtb1.geometry)
 
       # make coordinate names unique
-      pset = PointSet(randpoint2(10))
+      pset = PointSet(rand(Point{2}, 10))
       gtb1 = georef((x=rand(10), y=rand(10)), pset)
       file = joinpath(savedir, "pset.csv")
       GeoIO.save(file, gtb1)
@@ -689,10 +687,10 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
 
       # throw: invalid number of coordinate names
       file = joinpath(savedir, "throw.csv")
-      gtb = georef((; a=rand(10)), randpoint2(10))
+      gtb = georef((; a=rand(10)), rand(Point{2}, 10))
       @test_throws ArgumentError GeoIO.save(file, gtb, coords=["x", "y", "z"])
       # throw: geometries with more than 3 dimensions
-      gtb = georef((; a=rand(10)), [rand(Point{4}) for _ in 1:10])
+      gtb = georef((; a=rand(10)), rand(Point{4}, 10))
       @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
@@ -858,7 +856,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
 
       # error: domain is not a grid
       file = joinpath(savedir, "error.nc")
-      gtb = georef((; a=rand(10)), randpoint2(10))
+      gtb = georef((; a=rand(10)), rand(Point{2}, 10))
       @test_throws ArgumentError GeoIO.save(file, gtb)
     end
 
@@ -941,7 +939,7 @@ randpoint2(n) = [rand(Point{2}) for _ in 1:n]
   end
 
   @testset "GeoTables without attributes" begin
-    pset = PointSet(randpoint2(10))
+    pset = PointSet(rand(Point{2}, 10))
     gtb1 = georef(nothing, pset)
 
     # Shapefile
