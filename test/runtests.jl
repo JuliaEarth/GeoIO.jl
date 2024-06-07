@@ -33,7 +33,7 @@ end
 testfiles = [
   "formats.jl",
   "convert.jl",
-  "gisconversion.jl",
+  "gis.jl",
   "noattrs.jl",
   "io/images.jl",
   "io/stl.jl",
@@ -50,7 +50,7 @@ testfiles = [
   "io/shapefile.jl",
   "io/geojson.jl",
   "io/geopackage.jl",
-  "io/geopackage.jl",
+  "io/geoparquet.jl",
   "io/kml.jl"
 ]
 
