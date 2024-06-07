@@ -16,14 +16,16 @@ end
 # helper function to find the
 # geometry column of a table
 function geomcolumn(names)
-  if :geometry ∈ names
-    :geometry
-  elseif :geom ∈ names
-    :geom
-  elseif Symbol("") ∈ names
-    Symbol("")
+  snames = string.(names)
+  gnames = ["geometry","geom","shape"]
+  gnames = [gnames; uppercasefirst.(gnames)]
+  gnames = [gnames; uppercase.(gnames)]
+  gnames = [gnames; [""]]
+  select = findfirst(∈(snames), gnames)
+  if isnothing(select)
+    throw(ErrorException("geometry column not found"))
   else
-    error("geometry column not found")
+    Symbol(gnames[select])
   end
 end
 
