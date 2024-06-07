@@ -1,4 +1,4 @@
-@testset "GIS conversion" begin
+@testset "GIS" begin
   fnames = [
     "points.geojson",
     "points.gpkg",
