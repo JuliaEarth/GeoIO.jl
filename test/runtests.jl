@@ -30,7 +30,29 @@ function _isequal(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-testfiles = ["formats.jl", "convert.jl", "load.jl", "save.jl", "gisconversion.jl", "noattrs.jl"]
+testfiles = [
+  "formats.jl",
+  "convert.jl",
+  "gisconversion.jl",
+  "noattrs.jl",
+  "io/images.jl",
+  "io/stl.jl",
+  "io/obj.jl",
+  "io/off.jl",
+  "io/msh.jl",
+  "io/ply.jl",
+  "io/csv.jl",
+  "io/gslib.jl",
+  "io/vtk.jl",
+  "io/netcdf.jl",
+  "io/grib.jl",
+  "io/geotiff.jl",
+  "io/shapefile.jl",
+  "io/geojson.jl",
+  "io/geopackage.jl",
+  "io/geopackage.jl",
+  "io/kml.jl"
+]
 
 @testset "GeoIO.jl" begin
   for testfile in testfiles
