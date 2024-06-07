@@ -31,10 +31,6 @@ function _isequal(m::Multi, g)
 end
 
 testfiles = [
-  "formats.jl",
-  "convert.jl",
-  "gis.jl",
-  "noattrs.jl",
   "io/images.jl",
   "io/stl.jl",
   "io/obj.jl",
@@ -51,7 +47,11 @@ testfiles = [
   "io/geojson.jl",
   "io/geopackage.jl",
   "io/geoparquet.jl",
-  "io/kml.jl"
+  "io/kml.jl",
+  "formats.jl",
+  "convert.jl",
+  "gis.jl",
+  "noattrs.jl",
 ]
 
 @testset "GeoIO.jl" begin
