@@ -17,7 +17,7 @@ end
 # geometry column of a table
 function geomcolumn(names)
   snames = string.(names)
-  gnames = ["geometry","geom","shape"]
+  gnames = ["geometry", "geom", "shape"]
   gnames = [gnames; uppercasefirst.(gnames)]
   gnames = [gnames; uppercase.(gnames)]
   gnames = [gnames; [""]]
