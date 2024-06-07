@@ -51,7 +51,7 @@ testfiles = [
   "formats.jl",
   "convert.jl",
   "gis.jl",
-  "noattrs.jl",
+  "noattrs.jl"
 ]
 
 @testset "GeoIO.jl" begin
