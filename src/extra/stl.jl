@@ -7,10 +7,10 @@
 # ---------
 
 function stlraed(fname)
-  normals, vertices = if _isstlascii(fname)
-    stlasciiread(fname)
-  else
+  normals, vertices = if _isstlbin(fname)
     stlbinread(fname)
+  else
+    stlasciiread(fname)
   end
 
   upoints = unique(Iterators.flatten(vertices))
@@ -146,15 +146,33 @@ end
 # HELPER FUNCTIONS
 # -----------------
 
-function _isstlascii(fname)
-  result = false
-  open(fname) do io
-    line = readline(io)
-    if startswith(line, "solid")
-      result = true
-    end
+function _isstlbin(fname)
+  io = open(fname)
+  filelen = position(seekend(io))
+  seekstart(io)
+  
+  # header size + "number of triangles" size
+  headersize = 80 + sizeof(UInt32)
+  if filelen < headersize
+    close(io)
+    return false
   end
-  result
+  
+  skip(io, 80) # skip header
+  ntriangles = read(io, UInt32)
+  # "normal vertices + 3 triangles vertices" size + "attribute byte count" size
+  triblocksize = 4 * 3 * sizeof(Float32) + sizeof(UInt16)
+  trianglessize = ntriangles * triblocksize
+  if filelen ≠ headersize + trianglessize
+    close(io)
+    return false
+  end
+
+  skip(io, trianglessize) # skip all triangle blocks
+  result = eof(io) # if eof, it's a STL Binary file
+  close(io)
+
+  return result
 end
 
 _splitline(io) = split(lowercase(readline(io)))
