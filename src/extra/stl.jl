@@ -150,14 +150,14 @@ function _isstlbin(fname)
   io = open(fname)
   filelen = position(seekend(io))
   seekstart(io)
-  
+
   # header size + "number of triangles" size
   headersize = 80 + sizeof(UInt32)
   if filelen < headersize
     close(io)
     return false
   end
-  
+
   skip(io, 80) # skip header
   ntriangles = read(io, UInt32)
   # "normal vertices + 3 triangles vertices" size + "attribute byte count" size
