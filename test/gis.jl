@@ -34,7 +34,7 @@
     fmt1 = last(splitext(f1))
     fmt2 = fmt
     if fmt1 != fmt2 && (fmt1 == ".geojson" || fmt2 == ".geojson")
-      @test !_isequal(d1, d2)
+      @test_broken _isequal(d1, d2)
     else
       @test _isequal(d1, d2)
     end

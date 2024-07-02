@@ -56,6 +56,7 @@ topoint(geom, ::Type{<:Cartesian{Datum,2}}) where {Datum} = Point(Cartesian{Datu
 
 topoint(geom, ::Type{<:Cartesian{Datum,3}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
 
+# swap xy to construct LatLon
 topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
 
 topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]
