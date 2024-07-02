@@ -2,6 +2,7 @@ using GeoIO
 using Tables
 using Meshes
 using GeoTables
+using CoordRefSystems
 using Test, Random
 using ReferenceTests
 using Colors

@@ -53,8 +53,8 @@
   @test GeoIO.geom2meshes(chain) == Ring((2.2, 2.2))
 
   # GeoJSON.jl
-  points = Point.([(0.0f0, 0.0f0), (2.2f0, 2.2f0), (0.5f0, 2.0f0)])
-  outer = Point.([(0.0f0, 0.0f0), (2.2f0, 2.2f0), (0.5f0, 2.0f0)])
+  points = Point.([LatLon(0.0f0, 0.0f0), LatLon(2.2f0, 2.2f0), LatLon(2.0f0, 0.5f0)])
+  outer = Point.([LatLon(0.0f0, 0.0f0), LatLon(2.2f0, 2.2f0), LatLon(2.0f0, 0.5f0)])
   point = GJS.read("""{"type":"Point","coordinates":[1,1]}""")
   chain = GJS.read("""{"type":"LineString","coordinates":[[0,0],[2.2,2.2],[0.5,2]]}""")
   poly = GJS.read("""{"type":"Polygon","coordinates":[[[0,0],[2.2,2.2],[0.5,2],[0,0]]]}""")
@@ -64,7 +64,7 @@
   multipoly = GJS.read(
     """{"type":"MultiPolygon","coordinates":[[[[0,0],[2.2,2.2],[0.5,2],[0,0]]],[[[0,0],[2.2,2.2],[0.5,2],[0,0]]]]}"""
   )
-  @test GeoIO.geom2meshes(point) == Point(1.0f0, 1.0f0)
+  @test GeoIO.geom2meshes(point) == Point(LatLon(1.0f0, 1.0f0))
   @test GeoIO.geom2meshes(chain) == Rope(points)
   @test GeoIO.geom2meshes(poly) == PolyArea(outer)
   @test GeoIO.geom2meshes(multipoint) == Multi(points)
@@ -72,5 +72,5 @@
   @test GeoIO.geom2meshes(multipoly) == Multi([PolyArea(outer), PolyArea(outer)])
   # degenerate chain with 2 equal points
   chain = GJS.read("""{"type":"LineString","coordinates":[[2.2,2.2],[2.2,2.2]]}""")
-  @test GeoIO.geom2meshes(chain) == Ring(Point(2.2f0, 2.2f0))
+  @test GeoIO.geom2meshes(chain) == Ring(Point(LatLon(2.2f0, 2.2f0)))
 end

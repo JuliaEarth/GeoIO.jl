@@ -11,6 +11,7 @@ using Unitful
 using GeoTables
 using StaticArrays
 using PrettyTables
+using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: →
@@ -45,6 +46,7 @@ import GeoJSON as GJS
 import ArchGDAL as AG
 import GeoParquet as GPQ
 import GeoInterface as GI
+import GeoFormatTypes as GFT
 
 # image extensions
 const IMGEXTS = [".png", ".jpg", ".jpeg"]

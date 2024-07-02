@@ -17,23 +17,25 @@ GI.geomtrait(::MultiRope) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiRing) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 
-GI.ncoord(::GI.PointTrait, p::Point) = embeddim(p)
+GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(Meshes.crs(p))
 GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(to(p))
 GI.getcoord(::GI.PointTrait, p::Point, i) = ustrip(to(p)[i])
+GI.getcoord(::GI.PointTrait, p::Point{3,<:LatLon}) = reverse(CoordRefSystems.rawvalues(coords(p)))
+GI.getcoord(trait::GI.PointTrait, p::Point{3,<:LatLon}, i) = GI.getcoord(trait, p)[i]
 
-GI.ncoord(::GI.LineTrait, s::Segment) = embeddim(s)
+GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(Meshes.crs(s))
 GI.ngeom(::GI.LineTrait, s::Segment) = nvertices(s)
 GI.getgeom(::GI.LineTrait, s::Segment, i) = vertex(s, i)
 
-GI.ncoord(::GI.LineStringTrait, c::Chain) = embeddim(c)
+GI.ncoord(::GI.LineStringTrait, c::Chain) = CoordRefSystems.ncoords(Meshes.crs(c))
 GI.ngeom(::GI.LineStringTrait, c::Chain) = nvertices(c) + isclosed(c)
 GI.getgeom(::GI.LineStringTrait, c::Chain, i) = vertex(c, i)
 
-GI.ncoord(::GI.PolygonTrait, p::Polygon) = embeddim(p)
+GI.ncoord(::GI.PolygonTrait, p::Polygon) = CoordRefSystems.ncoords(Meshes.crs(p))
 GI.ngeom(::GI.PolygonTrait, p::Polygon) = length(rings(p))
 GI.getgeom(::GI.PolygonTrait, p::Polygon, i) = rings(p)[i]
 
-GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = embeddim(m)
+GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = CoordRefSystems.ncoords(Meshes.crs(m))
 GI.ngeom(::GI.AbstractGeometryTrait, m::Multi) = length(parent(m))
 GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = parent(m)[i]
 
@@ -46,16 +48,20 @@ GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 # Convert geometries to Meshes.jl types
 # --------------------------------------
 
-function topoints(geom, is3d::Bool)
-  if is3d
-    [Point(GI.x(p), GI.y(p), GI.z(p)) for p in GI.getpoint(geom)]
-  else
-    [Point(GI.x(p), GI.y(p)) for p in GI.getpoint(geom)]
-  end
-end
+getcrs(geom) = getcrs(GI.crs(geom), GI.is3d(geom) ? 3 : 2)
+getcrs(code::GFT.EPSG, _) = CoordRefSystems.get(EPSG{GFT.val(code)})
+getcrs(_, Dim) = Cartesian{NoDatum,Dim}
 
-function tochain(geom, is3d::Bool)
-  points = topoints(geom, is3d)
+topoint(geom, ::Type{<:Cartesian{Datum,2}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom)))
+
+topoint(geom, ::Type{<:Cartesian{Datum,3}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
+
+topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
+
+topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]
+
+function tochain(geom, CRS)
+  points = topoints(geom, CRS)
   if first(points) == last(points)
     # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
     while first(points) == last(points) && length(points) ≥ 2
@@ -67,9 +73,9 @@ function tochain(geom, is3d::Bool)
   end
 end
 
-function topolygon(geom, is3d::Bool, fix::Bool)
+function topolygon(geom, CRS, fix::Bool)
   # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
-  toring(g) = close(tochain(g, is3d))
+  toring(g) = close(tochain(g, CRS))
   outer = toring(GI.getexterior(geom))
   if GI.nhole(geom) == 0
     PolyArea(outer; fix)
@@ -79,36 +85,28 @@ function topolygon(geom, is3d::Bool, fix::Bool)
   end
 end
 
-function GI.convert(::Type{Point}, ::GI.PointTrait, geom)
-  if GI.is3d(geom)
-    Point(GI.x(geom), GI.y(geom), GI.z(geom))
-  else
-    Point(GI.x(geom), GI.y(geom))
-  end
-end
+GI.convert(::Type{Point}, ::GI.PointTrait, geom) = topoint(geom, getcrs(geom))
 
-GI.convert(::Type{Segment}, ::GI.LineTrait, geom) = Segment(topoints(geom, GI.is3d(geom))...)
+GI.convert(::Type{Segment}, ::GI.LineTrait, geom) = Segment(topoints(geom, getcrs(geom))...)
 
-GI.convert(::Type{Chain}, ::GI.LineStringTrait, geom) = tochain(geom, GI.is3d(geom))
+GI.convert(::Type{Chain}, ::GI.LineStringTrait, geom) = tochain(geom, getcrs(geom))
 
 GI.convert(::Type{Polygon}, trait::GI.PolygonTrait, geom) = _convert_with_fix(trait, geom, true)
 
-function GI.convert(::Type{Multi}, ::GI.MultiPointTrait, geom)
-  Multi(topoints(geom, GI.is3d(geom)))
-end
+GI.convert(::Type{Multi}, ::GI.MultiPointTrait, geom) = Multi(topoints(geom, getcrs(geom)))
 
 function GI.convert(::Type{Multi}, ::GI.MultiLineStringTrait, geom)
-  is3d = GI.is3d(geom)
-  Multi([tochain(g, is3d) for g in GI.getgeom(geom)])
+  CRS = getcrs(geom)
+  Multi([tochain(g, CRS) for g in GI.getgeom(geom)])
 end
 
 GI.convert(::Type{Multi}, trait::GI.MultiPolygonTrait, geom) = _convert_with_fix(trait, geom, true)
 
-_convert_with_fix(::GI.PolygonTrait, geom, fix) = topolygon(geom, GI.is3d(geom), fix)
+_convert_with_fix(::GI.PolygonTrait, geom, fix) = topolygon(geom, getcrs(geom), fix)
 
 function _convert_with_fix(::GI.MultiPolygonTrait, geom, fix)
-  is3d = GI.is3d(geom)
-  Multi([topolygon(g, is3d, fix) for g in GI.getgeom(geom)])
+  CRS = getcrs(geom)
+  Multi([topolygon(g, CRS, fix) for g in GI.getgeom(geom)])
 end
 
 # -----------------------------------------

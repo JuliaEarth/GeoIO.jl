@@ -31,7 +31,13 @@
     # compare domain and values
     d1 = domain(gt1)
     d2 = domain(gt2)
-    @test _isequal(d1, d2)
+    fmt1 = last(splitext(f1))
+    fmt2 = fmt
+    if fmt1 != fmt2 && (fmt1 == ".geojson" || fmt2 == ".geojson")
+      @test !_isequal(d1, d2)
+    else
+      @test _isequal(d1, d2)
+    end
     t1 = values(gt1)
     t2 = values(gt2)
     c1 = Tables.columns(t1)
