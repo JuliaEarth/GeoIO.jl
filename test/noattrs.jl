@@ -9,13 +9,6 @@
   @test all(ismissing, gtb2[:, 1])
   @test gtb2.geometry == gtb1.geometry
 
-  # GeoJSON
-  file = joinpath(savedir, "noattribs.geojson")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file, numbertype=Float64)
-  @test isnothing(values(gtb2))
-  @test gtb2 == gtb1
-
   # GeoParquet
   file = joinpath(savedir, "noattribs.parquet")
   GeoIO.save(file, gtb1)
@@ -59,6 +52,15 @@
   gtb1 = georef(nothing, mesh)
   GeoIO.save(file, gtb1)
   gtb2 = GeoIO.load(file)
+  @test isnothing(values(gtb2))
+  @test gtb2 == gtb1
+
+  # GeoJSON
+  pset = PointSet([Point(LatLon(30, 60)), Point(LatLon(30, 61)), Point(LatLon(31, 60))])
+  gtb1 = georef(nothing, pset)
+  file = joinpath(savedir, "noattribs.geojson")
+  GeoIO.save(file, gtb1)
+  gtb2 = GeoIO.load(file, numbertype=Float64)
   @test isnothing(values(gtb2))
   @test gtb2 == gtb1
 end
