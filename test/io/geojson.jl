@@ -52,9 +52,10 @@
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    # error: the GeoJSON file format only supports `LatLon{WGS84Latest}`
-    file = joinpath(savedir, "error.geojson")
-    gtb = georef((; a=rand(10)), rand(Point{2}, 10))
-    @test_throws ArgumentError GeoIO.save(file, gtb)
+    # warn: the GeoJSON file format only supports `LatLon{WGS84Latest}`
+    file = joinpath(savedir, "warn.geojson")
+    pts = Point.([PlateCarree(0, 0), PlateCarree(1e5, 1e5), PlateCarree(2e5, 2e5)])
+    gtb = georef((; a=[1, 2, 3]), pts)
+    @test_logs (:warn,) GeoIO.save(file, gtb)
   end
 end
