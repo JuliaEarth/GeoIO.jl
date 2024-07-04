@@ -17,25 +17,25 @@ GI.geomtrait(::MultiRope) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiRing) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 
-GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(Meshes.crs(p))
+GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
 GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(to(p))
 GI.getcoord(::GI.PointTrait, p::Point, i) = ustrip(to(p)[i])
 GI.getcoord(::GI.PointTrait, p::Point{3,<:LatLon}) = reverse(CoordRefSystems.rawvalues(coords(p)))
 GI.getcoord(trait::GI.PointTrait, p::Point{3,<:LatLon}, i) = GI.getcoord(trait, p)[i]
 
-GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(Meshes.crs(s))
+GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(crs(s))
 GI.ngeom(::GI.LineTrait, s::Segment) = nvertices(s)
 GI.getgeom(::GI.LineTrait, s::Segment, i) = vertex(s, i)
 
-GI.ncoord(::GI.LineStringTrait, c::Chain) = CoordRefSystems.ncoords(Meshes.crs(c))
+GI.ncoord(::GI.LineStringTrait, c::Chain) = CoordRefSystems.ncoords(crs(c))
 GI.ngeom(::GI.LineStringTrait, c::Chain) = nvertices(c) + isclosed(c)
 GI.getgeom(::GI.LineStringTrait, c::Chain, i) = vertex(c, i)
 
-GI.ncoord(::GI.PolygonTrait, p::Polygon) = CoordRefSystems.ncoords(Meshes.crs(p))
+GI.ncoord(::GI.PolygonTrait, p::Polygon) = CoordRefSystems.ncoords(crs(p))
 GI.ngeom(::GI.PolygonTrait, p::Polygon) = length(rings(p))
 GI.getgeom(::GI.PolygonTrait, p::Polygon, i) = rings(p)[i]
 
-GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = CoordRefSystems.ncoords(Meshes.crs(m))
+GI.ncoord(::GI.AbstractGeometryTrait, m::Multi) = CoordRefSystems.ncoords(crs(m))
 GI.ngeom(::GI.AbstractGeometryTrait, m::Multi) = length(parent(m))
 GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = parent(m)[i]
 
