@@ -51,5 +51,10 @@
     gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
+
+    # error: the GeoJSON file format only supports `LatLon{WGS84Latest}`
+    file = joinpath(savedir, "error.geojson")
+    gtb = georef((; a=rand(10)), rand(Point{2}, 10))
+    @test_throws ArgumentError GeoIO.save(file, gtb)
   end
 end
