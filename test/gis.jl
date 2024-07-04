@@ -11,95 +11,77 @@
       Point.([LatLon(0, 0), LatLon(1, 1), LatLon(-2, -2)])
     ])
   polys = PolyArea.(rings)
-
-  # points
-  gtb1 = georef(tab, points)
+  gtpoint = georef(tab, points)
+  gtring = georef(tab, rings)
+  gtpoly = georef(tab, polys)
 
   # Shapefile
   file = joinpath(savedir, "gis-points.shp")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test_broken gtb2.geometry == gtb1.geometry
-  @test values(gtb2) == values(gtb1)
+  GeoIO.save(file, gtpoint)
+  gtb = GeoIO.load(file)
+  @test_broken gtb.geometry == gtpoint.geometry
+  @test values(gtb) == values(gtpoint)
+
+  # note: Shapefile saves PolyArea as MultiPolyArea
+  # using a halper to workaround this
+  file = joinpath(savedir, "gis-polys.shp")
+  GeoIO.save(file, gtring)
+  gtb = GeoIO.load(file)
+  @test_broken _isequal(gtb.geometry, gtring.geometry)
+  @test values(gtb) == values(gtring)
+
+  # note: Shapefile saves PolyArea as MultiPolyArea
+  # using a halper to workaround this
+  file = joinpath(savedir, "gis-polys.shp")
+  GeoIO.save(file, gtpoly)
+  gtb = GeoIO.load(file)
+  @test_broken _isequal(gtb.geometry, gtpoly.geometry)
+  @test values(gtb) == values(gtpoly)
 
   # GeoJSON
   # note: GeoJSON loads data in Float32 by default
   # explicitly loading as Float64
   file = joinpath(savedir, "gis-points.geojson")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file, numbertype=Float64)
-  @test gtb2 == gtb1
+  GeoIO.save(file, gtpoint)
+  gtb = GeoIO.load(file, numbertype=Float64)
+  @test gtb == gtpoint
+
+  file = joinpath(savedir, "gis-rings.geojson")
+  GeoIO.save(file, gtring)
+  gtb = GeoIO.load(file, numbertype=Float64)
+  @test gtb == gtring
+
+  file = joinpath(savedir, "gis-polys.geojson")
+  GeoIO.save(file, gtpoly)
+  gtb = GeoIO.load(file, numbertype=Float64)
+  @test gtb == gtpoly
 
   # GeoPackage
   # note: GeoPackage does not preserve column order
   file = joinpath(savedir, "gis-points.gpkg")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test Set(names(gtb2)) == Set(names(gtb1))
-  @test_broken gtb2.geometry == gtb1.geometry
-  @test gtb2.float == gtb1.float
-  @test gtb2.int == gtb1.int
-  @test gtb2.string == gtb1.string
+  GeoIO.save(file, gtpoint)
+  gtb = GeoIO.load(file)
+  @test Set(names(gtb)) == Set(names(gtpoint))
+  @test_broken gtb.geometry == gtpoint.geometry
+  @test gtb.float == gtpoint.float
+  @test gtb.int == gtpoint.int
+  @test gtb.string == gtpoint.string
 
-  # rings
-  gtb1 = georef(tab, rings)
-
-  # Shapefile
-  # note: Shapefile saves Chain as MultiChain
-  # using a helper to workaround this
-  file = joinpath(savedir, "gis-rings.shp")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test_broken _isequal(gtb2.geometry, gtb1.geometry)
-  @test values(gtb2) == values(gtb1)
-
-  # GeoJSON
-  # note: GeoJSON loads data in Float32 by default
-  # explissity loading as Float64
-  file = joinpath(savedir, "gis-rings.geojson")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file, numbertype=Float64)
-  @test gtb2 == gtb1
-
-  # GeoPackage
-  # note: GeoPackage does not preserve column order
   file = joinpath(savedir, "gis-rings.gpkg")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test Set(names(gtb2)) == Set(names(gtb1))
-  @test_broken gtb2.geometry == gtb1.geometry
-  @test gtb2.float == gtb1.float
-  @test gtb2.int == gtb1.int
-  @test gtb2.string == gtb1.string
+  GeoIO.save(file, gtring)
+  gtb = GeoIO.load(file)
+  @test Set(names(gtb)) == Set(names(gtring))
+  @test_broken gtb.geometry == gtring.geometry
+  @test gtb.float == gtring.float
+  @test gtb.int == gtring.int
+  @test gtb.string == gtring.string
 
-  # polygons
-  gtb1 = georef(tab, polys)
-
-  # Shapefile
-  # note: Shapefile saves PolyArea as MultiPolyArea
-  # using a halper to workaround this
-  file = joinpath(savedir, "gis-polys.shp")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test_broken _isequal(gtb2.geometry, gtb1.geometry)
-  @test values(gtb2) == values(gtb1)
-
-  # GeoJSON
-  # note: GeoJSON loads data in Float32 by default
-  # explissity loading as Float64
-  file = joinpath(savedir, "gis-polys.geojson")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file, numbertype=Float64)
-  @test gtb2 == gtb1
-
-  # GeoPackage
-  # note: GeoPackage does not preserve column order
   file = joinpath(savedir, "gis-polys.gpkg")
-  GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file)
-  @test Set(names(gtb2)) == Set(names(gtb1))
-  @test_broken gtb2.geometry == gtb1.geometry
-  @test gtb2.float == gtb1.float
-  @test gtb2.int == gtb1.int
-  @test gtb2.string == gtb1.string
+  GeoIO.save(file, gtpoly)
+  gtb = GeoIO.load(file)
+  @test Set(names(gtb)) == Set(names(gtpoly))
+  @test_broken gtb.geometry == gtpoly.geometry
+  @test gtb.float == gtpoly.float
+  @test gtb.int == gtpoly.int
+  @test gtb.string == gtpoly.string
 end
