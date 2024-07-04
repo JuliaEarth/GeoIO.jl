@@ -92,7 +92,7 @@ function save(fname, geotable; kwargs...)
       @warn """
       The GeoJSON file format only supports the `LatLon{WGS84Latest}` CRS.
 
-      Attempting a reprojection with  `geotable |> Proj(LatLon{WGS84Latest})`...
+      Attempting a reprojection with `geotable |> Proj(LatLon{WGS84Latest})`...
       """
       Proj(LatLon{WGS84Latest})
     else
