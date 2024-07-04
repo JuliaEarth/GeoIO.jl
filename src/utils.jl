@@ -18,9 +18,7 @@ end
 function geomcolumn(names)
   snames = string.(names)
   gnames = ["geometry", "geom", "shape"]
-  gnames = [gnames; uppercasefirst.(gnames)]
-  gnames = [gnames; uppercase.(gnames)]
-  gnames = [gnames; [""]]
+  gnames = [gnames; uppercase.(gnames); uppercasefirst.(gnames); [""]]
   select = findfirst(∈(snames), gnames)
   if isnothing(select)
     throw(ErrorException("geometry column not found"))
