@@ -57,7 +57,7 @@
   gtb1 = georef(tab, rings1)
 
   # Shapefile
-  # note: Shapefile saves Chains as MultiChain
+  # note: Shapefile saves Chain as MultiChain
   # using a halper to workaround this
   file = joinpath(savedir, "gis-rings.shp")
   GeoIO.save(file, gtb1)
