@@ -46,7 +46,7 @@
   # note 1: GeoJSON only saves `LatLon{WGS84Latest}`
   # testing with a geotable with correct CRS
   # note 2: GeoJSON loads data in Float32 by default
-  # explissity loading as Float64
+  # explicitly loading as Float64
   gtb1 = georef(tab, points2)
   file = joinpath(savedir, "gis-points.geojson")
   GeoIO.save(file, gtb1)
@@ -58,7 +58,7 @@
 
   # Shapefile
   # note: Shapefile saves Chain as MultiChain
-  # using a halper to workaround this
+  # using a helper to workaround this
   file = joinpath(savedir, "gis-rings.shp")
   GeoIO.save(file, gtb1)
   gtb2 = GeoIO.load(file)
