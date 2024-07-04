@@ -11,6 +11,7 @@
       Point.([LatLon(0, 0), LatLon(1, 1), LatLon(-2, -2)])
     ])
   polys = PolyArea.(rings)
+  
   gtpoint = georef(table, points)
   gtring = georef(table, rings)
   gtpoly = georef(table, polys)
@@ -23,7 +24,6 @@
   @test values(gtb) == values(gtpoint)
 
   # note: Shapefile saves Chain as MultiChain
-  # using a helper to workaround this
   file = joinpath(savedir, "gis-rings.shp")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
@@ -31,7 +31,6 @@
   @test values(gtb) == values(gtring)
 
   # note: Shapefile saves PolyArea as MultiPolyArea
-  # using a helper to workaround this
   file = joinpath(savedir, "gis-polys.shp")
   GeoIO.save(file, gtpoly)
   gtb = GeoIO.load(file)
@@ -40,7 +39,6 @@
 
   # GeoJSON
   # note: GeoJSON loads data in Float32 by default
-  # explicitly loading as Float64
   file = joinpath(savedir, "gis-points.geojson")
   GeoIO.save(file, gtpoint)
   gtb = GeoIO.load(file, numbertype=Float64)
