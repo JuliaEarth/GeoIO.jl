@@ -23,7 +23,7 @@
   @test values(gtb) == values(gtpoint)
 
   # note: Shapefile saves Chain as MultiChain
-  # using a halper to workaround this
+  # using a helper to workaround this
   file = joinpath(savedir, "gis-rings.shp")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
@@ -31,7 +31,7 @@
   @test values(gtb) == values(gtring)
 
   # note: Shapefile saves PolyArea as MultiPolyArea
-  # using a halper to workaround this
+  # using a helper to workaround this
   file = joinpath(savedir, "gis-polys.shp")
   GeoIO.save(file, gtpoly)
   gtb = GeoIO.load(file)
