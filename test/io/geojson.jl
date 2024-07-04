@@ -51,5 +51,11 @@
     gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
+
+    # warn: the GeoJSON file format only supports `LatLon{WGS84Latest}`
+    file = joinpath(savedir, "warn.geojson")
+    pts = Point.([PlateCarree(0, 0), PlateCarree(1e5, 1e5), PlateCarree(2e5, 2e5)])
+    gtb = georef((; a=[1, 2, 3]), pts)
+    @test_logs (:warn,) GeoIO.save(file, gtb)
   end
 end

@@ -14,7 +14,7 @@ using PrettyTables
 using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
-using TransformsBase: →
+using TransformsBase: Identity, →
 
 # image formats
 import FileIO
