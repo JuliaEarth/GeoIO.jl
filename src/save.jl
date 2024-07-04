@@ -88,7 +88,7 @@ function save(fname, geotable; kwargs...)
   if endswith(fname, ".shp")
     SHP.write(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")
-    proj = if !(Meshes.crs(domain(geotable)) <: LatLon{WGS84Latest})
+    proj = if !(crs(domain(geotable)) <: LatLon{WGS84Latest})
       @warn """
       The GeoJSON file format only supports the `LatLon{WGS84Latest}` CRS.
 
