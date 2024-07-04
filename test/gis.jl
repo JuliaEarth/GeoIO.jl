@@ -19,7 +19,7 @@
   for fname in fnames, fmt in [".shp", ".geojson", ".gpkg"]
     fmt1 = last(splitext(fname))
     fmt2 = fmt
-    # GeoJSON can only save geotables loaded from other GeoJSON file
+    # GeoJSON can only save geotables loaded from other GeoJSON files
     if (fmt1 ≠ ".geojson" && fmt2 ≠ ".geojson") || (fmt1 == ".geojson" && fmt2 == ".geojson")
       # input and output file names
       f1 = joinpath(datadir, fname)
