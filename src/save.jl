@@ -90,7 +90,7 @@ function save(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")
     proj = if !(Meshes.crs(domain(geotable)) <: LatLon{WGS84Latest})
       @warn """
-      The GeoJSON file format only supports `LatLon{WGS84Latest}` as the CRS.
+      The GeoJSON file format only supports the `LatLon{WGS84Latest}` CRS.
 
       Attempting a reprojection with  `geotable |> Proj(LatLon{WGS84Latest})`...
       """
