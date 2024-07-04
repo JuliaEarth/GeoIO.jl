@@ -88,14 +88,16 @@ function save(fname, geotable; kwargs...)
   if endswith(fname, ".shp")
     SHP.write(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")
-    if !(Meshes.crs(domain(geotable)) <: LatLon{WGS84Latest})
+    proj = if !(Meshes.crs(domain(geotable)) <: LatLon{WGS84Latest})
       @warn """
       The GeoJSON file format only supports `LatLon{WGS84Latest}`.
       Attempting a reprojection with  `geotable |> Proj(LatLon{WGS84Latest})`.
       """
-      geotable = geotable |> Proj(LatLon{WGS84Latest})
+      Proj(LatLon{WGS84Latest})
+    else
+      Identity()
     end
-    GJS.write(fname, geotable; kwargs...)
+    GJS.write(fname, geotable |> proj; kwargs...)
   elseif endswith(fname, ".parquet")
     GPQ.write(fname, geotable, (:geometry,); kwargs...)
   else # fallback to GDAL
