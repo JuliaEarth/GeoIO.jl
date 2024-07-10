@@ -9,7 +9,7 @@ function asgeotable(table, crs, fix)
   vars = setdiff(names, [gcol])
   table = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
   geoms = Tables.getcolumn(cols, gcol)
-  domain = GeometrySet(geom2meshes.(geoms, Ref(crs), fix))
+  domain = geom2meshes.(geoms, Ref(crs), fix)
   georef(table, domain)
 end
 
