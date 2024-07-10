@@ -1,7 +1,7 @@
 @testset "GeoJSON" begin
   @testset "load" begin
     gtb = GeoIO.load(joinpath(datadir, "points.geojson"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String
@@ -10,7 +10,7 @@
     @test gtb.geometry[1] isa Point
 
     gtb = GeoIO.load(joinpath(datadir, "lines.geojson"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String
@@ -19,7 +19,7 @@
     @test gtb.geometry[1] isa Chain
 
     gtb = GeoIO.load(joinpath(datadir, "polygons.geojson"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String

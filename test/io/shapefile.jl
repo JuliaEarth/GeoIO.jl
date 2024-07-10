@@ -1,7 +1,7 @@
 @testset "Shapefile" begin
   @testset "load" begin
     gtb = GeoIO.load(joinpath(datadir, "points.shp"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String
@@ -10,7 +10,7 @@
     @test gtb.geometry[1] isa Point
 
     gtb = GeoIO.load(joinpath(datadir, "lines.shp"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String
@@ -20,7 +20,7 @@
     @test parent(gtb.geometry[1])[1] isa Chain
 
     gtb = GeoIO.load(joinpath(datadir, "polygons.shp"))
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 5
     @test gtb.code[1] isa Integer
     @test gtb.name[1] isa String
@@ -31,7 +31,7 @@
 
     gtb = GeoIO.load(joinpath(datadir, "path.shp"))
     @test Tables.schema(gtb).names == (:ZONA, :geometry)
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 6
     @test gtb.ZONA == ["PA 150", "BR 364", "BR 163", "BR 230", "BR 010", "Estuarina PA"]
     @test gtb.geometry isa GeometrySet
@@ -39,7 +39,7 @@
 
     gtb = GeoIO.load(joinpath(datadir, "zone.shp"))
     @test Tables.schema(gtb).names == (:PERIMETER, :ACRES, :MACROZONA, :Hectares, :area_m2, :geometry)
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 4
     @test gtb.PERIMETER == [5.850803650776888e6, 9.539471535859613e6, 1.01743436941e7, 7.096124186552936e6]
     @test gtb.ACRES == [3.23144676827e7, 2.50593712407e8, 2.75528426573e8, 1.61293042687e8]
@@ -51,7 +51,7 @@
 
     gtb = GeoIO.load(joinpath(datadir, "land.shp"))
     @test Tables.schema(gtb).names == (:featurecla, :scalerank, :min_zoom, :geometry)
-    @test crs(gtb.geometry) <: LatLon{WGS84Latest}
+    @test crs(gtb.geometry) <: LatLon
     @test length(gtb.geometry) == 127
     @test all(==("Land"), gtb.featurecla)
     @test all(∈([0, 1]), gtb.scalerank)
