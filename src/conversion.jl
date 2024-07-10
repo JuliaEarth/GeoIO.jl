@@ -48,9 +48,10 @@ GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 # Convert geometries to Meshes.jl types
 # --------------------------------------
 
-getcrs(geom) = getcrs(GI.crs(geom), GI.is3d(geom) ? 3 : 2)
-getcrs(code::GFT.EPSG, _) = CoordRefSystems.get(EPSG{GFT.val(code)})
-getcrs(_, Dim) = Cartesian{NoDatum,Dim}
+crstype(crs::GFT.EPSG, _) = CoordRefSystems.get(EPSG{GFT.val(crs)})
+crstype(crs::GFT.WellKnownText2, _) = CoordRefSystems.get(GFT.val(crs))
+crstype(crs::GFT.ESRIWellKnownText, _) = CoordRefSystems.get(GFT.val(crs))
+crstype(_, geom) = Cartesian{NoDatum,GI.is3d(geom) ? 3 : 2}
 
 topoint(geom, ::Type{<:Cartesian{Datum,2}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom)))
 
@@ -74,7 +75,7 @@ function tochain(geom, CRS)
   end
 end
 
-function topolygon(geom, CRS, fix::Bool)
+function topolygon(geom, CRS, fix)
   # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
   toring(g) = close(tochain(g, CRS))
   outer = toring(GI.getexterior(geom))
@@ -86,42 +87,25 @@ function topolygon(geom, CRS, fix::Bool)
   end
 end
 
-GI.convert(::Type{Point}, ::GI.PointTrait, geom) = topoint(geom, getcrs(geom))
+togeometry(::GI.PointTrait, geom, crs, fix) = topoint(geom, crstype(crs, geom))
 
-GI.convert(::Type{Segment}, ::GI.LineTrait, geom) = Segment(topoints(geom, getcrs(geom))...)
+togeometry(::GI.LineTrait, geom, crs, fix) = Segment(topoints(geom, crstype(crs, geom))...)
 
-GI.convert(::Type{Chain}, ::GI.LineStringTrait, geom) = tochain(geom, getcrs(geom))
+togeometry(::GI.LineStringTrait, geom, crs, fix) = tochain(geom, crstype(crs, geom))
 
-GI.convert(::Type{Polygon}, trait::GI.PolygonTrait, geom) = _convert_with_fix(trait, geom, true)
+togeometry(::GI.PolygonTrait, geom, crs, fix) = topolygon(geom, crstype(crs, geom), fix)
 
-GI.convert(::Type{Multi}, ::GI.MultiPointTrait, geom) = Multi(topoints(geom, getcrs(geom)))
+togeometry(::GI.MultiPointTrait, geom, crs, fix) = Multi(topoints(geom, crstype(crs, geom)))
 
-function GI.convert(::Type{Multi}, ::GI.MultiLineStringTrait, geom)
-  CRS = getcrs(geom)
+function togeometry(::GI.MultiLineStringTrait, geom, crs, fix)
+  CRS = crstype(crs, geom)
   Multi([tochain(g, CRS) for g in GI.getgeom(geom)])
 end
 
-GI.convert(::Type{Multi}, trait::GI.MultiPolygonTrait, geom) = _convert_with_fix(trait, geom, true)
-
-_convert_with_fix(::GI.PolygonTrait, geom, fix) = topolygon(geom, getcrs(geom), fix)
-
-function _convert_with_fix(::GI.MultiPolygonTrait, geom, fix)
-  CRS = getcrs(geom)
+function togeometry(::GI.MultiPolygonTrait, geom, crs, fix)
+  CRS = crstype(crs, geom)
   Multi([topolygon(g, CRS, fix) for g in GI.getgeom(geom)])
 end
 
-# -----------------------------------------
-# GeoInterface.jl approach to call convert
-# -----------------------------------------
-
-geointerface_geomtype(::GI.PointTrait) = Point
-geointerface_geomtype(::GI.LineTrait) = Segment
-geointerface_geomtype(::GI.LineStringTrait) = Chain
-geointerface_geomtype(::GI.PolygonTrait) = Polygon
-geointerface_geomtype(::GI.MultiPointTrait) = Multi
-geointerface_geomtype(::GI.MultiLineStringTrait) = Multi
-geointerface_geomtype(::GI.MultiPolygonTrait) = Multi
-
-geom2meshes(geom, fix=true) = geom2meshes(GI.geomtrait(geom), geom, fix)
-geom2meshes(trait, geom, fix) = GI.convert(geointerface_geomtype(trait), trait, geom)
-geom2meshes(trait::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fix) = _convert_with_fix(trait, geom, fix)
+geom2meshes(geom, crs=GI.crs(geom), fix=true) = geom2meshes(GI.geomtrait(geom), geom, crs, fix)
+geom2meshes(trait, geom, crs, fix) = togeometry(trait, geom, crs, fix)
