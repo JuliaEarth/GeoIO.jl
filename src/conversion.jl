@@ -44,18 +44,6 @@ GI.trait(::AbstractGeoTable) = GI.FeatureCollectionTrait()
 GI.nfeature(::Any, gtb::AbstractGeoTable) = nrow(gtb)
 GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 
-# ----------------------------
-# GeoInterface.jl conversions
-# ----------------------------
-
-GI.convert(::Type{Point}, trait::GI.PointTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Segment}, trait::GI.LineTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Chain}, trait::GI.LineStringTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Polygon}, trait::GI.PolygonTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Multi}, trait::GI.MultiPointTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Multi}, trait::GI.MultiLineStringTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-GI.convert(::Type{Multi}, trait::GI.MultiPolygonTrait, geom) = togeometry(trait, geom, GI.crs(geom), true)
-
 # --------------------------------------
 # Convert geometries to Meshes.jl types
 # --------------------------------------
