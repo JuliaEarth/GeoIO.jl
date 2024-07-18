@@ -1,5 +1,5 @@
 @testset "GeoTables without attributes" begin
-  pset = PointSet(rand(Point{2}, 10))
+  pset = [Point(0.0, 0.0), Point(1.0, 0.0), Point(0.0, 1.0)]
   gtb1 = georef(nothing, pset)
 
   # Shapefile
@@ -56,7 +56,7 @@
   @test gtb2 == gtb1
 
   # GeoJSON
-  pset = PointSet([Point(LatLon(30, 60)), Point(LatLon(30, 61)), Point(LatLon(31, 60))])
+  pset = [Point(LatLon(30, 60)), Point(LatLon(30, 61)), Point(LatLon(31, 60))]
   gtb1 = georef(nothing, pset)
   file = joinpath(savedir, "noattribs.geojson")
   GeoIO.save(file, gtb1)

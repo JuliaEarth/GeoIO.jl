@@ -16,7 +16,7 @@
 
     # error: image formats only support grids
     file = joinpath(savedir, "error.jpg")
-    gtb = georef((; a=rand(10)), rand(Point{2}, 10))
+    gtb = georef((; a=rand(10)), rand(Point, 10))
     @test_throws ArgumentError GeoIO.save(file, gtb)
     # error: image formats need data to save
     gtb = georef(nothing, CartesianGrid(2, 2))

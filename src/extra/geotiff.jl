@@ -22,7 +22,7 @@ end
 
 function geotiffwrite(fname, geotable; kwargs...)
   grid = domain(geotable)
-  if !(grid isa Grid{2})
+  if !(grid isa Grid && embeddim(grid) == 2)
     throw(ArgumentError("GeoTiff format only supports 2D grids"))
   end
   dims = size(grid)

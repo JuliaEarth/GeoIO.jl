@@ -61,7 +61,7 @@
 
     # error: domain is not a grid
     file = joinpath(savedir, "error.nc")
-    gtb = georef((; a=rand(10)), rand(Point{2}, 10))
+    gtb = georef((; a=rand(10)), rand(Point, 10))
     @test_throws ArgumentError GeoIO.save(file, gtb)
   end
 end

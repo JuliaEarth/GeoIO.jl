@@ -56,7 +56,7 @@ end
 
 function offwrite(fname, geotable; color=nothing)
   mesh = domain(geotable)
-  if !(mesh isa Mesh{3} && paramdim(mesh) == 2)
+  if !(mesh isa Mesh && embeddim(mesh) == 3 && paramdim(mesh) == 2)
     throw(ArgumentError("OFF format only supports 3D Ngon meshes"))
   end
 

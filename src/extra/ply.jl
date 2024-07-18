@@ -30,7 +30,7 @@ end
 
 function plywrite(fname, geotable; kwargs...)
   mesh = domain(geotable)
-  if !(mesh isa Mesh{3})
+  if !(mesh isa Mesh && embeddim(mesh) == 3)
     error("the ply format only supports 3D meshes")
   end
 

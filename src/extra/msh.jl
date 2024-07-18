@@ -52,7 +52,7 @@ end
 
 function mshwrite(fname, geotable; vcolumn=nothing, ecolumn=nothing)
   mesh = domain(geotable)
-  if !(mesh isa Mesh{3})
+  if !(mesh isa Mesh && embeddim(mesh) == 3)
     throw(ArgumentError("MSH format only supports 3D meshes"))
   end
 

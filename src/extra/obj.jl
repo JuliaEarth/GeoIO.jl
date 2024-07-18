@@ -46,7 +46,7 @@ end
 function objwrite(fname, geotable)
   mesh = domain(geotable)
 
-  if !(mesh isa Mesh{3} && paramdim(mesh) == 2)
+  if !(mesh isa Mesh && embeddim(mesh) == 3 && paramdim(mesh) == 2)
     throw(ArgumentError("OBJ format only supports 3D Ngon meshes"))
   end
 

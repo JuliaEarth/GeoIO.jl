@@ -38,11 +38,11 @@
     @test collect(gtb2.geometry) == centroid.(gtb1.geometry)
 
     # make coordinate names unique
-    pset = PointSet(rand(Point{2}, 10))
-    gtb1 = georef((x=rand(10), y=rand(10)), pset)
+    pset = PointSet(rand(Point, 10))
+    gtb1 = georef((x=rand(10), y=rand(10), z=rand(10)), pset)
     file = joinpath(savedir, "pset.csv")
     GeoIO.save(file, gtb1)
-    gtb2 = GeoIO.load(file, coords=[:x_, :y_])
+    gtb2 = GeoIO.load(file, coords=[:x_, :y_, :z_])
     @test propertynames(gtb1) == propertynames(gtb2)
     @test gtb1.x == gtb2.x
     @test gtb1.y == gtb2.y
@@ -65,10 +65,7 @@
 
     # throw: invalid number of coordinate names
     file = joinpath(savedir, "throw.csv")
-    gtb = georef((; a=rand(10)), rand(Point{2}, 10))
-    @test_throws ArgumentError GeoIO.save(file, gtb, coords=["x", "y", "z"])
-    # throw: geometries with more than 3 dimensions
-    gtb = georef((; a=rand(10)), rand(Point{4}, 10))
-    @test_throws ArgumentError GeoIO.save(file, gtb)
+    gtb = georef((; a=rand(10)), rand(Point, 10))
+    @test_throws ArgumentError GeoIO.save(file, gtb, coords=["x", "y"])
   end
 end
