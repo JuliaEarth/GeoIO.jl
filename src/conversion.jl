@@ -18,10 +18,11 @@ GI.geomtrait(::MultiRing) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 
 GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
-GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(to(p))
-GI.getcoord(::GI.PointTrait, p::Point, i) = ustrip(to(p)[i])
-GI.getcoord(::GI.PointTrait, p::Point{3,<:LatLon}) = reverse(CoordRefSystems.rawvalues(coords(p)))
-GI.getcoord(trait::GI.PointTrait, p::Point{3,<:LatLon}, i) = GI.getcoord(trait, p)[i]
+GI.getcoord(::GI.PointTrait, p::Point) = _getcoord(coords(p))
+GI.getcoord(trait::GI.PointTrait, p::Point, i) = GI.getcoord(trait, p)[i]
+
+_getcoord(coords::CRS) = ustrip(coords.x), ustrip(coords.y)
+_getcoord(coords::LatLon) = ustrip(coords.lon), ustrip(coords.lat)
 
 GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(crs(s))
 GI.ngeom(::GI.LineTrait, s::Segment) = nvertices(s)
