@@ -81,21 +81,16 @@ function load(fname; layer=0, fix=true, kwargs...)
   end
 
   # GIS formats
-  if endswith(fname, ".shp")
-    table = SHP.Table(fname; kwargs...)
-    crs = GI.crs(table)
+  table = if endswith(fname, ".shp")
+    SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
-    data = Base.read(fname)
-    table = GJS.read(data; kwargs...)
-    crs = GI.crs(table)
+    GJS.read(fname; kwargs...)
   elseif endswith(fname, ".parquet")
-    table = GPQ.read(fname; kwargs...)
-    crs = nothing # not implemented yet
+    GPQ.read(fname; kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
-    table = AG.getlayer(data, layer)
-    crs = GI.crs(table)
+    AG.getlayer(data, layer)
   end
 
-  asgeotable(table, crs, fix)
+  asgeotable(table, fix)
 end

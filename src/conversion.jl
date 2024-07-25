@@ -18,11 +18,11 @@ GI.geomtrait(::MultiRing) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 
 GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
-GI.getcoord(::GI.PointTrait, p::Point) = _getcoord(coords(p))
+GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(raw(coords(p)))
 GI.getcoord(trait::GI.PointTrait, p::Point, i) = GI.getcoord(trait, p)[i]
 
-_getcoord(coords::CRS) = ustrip(coords.x), ustrip(coords.y)
-_getcoord(coords::LatLon) = ustrip(coords.lon), ustrip(coords.lat)
+raw(coords::CRS) = coords.x, coords.y
+raw(coords::LatLon) = coords.lon, coords.lat
 
 GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(crs(s))
 GI.ngeom(::GI.LineTrait, s::Segment) = nvertices(s)
@@ -58,7 +58,6 @@ topoint(geom, ::Type{<:Cartesian{Datum,2}}) where {Datum} = Point(Cartesian{Datu
 
 topoint(geom, ::Type{<:Cartesian{Datum,3}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
 
-# swap xy to construct LatLon
 topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
 
 topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]

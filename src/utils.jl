@@ -2,15 +2,16 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function asgeotable(table, crs, fix)
+function asgeotable(table, fix)
+  crs = GI.crs(table)
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  table = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+  etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
   geoms = Tables.getcolumn(cols, gcol)
   domain = geom2meshes.(geoms, Ref(crs), fix)
-  georef(table, domain)
+  georef(etable, domain)
 end
 
 # helper function to find the
