@@ -3,10 +3,19 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, layer=0, kwargs...)
+    load(fname, repair=true, layer=0, kwargs...)
 
 Load geospatial table from file `fname` and convert the
 `geometry` column to Meshes.jl geometries.
+
+Various `repair`s are performed on the geometries by default,
+including fixes of orientation in rings of polygons, removal
+of zero-area triangles, etc.
+
+Some of the repairs can be expensive in the presence of
+large data sets. In that case, we recommend setting
+`repair=false`. Specific repairs can be performed
+later with the `Repair` transform.
 
 Optionally, specify the `layer` of geometries to read
 within the file and keyword arguments `kwargs` accepted
@@ -15,7 +24,7 @@ by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 
 To see supported formats, use the [`formats`](@ref) function.
 """
-function load(fname; layer=0, kwargs...)
+function load(fname; repair=true, layer=0, kwargs...)
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     data = FileIO.load(fname)
@@ -89,5 +98,16 @@ function load(fname; layer=0, kwargs...)
     AG.getlayer(data, layer)
   end
 
-  asgeotable(table)
+  # construct geotable
+  geotable = asgeotable(table)
+
+  # repair pipeline
+  pipeline = if repair
+    Repair{11}() → Repair{12}()
+  else
+    Identity()
+  end
+
+  # perform repairs
+  geotable |> pipeline
 end
