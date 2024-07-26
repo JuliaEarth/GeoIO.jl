@@ -75,37 +75,37 @@ function tochain(geom, CRS)
   end
 end
 
-function topolygon(geom, CRS, fix)
+function topolygon(geom, CRS)
   # fix backend issues: https://github.com/JuliaEarth/GeoTables.jl/issues/32
   toring(g) = close(tochain(g, CRS))
   outer = toring(GI.getexterior(geom))
   if GI.nhole(geom) == 0
-    PolyArea(outer; fix)
+    PolyArea(outer)
   else
     inners = map(toring, GI.gethole(geom))
-    PolyArea([outer, inners...]; fix)
+    PolyArea([outer, inners...])
   end
 end
 
-togeometry(::GI.PointTrait, geom, crs, fix) = topoint(geom, crstype(crs, geom))
+togeometry(::GI.PointTrait, geom, crs) = topoint(geom, crstype(crs, geom))
 
-togeometry(::GI.LineTrait, geom, crs, fix) = Segment(topoints(geom, crstype(crs, geom))...)
+togeometry(::GI.LineTrait, geom, crs) = Segment(topoints(geom, crstype(crs, geom))...)
 
-togeometry(::GI.LineStringTrait, geom, crs, fix) = tochain(geom, crstype(crs, geom))
+togeometry(::GI.LineStringTrait, geom, crs) = tochain(geom, crstype(crs, geom))
 
-togeometry(::GI.PolygonTrait, geom, crs, fix) = topolygon(geom, crstype(crs, geom), fix)
+togeometry(::GI.PolygonTrait, geom, crs) = topolygon(geom, crstype(crs, geom))
 
-togeometry(::GI.MultiPointTrait, geom, crs, fix) = Multi(topoints(geom, crstype(crs, geom)))
+togeometry(::GI.MultiPointTrait, geom, crs) = Multi(topoints(geom, crstype(crs, geom)))
 
-function togeometry(::GI.MultiLineStringTrait, geom, crs, fix)
+function togeometry(::GI.MultiLineStringTrait, geom, crs)
   CRS = crstype(crs, geom)
   Multi([tochain(g, CRS) for g in GI.getgeom(geom)])
 end
 
-function togeometry(::GI.MultiPolygonTrait, geom, crs, fix)
+function togeometry(::GI.MultiPolygonTrait, geom, crs)
   CRS = crstype(crs, geom)
-  Multi([topolygon(g, CRS, fix) for g in GI.getgeom(geom)])
+  Multi([topolygon(g, CRS) for g in GI.getgeom(geom)])
 end
 
-geom2meshes(geom, crs=GI.crs(geom), fix=true) = geom2meshes(GI.geomtrait(geom), geom, crs, fix)
-geom2meshes(trait, geom, crs, fix) = togeometry(trait, geom, crs, fix)
+geom2meshes(geom, crs=GI.crs(geom)) = geom2meshes(GI.geomtrait(geom), geom, crs)
+geom2meshes(trait, geom, crs) = togeometry(trait, geom, crs)

@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, layer=0, fix=true, kwargs...)
+    load(fname, layer=0, kwargs...)
 
 Load geospatial table from file `fname` and convert the
 `geometry` column to Meshes.jl geometries.
@@ -13,12 +13,9 @@ within the file and keyword arguments `kwargs` accepted
 by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
 `ArchGDAL.read`.
 
-The option `fix` can be used to fix orientation and degeneracy
-issues with polygons.
-
 To see supported formats, use the [`formats`](@ref) function.
 """
-function load(fname; layer=0, fix=true, kwargs...)
+function load(fname; layer=0, kwargs...)
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     data = FileIO.load(fname)
@@ -92,5 +89,5 @@ function load(fname; layer=0, fix=true, kwargs...)
     AG.getlayer(data, layer)
   end
 
-  asgeotable(table, fix)
+  asgeotable(table)
 end
