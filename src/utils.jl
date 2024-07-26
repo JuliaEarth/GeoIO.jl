@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function asgeotable(table, fix)
+function asgeotable(table)
   crs = GI.crs(table)
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
@@ -10,7 +10,7 @@ function asgeotable(table, fix)
   vars = setdiff(names, [gcol])
   etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
   geoms = Tables.getcolumn(cols, gcol)
-  domain = geom2meshes.(geoms, Ref(crs), fix)
+  domain = geom2meshes.(geoms, Ref(crs))
   georef(etable, domain)
 end
 

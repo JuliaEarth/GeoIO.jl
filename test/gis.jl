@@ -5,9 +5,9 @@
   rings =
     Ring.([
       Point.([LatLon(0, 0), LatLon(1, 1), LatLon(2, 2)]),
-      Point.([LatLon(0, 0), LatLon(-1, -1), LatLon(-2, -2)]),
+      Point.([LatLon(0, 0), LatLon(-2, -2), LatLon(-1, -1)]),
       Point.([LatLon(0, 0), LatLon(-1, 1), LatLon(-2, 2)]),
-      Point.([LatLon(0, 0), LatLon(1, -1), LatLon(2, -2)]),
+      Point.([LatLon(0, 0), LatLon(2, -2), LatLon(1, -1)]),
       Point.([LatLon(0, 0), LatLon(1, 1), LatLon(-2, -2)])
     ])
   polys = PolyArea.(rings)
