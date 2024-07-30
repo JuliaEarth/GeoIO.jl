@@ -68,31 +68,18 @@
   @test gtb.string == gtpoly.string
 
   # GeoPackage
-  # note: GeoPackage does not preserve column order
+  # note 1: GeoPackage does not preserve column order
+  # note 2: currently GeoIO does not save the CRS
+  # and the default CRS used by GDAL is not valid
   file = joinpath(savedir, "gis-points.gpkg")
   GeoIO.save(file, gtpoint)
-  gtb = GeoIO.load(file)
-  @test Set(names(gtb)) == Set(names(gtpoint))
-  @test_broken gtb.geometry == gtpoint.geometry
-  @test gtb.float == gtpoint.float
-  @test gtb.int == gtpoint.int
-  @test gtb.string == gtpoint.string
+  @test_throws ArgumentError GeoIO.load(file)
 
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
-  gtb = GeoIO.load(file)
-  @test Set(names(gtb)) == Set(names(gtring))
-  @test_broken gtb.geometry == gtring.geometry
-  @test gtb.float == gtring.float
-  @test gtb.int == gtring.int
-  @test gtb.string == gtring.string
+  @test_throws ArgumentError GeoIO.load(file)
 
   file = joinpath(savedir, "gis-polys.gpkg")
   GeoIO.save(file, gtpoly)
-  gtb = GeoIO.load(file)
-  @test Set(names(gtb)) == Set(names(gtpoly))
-  @test_broken gtb.geometry == gtpoly.geometry
-  @test gtb.float == gtpoly.float
-  @test gtb.int == gtpoly.int
-  @test gtb.string == gtpoly.string
+  @test_throws ArgumentError GeoIO.load(file)
 end

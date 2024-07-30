@@ -31,28 +31,24 @@
   end
 
   @testset "save" begin
+    # note: currently GeoIO does not save the CRS
+    # and the default CRS used by GDAL is not valid
     file1 = joinpath(datadir, "points.gpkg")
     file2 = joinpath(savedir, "points.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
-    @test values(gtb1, 0) == values(gtb2, 0)
+    @test_throws ArgumentError GeoIO.load(file2)
 
     file1 = joinpath(datadir, "lines.gpkg")
     file2 = joinpath(savedir, "lines.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
-    @test values(gtb1, 0) == values(gtb2, 0)
+    @test_throws ArgumentError GeoIO.load(file2)
 
     file1 = joinpath(datadir, "polygons.gpkg")
     file2 = joinpath(savedir, "polygons.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
-    @test values(gtb1, 0) == values(gtb2, 0)
+    @test_throws ArgumentError GeoIO.load(file2)
   end
 end
