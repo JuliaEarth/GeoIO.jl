@@ -50,6 +50,7 @@ GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 # --------------------------------------
 
 crstype(crs::GFT.EPSG, _) = CoordRefSystems.get(EPSG{GFT.val(crs)})
+crstype(crs::GFT.WellKnownText, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(crs::GFT.WellKnownText2, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(crs::GFT.ESRIWellKnownText, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(_, geom) = Cartesian{NoDatum,GI.is3d(geom) ? 3 : 2}
