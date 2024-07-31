@@ -55,11 +55,11 @@ crstype(crs::GFT.WellKnownText2, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(crs::GFT.ESRIWellKnownText, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(_, geom) = Cartesian{NoDatum,GI.is3d(geom) ? 3 : 2}
 
-topoint(geom, ::Type{<:Cartesian{Datum,2}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom)))
-
-topoint(geom, ::Type{<:Cartesian{Datum,3}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
+topoint(geom, ::Type{<:Cartesian3D{Datum}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
 
 topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
+
+topoint(geom, CRS) = Point(CRS(GI.x(geom), GI.y(geom)))
 
 topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]
 
