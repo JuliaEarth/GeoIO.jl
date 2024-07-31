@@ -55,11 +55,18 @@ crstype(crs::GFT.WellKnownText2, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(crs::GFT.ESRIWellKnownText, _) = CoordRefSystems.get(GFT.val(crs))
 crstype(_, geom) = Cartesian{NoDatum,GI.is3d(geom) ? 3 : 2}
 
-topoint(geom, ::Type{<:Cartesian3D{Datum}}) where {Datum} = Point(Cartesian{Datum}(GI.x(geom), GI.y(geom), GI.z(geom)))
+function topoint(geom, CRS)
+  if CoordRefSystems.ncoords(CRS) == 2
+    Point(CRS(GI.x(geom), GI.y(geom)))
+  elseif CoordRefSystems.ncoords(CRS) == 3
+    Point(CRS(GI.x(geom), GI.y(geom), GI.z(geom)))
+  else
+    throw(ExceptionError("invalid number of coordinates found in GIS file format"))
+  end
+end
 
+# flip coordinates in case of LatLon
 topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
-
-topoint(geom, CRS) = Point(CRS(GI.x(geom), GI.y(geom)))
 
 topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]
 
