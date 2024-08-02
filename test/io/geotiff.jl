@@ -2,7 +2,7 @@
   @testset "load" begin
     file = joinpath(datadir, "test.tif")
     gtb = GeoIO.load(file)
-    @test crs(first(gtb.geometry)) <: Cartesian
+    @test crs(gtb.geometry) <: Cartesian
     @test propertynames(gtb) == [:BAND1, :BAND2, :BAND3, :geometry]
     @test eltype(gtb.BAND1) <: UInt8
     @test eltype(gtb.BAND2) <: UInt8
@@ -12,7 +12,7 @@
 
     file = joinpath(datadir, "utm.tif")
     gtb = GeoIO.load(file)
-    @test crs(first(gtb.geometry)) <: UTMNorth{17}
+    @test crs(gtb.geometry) <: UTMNorth{17}
     @test propertynames(gtb) == [:BAND1, :geometry]
     @test eltype(gtb.BAND1) <: UInt8
     @test gtb.geometry isa Meshes.TransformedGrid
