@@ -1,7 +1,7 @@
 @testset "Images" begin
   @testset "load" begin
     gtb = GeoIO.load(joinpath(datadir, "image.jpg"))
-    @test gtb.geometry isa TransformedGrid
+    @test gtb.geometry isa Meshes.TransformedGrid
     @test length(gtb.color) == length(gtb.geometry)
   end
 

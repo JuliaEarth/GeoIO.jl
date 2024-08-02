@@ -5,12 +5,15 @@
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
   gt = AG.getgeotransform(dataset)
+  crs = AG.getproj(dataset)
   dims = (Int(AG.width(dataset)), Int(AG.height(dataset)))
   # GDAL transform:
   # xnew = gt[1] + x * gt[2] + y * gt[3]
   # ynew = gt[4] + x * gt[5] + y * gt[6]
   affine = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]])
-  domain = CartesianGrid(dims) |> affine
+  CRS = isempty(crs) ? Cartesian2D : CoordRefSystems.get(crs)
+  proj = Proj(CRS)
+  domain = CartesianGrid(dims) |> affine |> proj
   pairs = map(1:AG.nraster(dataset)) do i
     name = Symbol(:BAND, i)
     column = AG.read(dataset, i)
