@@ -4,8 +4,8 @@
 
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
-  gt = AG.getgeotransform(dataset)
   crs = AG.getproj(dataset)
+  gt = AG.getgeotransform(dataset)
   dims = (Int(AG.width(dataset)), Int(AG.height(dataset)))
   # GDAL transform:
   # xnew = gt[1] + x * gt[2] + y * gt[3]
