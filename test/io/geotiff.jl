@@ -10,6 +10,8 @@
     @test gtb.geometry isa Meshes.TransformedGrid
     @test size(gtb.geometry) == (100, 100)
 
+    # the "test_kw.nc" file is from the GeoTIFF/test-data repo
+    # link: https://github.com/GeoTIFF/test-data/blob/main/files/utm.tif
     file = joinpath(datadir, "utm.tif")
     gtb = GeoIO.load(file)
     @test crs(gtb.geometry) <: UTMNorth{17}
