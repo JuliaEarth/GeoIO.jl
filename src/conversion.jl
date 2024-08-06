@@ -66,7 +66,8 @@ function topoint(geom, CRS)
 end
 
 # flip coordinates in case of LatLon
-topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(GI.y(geom), GI.x(geom)))
+# clamp latitude to [-90,90] to fix floating-point errors
+topoint(geom, ::Type{<:LatLon{Datum}}) where {Datum} = Point(LatLon{Datum}(clamp(GI.y(geom), -90, 90), GI.x(geom)))
 
 topoints(geom, CRS) = [topoint(p, CRS) for p in GI.getpoint(geom)]
 
