@@ -102,7 +102,7 @@ function load(fname; repair=true, layer=0, kwargs...)
 
   # repair pipeline
   pipeline = if repair
-    Repair{11}() → Repair{12}()
+    Repair(11) → Repair(12)
   else
     Identity()
   end
