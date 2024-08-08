@@ -2,16 +2,17 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# this transform is used internally to flip coordinates into "xy" order 
+# as this is assumed by geotiff and other formats
+# in particular, this transform converts latlon to lonlat values
 struct Reinterpret{CRS} <: CoordinateTransform end
 
 Reinterpret(CRS) = Reinterpret{CRS}()
 
-Meshes.applycoord(::Reinterpret, v::Vec) = v
+Meshes.applycoord(::Reinterpret{CRS}, p::Point) where {CRS} = Point(_reinterpret(CRS, CoordRefSystems.raw(coords(p))))
 
-Meshes.applycoord(::Reinterpret{CRS}, p::Point) where {CRS} = Point(_reconstruct(CRS, CoordRefSystems.raw(coords(p))))
-
-_reconstruct(::Type{CRS}, raw) where {CRS} = CRS(raw...)
-_reconstruct(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
+_reinterpret(::Type{CRS}, raw) where {CRS} = CRS(raw...)
+_reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
 
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
