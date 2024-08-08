@@ -2,9 +2,8 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# this transform is used internally to flip coordinates into "xy" order 
-# as this is assumed by geotiff and other formats
-# in particular, this transform converts latlon to lonlat values
+# this transform is used internally to reinterpret the CRS of points using raw coordinate values
+# it also flips the coordinates into a "xy" order as this is assumed by geotiff and other formats
 struct Reinterpret{CRS} <: CoordinateTransform end
 
 Reinterpret(CRS) = Reinterpret{CRS}()
