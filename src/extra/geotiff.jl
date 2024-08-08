@@ -2,6 +2,17 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+struct Reinterpret{CRS} <: CoordinateTransform end
+
+Reinterpret(CRS) = Reinterpret{CRS}()
+
+Meshes.applycoord(::Reinterpret, v::Vec) = v
+
+Meshes.applycoord(::Reinterpret{CRS}, p::Point) where {CRS} = Point(_reconstruct(CRS, CoordRefSystems.raw(coords(p))))
+
+_reconstruct(::Type{CRS}, raw) where {CRS} = CRS(raw...)
+_reconstruct(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
+
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
   crs = AG.getproj(dataset)
@@ -11,7 +22,7 @@ function geotiffread(fname; kwargs...)
   # GDAL transform:
   # xnew = gt[1] + x * gt[2] + y * gt[3]
   # ynew = gt[4] + x * gt[5] + y * gt[6]
-  pipe = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]]) → Proj(CRS)
+  pipe = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]]) → Reinterpret(CRS)
   domain = CartesianGrid(dims) |> pipe
   pairs = map(1:AG.nraster(dataset)) do i
     name = Symbol(:BAND, i)
