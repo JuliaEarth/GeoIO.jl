@@ -6,22 +6,27 @@
 # STL READ
 # ---------
 
-function stlraed(fname)
+function stlraed(fname; lenunit)
   normals, vertices = if _isstlbin(fname)
     stlbinread(fname)
   else
     stlasciiread(fname)
   end
 
-  upoints = unique(Iterators.flatten(vertices))
-  ptindex = Dict(zip(upoints, eachindex(upoints)))
-  connec = map(vertices) do points
-    inds = ntuple(i -> ptindex[points[i]], 3)
+  uverts = unique(Iterators.flatten(vertices))
+  index = Dict(zip(uverts, eachindex(uverts)))
+  connec = map(vertices) do verts
+    inds = ntuple(i -> index[verts[i]], 3)
     connect(inds, Triangle)
   end
 
-  mesh = SimpleMesh(upoints, connec)
-  table = (; NORMAL=Vec.(normals))
+  u = lenunit
+
+  norms = map(n -> Vec(n .* u), normals)
+  table = (; NORMAL=norms)
+
+  points = map(v -> Point(v[1]u, v[2]u, v[3]u), uverts)
+  mesh = SimpleMesh(points, connec)
 
   georef(table, mesh)
 end

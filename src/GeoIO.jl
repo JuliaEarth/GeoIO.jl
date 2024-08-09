@@ -15,6 +15,7 @@ using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: Identity, →
+using Unitful: m
 
 # image formats
 import FileIO
@@ -110,17 +111,18 @@ include("utils.jl")
 include("conversion.jl")
 
 # extra code for backends
+include("extra/vtkread.jl")
+include("extra/vtkwrite.jl")
 include("extra/stl.jl")
 include("extra/obj.jl")
 include("extra/off.jl")
 include("extra/msh.jl")
 include("extra/ply.jl")
 include("extra/csv.jl")
+include("extra/img.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
-include("extra/vtkread.jl")
-include("extra/vtkwrite.jl")
 
 # user functions
 include("load.jl")

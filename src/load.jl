@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, repair=true, layer=0, kwargs...)
+    load(fname, repair=true, layer=0, lenunit=m, kwargs...)
 
 Load geospatial table from file `fname` stored in any format.
 
@@ -16,8 +16,10 @@ In that case, we recommend setting `repair=false`. Custom
 repairs can be performed with the `Repair` transform from
 Meshes.jl.
 
-Optionally, specify the `layer` to read within the file and
-forward `kwargs` to backend packages.
+Optionally, specify the `layer` to read within the file, and
+the length unit `lenunit` of the coordinates when the format
+does not include units in its specification. Other `kwargs`
+are forwarded to the backend packages.
 
 Please use the [`formats`](@ref) function to list
 all supported file formats.
@@ -29,21 +31,50 @@ all supported file formats.
 GeoIO.load("file.geojson", numbertype = Float64)
 ```
 """
-function load(fname; repair=true, layer=0, kwargs...)
-  # IMG formats
-  if any(ext -> endswith(fname, ext), IMGEXTS)
-    data = FileIO.load(fname)
-    dims = size(data)
-    values = (; color=vec(data))
-    # translation followed by rotation is faster
-    transform = Translate(-dims[1], 0) → Rotate(-π / 2)
-    domain = CartesianGrid(dims) |> transform
-    return georef(values, domain)
-  end
-
+function load(fname; repair=true, layer=0, lenunit=m, kwargs...)
   # VTK formats
   if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkread(fname; kwargs...)
+    return vtkread(fname; lenunit, kwargs...)
+  end
+
+  # STL format
+  if endswith(fname, ".stl")
+    return stlraed(fname; lenunit, kwargs...)
+  end
+
+  # OBJ format
+  if endswith(fname, ".obj")
+    return objread(fname; lenunit, kwargs...)
+  end
+
+  # OFF format
+  if endswith(fname, ".off")
+    return offread(fname; lenunit, kwargs...)
+  end
+
+  # MSH format
+  if endswith(fname, ".msh")
+    return mshread(fname; lenunit, kwargs...)
+  end
+
+  # PLY format
+  if endswith(fname, ".ply")
+    return plyread(fname; lenunit, kwargs...)
+  end
+
+  # CSV format
+  if endswith(fname, ".csv")
+    return csvread(fname; lenunit, kwargs...)
+  end
+
+  # IMG formats
+  if any(ext -> endswith(fname, ext), IMGEXTS)
+    return imgread(fname; lenunit, kwargs...)
+  end
+
+  # GSLIB format
+  if endswith(fname, ".gslib")
+    return GslibIO.load(fname; kwargs...)
   end
 
   # Common Data Model formats
@@ -54,41 +85,6 @@ function load(fname; repair=true, layer=0, kwargs...)
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
     return geotiffread(fname; kwargs...)
-  end
-
-  # STL format
-  if endswith(fname, ".stl")
-    return stlraed(fname; kwargs...)
-  end
-
-  # OBJ format
-  if endswith(fname, ".obj")
-    return objread(fname; kwargs...)
-  end
-
-  # OFF format
-  if endswith(fname, ".off")
-    return offread(fname; kwargs...)
-  end
-
-  # MSH format
-  if endswith(fname, ".msh")
-    return mshread(fname; kwargs...)
-  end
-
-  # PLY format
-  if endswith(fname, ".ply")
-    return plyread(fname; kwargs...)
-  end
-
-  # CSV format
-  if endswith(fname, ".csv")
-    return csvread(fname; kwargs...)
-  end
-
-  # GSLIB format
-  if endswith(fname, ".gslib")
-    return GslibIO.load(fname; kwargs...)
   end
 
   # GIS formats

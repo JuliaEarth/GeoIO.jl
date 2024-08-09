@@ -5,6 +5,10 @@
     @test isnothing(values(gtb, 0))
     @test isnothing(values(gtb, 1))
     @test isnothing(values(gtb, 2))
+
+    # custom lenunit
+    gtb = GeoIO.load(joinpath(datadir, "beethoven.ply"), lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
   end
 
   @testset "save" begin

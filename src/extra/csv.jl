@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function csvread(fname; coords, kwargs...)
+function csvread(fname; lenunit, coords, kwargs...)
   csv = CSV.File(fname; kwargs...)
   rows = Tables.rows(csv)
   cnames = Symbol.(coords)

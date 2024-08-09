@@ -14,17 +14,17 @@ const GEOMTYPE = Dict(
   VTKCellTypes.VTK_PYRAMID => Pyramid
 )
 
-function vtkread(fname; mask=:MASK)
+function vtkread(fname; lenunit, mask=:MASK)
   gtb = if endswith(fname, ".vtu")
-    vturead(fname)
+    vturead(fname; lenunit)
   elseif endswith(fname, ".vtp")
-    vtpread(fname)
+    vtpread(fname; lenunit)
   elseif endswith(fname, ".vtr")
-    vtrread(fname)
+    vtrread(fname; lenunit)
   elseif endswith(fname, ".vts")
-    vtsread(fname)
+    vtsread(fname; lenunit)
   elseif endswith(fname, ".vti")
-    vtiread(fname)
+    vtiread(fname; lenunit)
   else
     error("unsupported VTK file format")
   end
@@ -40,7 +40,7 @@ function vtkread(fname; mask=:MASK)
   end
 end
 
-function vturead(fname)
+function vturead(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
@@ -55,7 +55,7 @@ function vturead(fname)
   GeoTable(mesh; vtable, etable)
 end
 
-function vtpread(fname)
+function vtpread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
@@ -70,7 +70,7 @@ function vtpread(fname)
   GeoTable(mesh; vtable, etable)
 end
 
-function vtrread(fname)
+function vtrread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
@@ -85,7 +85,7 @@ function vtrread(fname)
   GeoTable(grid; vtable, etable)
 end
 
-function vtsread(fname)
+function vtsread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
@@ -102,7 +102,7 @@ function vtsread(fname)
   GeoTable(grid; vtable, etable)
 end
 
-function vtiread(fname)
+function vtiread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid

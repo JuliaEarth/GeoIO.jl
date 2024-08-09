@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
+function offread(fname; lenunit, defaultcolor=RGBA(0.666, 0.666, 0.666, 0.666))
   vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
   facecolors = RGBA{Float64}[]
@@ -47,9 +47,12 @@ function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
     end
   end
 
-  connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
-  mesh = SimpleMesh(vertices, connec)
   table = (; COLOR=facecolors)
+
+  u = lenunit
+  points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)
+  connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
+  mesh = SimpleMesh(points, connec)
 
   georef(table, mesh)
 end

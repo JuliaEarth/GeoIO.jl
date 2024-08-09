@@ -5,9 +5,10 @@
 """
     save(fname, geotable; kwargs...)
 
-Save geospatial table to file `fname` using the
-appropriate format based on the file extension.
-Optionally, forward `kwargs` to backend packages.
+Save `geotable` to file `fname` of given format
+based on the file extension.
+
+Other `kwargs` are forwarded to the backend packages.
 
 Please use the [`formats`](@ref) function to list
 all supported file formats.
