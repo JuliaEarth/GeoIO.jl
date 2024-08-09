@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function objread(fname)
+function objread(fname; lenunit)
   vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
 

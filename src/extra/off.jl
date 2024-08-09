@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function offread(fname; defaultcolor::Colorant=RGBA(0.666, 0.666, 0.666, 0.666))
+function offread(fname; lenunit, defaultcolor=RGBA(0.666, 0.666, 0.666, 0.666))
   vertices = NTuple{3,Float64}[]
   faceinds = Vector{Int}[]
   facecolors = RGBA{Float64}[]

@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 # helper function to read PlyIO properties
-function plyread(fname; kwargs...)
+function plyread(fname; lenunit, kwargs...)
   # load dictionary
   ply = PlyIO.load_ply(fname; kwargs...)
 
