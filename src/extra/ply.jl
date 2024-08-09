@@ -10,7 +10,8 @@ function plyread(fname; lenunit, kwargs...)
   # load domain
   v = ply["vertex"]
   e = ply["face"]
-  points = Point.(v["x"], v["y"], v["z"])
+  u = lenunit
+  points = Point.(v["x"]u, v["y"]u, v["z"]u)
   connec = [connect(Tuple(c .+ 1)) for c in e["vertex_indices"]]
   domain = SimpleMesh(points, connec)
 

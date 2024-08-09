@@ -42,7 +42,10 @@ function mshread(fname; lenunit)
   connec = map(elemtypes, eleminds) do elemtype, inds
     connect(Tuple(inds), ELEMTYPE2GEOM[elemtype])
   end
-  mesh = SimpleMesh(vertices, connec)
+
+  u = lenunit
+  points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)
+  mesh = SimpleMesh(points, connec)
 
   vtable = _datatable(nodetags, nodedata)
   etable = _datatable(elemtags, elemdata)

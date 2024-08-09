@@ -37,10 +37,12 @@ function objread(fname; lenunit)
     end
   end
 
+  u = lenunit
+  points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)
   connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
-  mesh = SimpleMesh(vertices, connec)
+  mesh = SimpleMesh(points, connec)
 
-  GeoTable(mesh)
+  georef(nothing, mesh)
 end
 
 function objwrite(fname, geotable)

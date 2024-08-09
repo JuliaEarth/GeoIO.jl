@@ -47,9 +47,12 @@ function offread(fname; lenunit, defaultcolor=RGBA(0.666, 0.666, 0.666, 0.666))
     end
   end
 
-  connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
-  mesh = SimpleMesh(vertices, connec)
   table = (; COLOR=facecolors)
+
+  u = lenunit
+  points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)
+  connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
+  mesh = SimpleMesh(points, connec)
 
   georef(table, mesh)
 end
