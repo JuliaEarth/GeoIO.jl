@@ -7,11 +7,17 @@
 
 Save geospatial table to file `fname` using the
 appropriate format based on the file extension.
-Optionally, specify keyword arguments accepted by
-`Shapefile.write` and `GeoJSON.write`. For example, use
-`force = true` to force writing on existing `.shp` file.
+Optionally, forward `kwargs` to backend packages.
 
-To see supported formats, use the [`formats`](@ref) function.
+Please use the [`formats`](@ref) function to list
+all supported file formats.
+
+## Examples
+
+```julia
+# overwrite an existing shapefile
+GeoIO.save("file.shp", force = true)
+```
 """
 function save(fname, geotable; kwargs...)
   # IMG formats

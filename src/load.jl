@@ -5,23 +5,29 @@
 """
     load(fname, repair=true, layer=0, kwargs...)
 
-Load geospatial table from file `fname` and convert the
-`geometry` column to Meshes.jl geometries.
+Load geospatial table from file `fname` stored in any format.
 
-Various `repair`s are performed on the geometries by default,
-including fixes of orientation in rings of polygons, removal
-of zero-area triangles, etc.
+Various `repair`s are performed on the stored geometries by
+default, including fixes of orientation in rings of polygons,
+removal of zero-area triangles, etc.
 
 Some of the repairs can be expensive on large data sets.
 In that case, we recommend setting `repair=false`. Custom
-repairs can be performed with the `Repair` transform.
+repairs can be performed with the `Repair` transform from
+Meshes.jl.
 
-Optionally, specify the `layer` of geometries to read
-within the file and keyword arguments `kwargs` accepted
-by `Shapefile.Table`, `GeoJSON.read` `GeoParquet.read` and
-`ArchGDAL.read`.
+Optionally, specify the `layer` to read within the file and
+forward `kwargs` to backend packages.
 
-To see supported formats, use the [`formats`](@ref) function.
+Please use the [`formats`](@ref) function to list
+all supported file formats.
+
+## Examples
+
+```julia
+# load coordinates of geojson file as Float64
+GeoIO.load("file.geojson", numbertype = Float64)
+```
 """
 function load(fname; repair=true, layer=0, kwargs...)
   # IMG formats
