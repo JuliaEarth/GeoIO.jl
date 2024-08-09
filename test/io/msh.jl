@@ -22,6 +22,12 @@
     @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
     @test eltype(gtb.geometry) <: Triangle
     @test length(gtb.geometry) == 4
+
+    # custom lenunit
+    gtb = GeoIO.load(joinpath(datadir, "tetrahedron1.msh"), lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+    gtb = GeoIO.load(joinpath(datadir, "tetrahedron2.msh"), lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
   end
 
   @testset "save" begin

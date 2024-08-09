@@ -7,11 +7,14 @@ using Test, Random
 using ReferenceTests
 using Colors
 using Dates
+using Unitful
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
 import ArchGDAL as AG
 import GeoJSON as GJS
+
+using Unitful: cm
 
 # environment settings
 isCI = "CI" ∈ keys(ENV)
