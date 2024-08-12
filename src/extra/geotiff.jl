@@ -22,8 +22,7 @@ function geotiffread(fname; kwargs...)
   # GDAL transform:
   # xnew = gt[1] + x * gt[2] + y * gt[3]
   # ynew = gt[4] + x * gt[5] + y * gt[6]
-  pipe =
-    Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]]) → Translate(-dims[1], 0) → Rotate(-π / 2) → Reinterpret(CRS)
+  pipe = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]]) → Reinterpret(CRS)
   domain = CartesianGrid(dims) |> pipe
   pairs = try
     img = AG.imread(dataset)
