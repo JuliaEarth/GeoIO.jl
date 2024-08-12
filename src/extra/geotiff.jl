@@ -77,7 +77,7 @@ function geotiffwrite(fname, geotable; kwargs...)
     if iscolor
       column = Tables.getcolumn(cols, first(names))
       C = channelview(reshape(column, dims))
-      B = permutedims(C, (2, 3, 1))
+      B = permutedims(C, (3, 2, 1))
       AG.write!(dataset, B, 1:nbands)
     else
       for (i, name) in enumerate(names)
