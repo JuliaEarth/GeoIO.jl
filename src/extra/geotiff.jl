@@ -26,12 +26,12 @@ function geotiffread(fname; kwargs...)
   domain = CartesianGrid(dims) |> pipe
   pairs = try
     img = AG.imread(dataset)
-    [:COLOR => vec(img)]
+    [:COLOR => bandcolumn(CRS, img)]
   catch
     map(1:AG.nraster(dataset)) do i
       name = Symbol(:BAND, i)
       column = AG.read(dataset, i)
-      name => vec(column)
+      name => bandcolumn(CRS, column)
     end
   end
   table = (; pairs...)
@@ -88,3 +88,5 @@ function geotiffwrite(fname, geotable; kwargs...)
     end
   end
 end
+
+bandcolumn(CRS, band) = CRS <: LatLon ? vec(transpose(band)) : vec(band)
