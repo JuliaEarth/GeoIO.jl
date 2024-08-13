@@ -15,6 +15,7 @@ using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: Identity, →
+using ImageCore: channelview
 using Unitful: m
 
 # image formats
