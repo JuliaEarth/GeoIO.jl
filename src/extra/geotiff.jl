@@ -6,12 +6,12 @@
 # it also flips the coordinates into a "xy" order as this is assumed by geotiff and other formats
 struct Reinterpret{CRS} <: CoordinateTransform end
 
-Reinterpret(CRS) = Proj(CRS)
-Reinterpret(CRS::Type{<:LatLon}) = Reinterpret{CRS}()
+Reinterpret(CRS) = Reinterpret{CRS}()
 
 Meshes.applycoord(::Reinterpret{CRS}, p::Point) where {CRS} = Point(_reinterpret(CRS, CoordRefSystems.raw(coords(p))))
 
-_reinterpret(::Type{CRS}, (x, y)) where {CRS} = CRS(y, x)
+_reinterpret(::Type{CRS}, (x, y)) where {CRS} = CRS(x, y)
+_reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
 
 function geotiffread(fname; kwargs...)
   dataset = AG.read(fname; kwargs...)
