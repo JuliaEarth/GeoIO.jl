@@ -12,7 +12,7 @@
     # link: https://www.naturalearthdata.com/downloads/50m-gray-earth/50m-gray-earth-with-shaded-relief-and-water/
     file = joinpath(datadir, "test_gray.tif")
     gtb = GeoIO.load(file)
-    @test crs(gtb.geometry) <: LatLon
+    @test crs(gtb.geometry) <: Cartesian
     @test propertynames(gtb) == [:COLOR, :geometry]
     @test eltype(gtb.COLOR) <: Colorant
     @test gtb.geometry isa Meshes.TransformedGrid
