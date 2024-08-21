@@ -8,7 +8,7 @@
     @test gtb.geometry isa Meshes.TransformedGrid
     @test size(gtb.geometry) == (100, 100)
 
-    # the "test_gray.tiff" file is an upscale of a NaturalEarth file
+    # the "test_gray.tif" file is an upscale of a NaturalEarth file
     # link: https://www.naturalearthdata.com/downloads/50m-gray-earth/50m-gray-earth-with-shaded-relief-and-water/
     file = joinpath(datadir, "test_gray.tif")
     gtb = GeoIO.load(file)
