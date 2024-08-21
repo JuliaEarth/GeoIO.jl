@@ -5,7 +5,7 @@
     @test crs(gtb.geometry) <: Cartesian
     @test propertynames(gtb) == [:COLOR, :geometry]
     @test eltype(gtb.COLOR) <: Colorant
-    @test gtb.geometry isa Meshes.TransformedGrid
+    @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (100, 100)
 
     # the "test_gray.tif" file is an upscale of a NaturalEarth file
@@ -15,7 +15,7 @@
     @test crs(gtb.geometry) <: Cartesian
     @test propertynames(gtb) == [:COLOR, :geometry]
     @test eltype(gtb.COLOR) <: Colorant
-    @test gtb.geometry isa Meshes.TransformedGrid
+    @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (108, 108)
 
     # the "utm.tif" file is from the GeoTIFF/test-data repo
@@ -25,7 +25,7 @@
     @test crs(gtb.geometry) <: UTMNorth{17}
     @test propertynames(gtb) == [:COLOR, :geometry]
     @test eltype(gtb.COLOR) <: Colorant
-    @test gtb.geometry isa Meshes.TransformedGrid
+    @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (100, 100)
   end
 
