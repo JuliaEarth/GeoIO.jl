@@ -40,7 +40,7 @@ end
 
 function geotiffwrite(fname, geotable; kwargs...)
   grid = domain(geotable)
-  if !(grid isa Grid && embeddim(grid) == 2)
+  if !(grid isa Grid && paramdim(grid) == 2)
     throw(ArgumentError("GeoTiff format only supports 2D grids"))
   end
   dims = size(grid)
@@ -77,8 +77,13 @@ function geotiffwrite(fname, geotable; kwargs...)
     if iscolor
       column = Tables.getcolumn(cols, first(names))
       C = channelview(reshape(column, dims))
-      B = permutedims(C, (2, 3, 1))
-      AG.write!(dataset, B, 1:nbands)
+      if ndims(C) == 3
+        B = permutedims(C, (2, 3, 1))
+        AG.write!(dataset, B, 1:nbands)
+      else # single channel colors
+        B = Array(C)
+        AG.write!(dataset, B, 1)
+      end
     else
       for (i, name) in enumerate(names)
         column = Tables.getcolumn(cols, name)
