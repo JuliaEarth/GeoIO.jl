@@ -8,7 +8,17 @@
     @test gtb.geometry isa Meshes.TransformedGrid
     @test size(gtb.geometry) == (100, 100)
 
-    # the "test_kw.nc" file is from the GeoTIFF/test-data repo
+    # the "test_gray.tiff" file is an upscale of a NaturalEarth file
+    # link: https://www.naturalearthdata.com/downloads/50m-gray-earth/50m-gray-earth-with-shaded-relief-and-water/
+    file = joinpath(datadir, "test_gray.tif")
+    gtb = GeoIO.load(file)
+    @test crs(gtb.geometry) <: LatLon
+    @test propertynames(gtb) == [:COLOR, :geometry]
+    @test eltype(gtb.COLOR) <: Colorant
+    @test gtb.geometry isa Meshes.TransformedGrid
+    @test size(gtb.geometry) == (108, 108)
+
+    # the "utm.tif" file is from the GeoTIFF/test-data repo
     # link: https://github.com/GeoTIFF/test-data/blob/main/files/utm.tif
     file = joinpath(datadir, "utm.tif")
     gtb = GeoIO.load(file)
@@ -22,6 +32,14 @@
   @testset "save" begin
     file1 = joinpath(datadir, "test.tif")
     file2 = joinpath(savedir, "test.tif")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "test_gray.tif")
+    file2 = joinpath(savedir, "test_gray.tif")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
