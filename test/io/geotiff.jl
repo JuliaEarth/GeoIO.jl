@@ -22,7 +22,7 @@
     # link: https://github.com/GeoTIFF/test-data/blob/main/files/utm.tif
     file = joinpath(datadir, "utm.tif")
     gtb = GeoIO.load(file)
-    @test crs(gtb.geometry) <: UTMNorth{17}
+    @test crs(gtb.geometry) <: utmnorth(17)
     @test propertynames(gtb) == [:COLOR, :geometry]
     @test eltype(gtb.COLOR) <: Colorant
     @test gtb.geometry isa TransformedGrid
