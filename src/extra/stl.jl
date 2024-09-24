@@ -23,7 +23,7 @@ function stlraed(fname; lenunit)
   u = lenunit
 
   norms = map(n -> Vec(n .* u), normals)
-  table = (; NORMAL=norms)
+  table = (; normal=norms)
 
   points = map(v -> Point(v[1]u, v[2]u, v[3]u), uverts)
   mesh = SimpleMesh(points, connec)

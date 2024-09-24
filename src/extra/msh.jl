@@ -235,7 +235,7 @@ end
 function _datatable(tags, data)
   if !isempty(data)
     column = [get(data, tag, missing) for tag in tags]
-    (; DATA=column)
+    (; data=column)
   else
     nothing
   end

@@ -1,7 +1,7 @@
 @testset "STL" begin
   @testset "load" begin
     gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"))
-    @test eltype(gtb.NORMAL) <: Vec{3}
+    @test eltype(gtb.normal) <: Vec{3}
     @test gtb.geometry isa SimpleMesh
     @test embeddim(gtb.geometry) == 3
     @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
@@ -9,7 +9,7 @@
     @test length(gtb.geometry) == 4
 
     gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"))
-    @test eltype(gtb.NORMAL) <: Vec{3}
+    @test eltype(gtb.normal) <: Vec{3}
     @test gtb.geometry isa SimpleMesh
     @test embeddim(gtb.geometry) == 3
     @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}

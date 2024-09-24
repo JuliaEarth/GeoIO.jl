@@ -47,7 +47,7 @@ function offread(fname; lenunit, defaultcolor=RGBA(0.666, 0.666, 0.666, 0.666))
     end
   end
 
-  table = (; COLOR=facecolors)
+  table = (; color=facecolors)
 
   u = lenunit
   points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)

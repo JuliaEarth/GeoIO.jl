@@ -26,7 +26,7 @@ function geotiffread(fname; kwargs...)
   domain = CartesianGrid(dims) |> pipe
   pairs = try
     img = AG.imread(dataset)
-    [:COLOR => vec(transpose(img))]
+    [:color => vec(transpose(img))]
   catch
     map(1:AG.nraster(dataset)) do i
       name = Symbol(:BAND, i)
