@@ -3,6 +3,10 @@
     gtb = GeoIO.load(joinpath(datadir, "image.jpg"))
     @test gtb.geometry isa TransformedGrid
     @test length(gtb.color) == length(gtb.geometry)
+
+    # custom lenunit
+    gtb = GeoIO.load(joinpath(datadir, "image.jpg"), lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
   end
 
   @testset "save" begin

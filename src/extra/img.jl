@@ -8,6 +8,10 @@ function imgread(fname; lenunit)
   values = (; color=vec(data))
   # translation followed by rotation is faster
   transform = Translate(-dims[1], 0) → Rotate(-π / 2)
-  domain = CartesianGrid(dims) |> transform
+  # construct the grid
+  u = lenunit
+  origin = Point(ntuple(i -> 0.0u, length(dims)))
+  spacing = ntuple(i -> 1.0u, length(dims))
+  domain = CartesianGrid(dims, origin, spacing) |> transform
   georef(values, domain)
 end
