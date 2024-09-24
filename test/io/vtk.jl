@@ -53,6 +53,23 @@
     vtable = values(gtb, 0)
     @test size(eltype(vtable.myVector)) == (2,)
     @test eltype(eltype(vtable.myVector)) <: Float32
+
+    # custom lenunit
+    file = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu", output_directory=savedir)
+    gtb = GeoIO.load(file, lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+    file = joinpath(datadir, "spiral.vtp")
+    gtb = GeoIO.load(file, lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+    file = joinpath(datadir, "rectilinear.vtr")
+    gtb = GeoIO.load(file, lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+    file = joinpath(datadir, "structured.vts")
+    gtb = GeoIO.load(file, lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+    file = joinpath(datadir, "imagedata.vti")
+    gtb = GeoIO.load(file, lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
   end
 
   @testset "save" begin
