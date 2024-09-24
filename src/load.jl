@@ -24,6 +24,50 @@ are forwarded to the backend packages.
 Please use the [`formats`](@ref) function to list
 all supported file formats.
 
+## Options
+
+### OFF
+
+* `defaultcolor`: default color of the geometries if the file does not have this data
+  (default to `RGBA(0.666, 0.666, 0.666, 0.666)`);
+
+### CSV
+
+* `coords`: names of the columns with point coordinates (required option);
+* Other options are passed to `CSV.File`, see the CSV.jl documentation for more details;
+
+### VTK formats (`.vtu`, `.vtp`, `.vtr`, `.vts`, `.vti`)
+
+* mask: name of the boolean column that encodes the indices of a grid view (default to `:MASK`).
+  If the column does not exist in the file, the full grid is returned;
+
+### Common Data Model formats (NetCDF, GRIB)
+
+* `x`: name of the column with x coordinates (default to `"x"`, `"X"`, `"lon"`, or `"longitude"`);
+* `y`: name of the column with y coordinates (default to `"y"`, `"Y"`, `"lat"`, or `"latitude"`);
+* `z`: name of the column with z coordinates (default to `"z"`, `"Z"`, `"depth"`, or `"height"`);
+* `t`: name of the column with time measurements (default to `"t"`, `"time"`, or `"TIME"`);
+
+### GSLIB
+
+* Other options are passed to `GslibIO.load`, see the GslibIO.jl documentation for more details;
+
+### Shapefile
+
+* Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
+
+### GeoJSON
+
+* Other options are passed to `GeoJSON.read`, see the GeoJSON.jl documentation for more details;
+
+### GeoParquet
+
+* Other options are passed to `GeoParquet.read`, see the GeoParquet.jl documentation for more details;
+
+### GeoTIFF, GeoPackage, KML
+
+* Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
+
 ## Examples
 
 ```julia
