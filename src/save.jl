@@ -29,8 +29,8 @@ all supported file formats.
 
 ### STL
 
-* `ascii`: defines whether the file will be saved in ASCII STL format,
-  otherwise Binary STL format will be used (default to `false`);
+* `ascii`: defines whether the file will be saved in ASCII format,
+  otherwise Binary format will be used (default to `false`);
 
 ### CSV
 
