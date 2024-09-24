@@ -44,7 +44,7 @@ function vturead(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
-  points = _points(vtk)
+  points = _points(vtk, lenunit)
   connec = _vtuconnec(vtk)
   mesh = SimpleMesh(points, connec)
 
@@ -59,7 +59,7 @@ function vtpread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
-  points = _points(vtk)
+  points = _points(vtk, lenunit)
   connec = _vtpconnec(vtk)
   mesh = SimpleMesh(points, connec)
 
@@ -74,9 +74,11 @@ function vtrread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
+  u = lenunit
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
-  grid = RectilinearGrid(coords[inds]...)
+  xyz = map(x -> x * u, coords[inds])
+  grid = RectilinearGrid(xyz...)
 
   # extract data
   vtable, etable = _datatables(vtk)
@@ -89,10 +91,11 @@ function vtsread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
+  u = lenunit
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
   dims = findall(!, inds) |> Tuple
-  XYZ = map(A -> dropdims(A; dims), coords[inds])
+  XYZ = map(A -> dropdims(A; dims) * u, coords[inds])
   grid = StructuredGrid(XYZ...)
 
   # extract data
@@ -106,6 +109,7 @@ function vtiread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
+  u = lenunit
   ext = ReadVTK.get_whole_extent(vtk)
   # the get_origin and get_spacing functions drop the z dimension if it is empty, 
   # but the get_whole_extent function does not
@@ -115,8 +119,8 @@ function vtiread(fname; lenunit)
     (ext[2] - ext[1], ext[4] - ext[3], ext[6] - ext[5])
   end
   inds = findall(!iszero, dims)
-  origin = ReadVTK.get_origin(vtk) |> Tuple
-  spacing = ReadVTK.get_spacing(vtk) |> Tuple
+  origin = Tuple(ReadVTK.get_origin(vtk)) .* u
+  spacing = Tuple(ReadVTK.get_spacing(vtk)) .* u
   grid = CartesianGrid(dims[inds], origin[inds], spacing[inds])
 
   # extract data
@@ -130,10 +134,10 @@ end
 # UTILS
 #-------
 
-function _points(vtk)
+function _points(vtk, u)
   coords = ReadVTK.get_points(vtk)
   inds = map(!allequal, eachrow(coords))
-  [Point(Tuple(c)) for c in eachcol(coords[inds, :])]
+  [Point(Tuple(c) .* u) for c in eachcol(coords[inds, :])]
 end
 
 function _vtuconnec(vtk)
