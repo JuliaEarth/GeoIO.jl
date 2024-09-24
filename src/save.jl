@@ -13,6 +13,63 @@ Other `kwargs` are forwarded to the backend packages.
 Please use the [`formats`](@ref) function to list
 all supported file formats.
 
+## Options
+
+### OFF
+
+* `color`: name of the column with geometry colors, if `nothing` 
+  the geometries will be saved without colors (default to `nothing`);
+
+### MSH
+
+* `vcolumn`: name of the column in vertex table with node data, if `nothing` 
+  the geometries will be saved without node data (default to `nothing`);
+* `ecolumn`: name of the column in element table with element data, if `nothing` 
+  the geometries will be saved without element data (default to `nothing`);
+
+### STL
+
+* `ascii`: defines whether the file will be saved in ASCII STL format,
+  otherwise Binary STL format will be used (default to `false`);
+
+### CSV
+
+* `coords`: names of the columns where the point coordinates will be saved (default to `"x"`, `"y"`, `"z"`);
+* `floatformat`: C-style format string for float values (default to no formatting);
+* Other options are passed to `CSV.write`, see the CSV.jl documentation for more details;
+
+### NetCDF
+
+* `x`: name of the column where the coordinate x will be saved (default to `"x"`);
+* `y`: name of the column where the coordinate x will be saved (default to `"y"`);
+* `z`: name of the column where the coordinate x will be saved (default to `"z"`);
+* `t`: name of the column where the time will be saved (default to `"t"`);
+
+### GeoTIFF
+
+* `options`: list with options that will be passed to GDAL;
+
+### GeoPackage
+
+* `layername`: name of the layer where the data will be saved (default to `"data"`);
+* `options`: dictionary with options that will be passed to GDAL;
+
+### GSLIB
+
+* Other options are passed to `GslibIO.save`, see the GslibIO.jl documentation for more details;
+
+### Shapefile
+
+* Other options are passed to `Shapefile.write`, see the Shapefile.jl documentation for more details;
+
+### GeoJSON
+
+* Other options are passed to `GeoJSON.write`, see the GeoJSON.jl documentation for more details;
+
+### GeoParquet
+
+* Other options are passed to `GeoParquet.write`, see the GeoParquet.jl documentation for more details;
+
 ## Examples
 
 ```julia

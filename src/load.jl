@@ -41,7 +41,7 @@ all supported file formats.
 * mask: name of the boolean column that encodes the indices of a grid view (default to `:MASK`).
   If the column does not exist in the file, the full grid is returned;
 
-### Common Data Model formats (`.nc`, `.grib`)
+### Common Data Model formats (NetCDF, GRIB)
 
 * `x`: name of the column with x coordinates (default to `"x"`, `"X"`, `"lon"`, or `"longitude"`);
 * `y`: name of the column with y coordinates (default to `"y"`, `"Y"`, `"lat"`, or `"latitude"`);
