@@ -17,6 +17,10 @@
     @test gtb2[1, :] == gtb1[1, :]
     @test gtb2[2, :] == gtb1[3, :]
     @test gtb2[3, :] == gtb1[5, :]
+
+    # custom lenunit
+    gtb = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"], lenunit=cm)
+    @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
   end
 
   @testset "save" begin

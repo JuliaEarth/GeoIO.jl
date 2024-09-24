@@ -16,7 +16,7 @@ function csvread(fname; lenunit, coords, kwargs...)
   end
 
   srows = Tables.subset(rows, sinds)
-  georef(srows, cnames)
+  georef(srows, cnames; lenunit)
 end
 
 function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs...)
