@@ -31,24 +31,38 @@
   end
 
   @testset "save" begin
-    # note: currently GeoIO does not save the CRS
-    # and the default CRS used by GDAL is not valid
+    # note: GeoPackage does not preserve column order
     file1 = joinpath(datadir, "points.gpkg")
     file2 = joinpath(savedir, "points.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    @test_throws ArgumentError GeoIO.load(file2)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test_broken gtb2.geometry == gtb1.geometry
+    @test gtb2.code == gtb1.code
+    @test gtb2.name == gtb1.name
+    @test gtb2.variable == gtb1.variable
 
     file1 = joinpath(datadir, "lines.gpkg")
     file2 = joinpath(savedir, "lines.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    @test_throws ArgumentError GeoIO.load(file2)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test_broken gtb2.geometry == gtb1.geometry
+    @test gtb2.code == gtb1.code
+    @test gtb2.name == gtb1.name
+    @test gtb2.variable == gtb1.variable
 
     file1 = joinpath(datadir, "polygons.gpkg")
     file2 = joinpath(savedir, "polygons.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
-    @test_throws ArgumentError GeoIO.load(file2)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test_broken gtb2.geometry == gtb1.geometry
+    @test gtb2.code == gtb1.code
+    @test gtb2.name == gtb1.name
+    @test gtb2.variable == gtb1.variable
   end
 end
