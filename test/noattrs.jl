@@ -17,11 +17,11 @@
   @test gtb2 == gtb1
 
   # GeoPackage
-  # note: currently GeoIO does not save the CRS
-  # and the default CRS used by GDAL is not valid
   file = joinpath(savedir, "noattribs.gpkg")
   GeoIO.save(file, gtb1)
-  @test_throws ArgumentError GeoIO.load(file)
+  gtb2 = GeoIO.load(file)
+  @test isnothing(values(gtb2))
+  @test gtb2 == gtb1
 
   # CSV
   file = joinpath(savedir, "noattribs.csv")
