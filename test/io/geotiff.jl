@@ -3,8 +3,8 @@
     file = joinpath(datadir, "test.tif")
     gtb = GeoIO.load(file)
     @test crs(gtb.geometry) <: Cartesian
-    @test propertynames(gtb) == [:COLOR, :geometry]
-    @test eltype(gtb.COLOR) <: Colorant
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (100, 100)
 
@@ -13,8 +13,8 @@
     file = joinpath(datadir, "test_gray.tif")
     gtb = GeoIO.load(file)
     @test crs(gtb.geometry) <: Cartesian
-    @test propertynames(gtb) == [:COLOR, :geometry]
-    @test eltype(gtb.COLOR) <: Colorant
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (108, 108)
 
@@ -23,8 +23,8 @@
     file = joinpath(datadir, "utm.tif")
     gtb = GeoIO.load(file)
     @test crs(gtb.geometry) <: utmnorth(17)
-    @test propertynames(gtb) == [:COLOR, :geometry]
-    @test eltype(gtb.COLOR) <: Colorant
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (100, 100)
   end
