@@ -15,21 +15,8 @@ function csvread(fname; lenunit, coords, kwargs...)
     pred(row) && push!(sinds, i)
   end
 
-  # selected rows
   srows = Tables.subset(rows, sinds)
-  cols = Tables.columns(srows)
-  names = Tables.columnnames(cols)
-
-  # build points with coordinates
-  u = lenunit
-  point(xyz...) = Point((xyz .* u)...)
-  points = map(point, (Tables.getcolumn(cols, nm) for nm in cnames)...)
-
-  # build table with values
-  vnames = setdiff(cnames, names)
-  etable = isempty(vnames) ? nothing : (; (nm => Tables.getcolumn(cols, nm) for nm in vnames)...)
-
-  georef(etable, points)
+  georef(srows, cnames; lenunit)
 end
 
 function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs...)
