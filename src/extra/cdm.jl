@@ -36,7 +36,8 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
 
   # get grid mapping (CRS)
   gridmappings = map(vnames) do name
-    attribs = CDM.attribnames(ds[name])
+    var = ds[name]
+    attribs = CDM.attribnames(var)
     if "grid_mapping" ∈ attribs
       CDM.attrib(var, "grid_mapping")
     else
@@ -52,18 +53,19 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
       error("all variables must have the same CRS")
     end
 
-    # delete grid mapping from variable list
-    gridmapping = first(gridmappings)
-    deleteat!(vnames, findfirst(==(gridmapping), vnames))
-
     # convert grid mapping to CRS
+    gridmapping = first(gridmappings)
     _gm2crs(ds[gridmapping])
   end
 
   # construct grid with CRS and Manifold
   C = isnothing(crs) ? Cartesian{NoDatum,N,Met{Float64}} : crs
-  M = CRS <: CoordRefSystems.Geographic ? 🌐 : 𝔼{N}
-  grid = RectilinearGrid{M,C}(coords...)
+  grid = if C <: LatLon
+    lons, lats = coords
+    RectilinearGrid{🌐,C}(lats, lons)
+  else
+    RectilinearGrid{𝔼{N},C}(coords...)
+  end
 
   vtable = if isempty(vnames)
     nothing
