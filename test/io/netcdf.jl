@@ -30,6 +30,25 @@
     @test length(first(vtable.tempanomaly)) == 100
     @test length(vtable.data) == nvertices(gtb.geometry)
     @test eltype(vtable.data) <: Float64
+
+    # CRS
+    file = joinpath(datadir, "test_latlon.nc")
+    gtb = GeoIO.load(file)
+    @test gtb.geometry isa RectilinearGrid
+    @test crs(gtb.geometry) <: LatLon
+    @test datum(crs(gtb.geometry)) === WGS84Latest
+
+    file = joinpath(datadir, "test_latlon_itrf.nc")
+    gtb = GeoIO.load(file)
+    @test gtb.geometry isa RectilinearGrid
+    @test crs(gtb.geometry) <: LatLon
+    @test datum(crs(gtb.geometry)) === ITRFLatest
+
+    file = joinpath(datadir, "test_utm_north_32.nc")
+    gtb = GeoIO.load(file)
+    @test gtb.geometry isa RectilinearGrid
+    @test crs(gtb.geometry) <: TransverseMercator
+    @test datum(crs(gtb.geometry)) === WGS84Latest
   end
 
   @testset "save" begin
