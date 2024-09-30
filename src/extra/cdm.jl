@@ -139,8 +139,14 @@ end
 
 # reference of ellipsoid names: https://raw.githubusercontent.com/wiki/cf-convention/cf-conventions/csv/ellipsoid.csv
 const ELLIP2DATUM = Dict(
-  "WGS 84" => WGS84Latest
-  # TODO: add more ellipsoids
+  "WGS 84" => WGS84Latest,
+  "GRS 1980" => ITRFLatest,
+  "Airy 1830" => OSGB36,
+  "Airy Modified 1849" => Ire65,
+  "Bessel 1841" => Hermannskogel,
+  "International 1924" => NZGD1949,
+  "Clarke 1880 (IGN)" => Carthage,
+  "GRS 1967 Modified" => SAD69
 )
 
 function _gribdataset(fname)
