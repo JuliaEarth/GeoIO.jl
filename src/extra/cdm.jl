@@ -229,7 +229,7 @@ function _gm2crs(gridmapping)
   function shift()
     lonₒ = "longitude_of_central_meridian" ∈ attribs ? CDM.attrib(gridmapping, "longitude_of_central_meridian") : 0.0
     xₒ = "false_easting" ∈ attribs ? CDM.attrib(gridmapping, "false_easting") : 0.0
-    yₒ = "false_easting" ∈ attribs ? CDM.attrib(gridmapping, "false_easting") : 0.0
+    yₒ = "false_northing" ∈ attribs ? CDM.attrib(gridmapping, "false_northing") : 0.0
     CoordRefSystems.Shift(lonₒ=lonₒ * u"°", xₒ=xₒ * u"m", yₒ=yₒ * u"m")
   end
 
