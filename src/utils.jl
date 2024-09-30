@@ -2,6 +2,9 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
+const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
+
 function asgeotable(table)
   crs = GI.crs(table)
   cols = Tables.columns(table)

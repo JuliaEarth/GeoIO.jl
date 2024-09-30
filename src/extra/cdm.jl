@@ -19,10 +19,9 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   cnames = filter(!isnothing, [xname, yname, zname])
   isempty(cnames) && error("coordinates not found")
   coords = map(nm -> _var2array(ds[nm], lazy), cnames)
+  N = length(cnames)
 
-  grid = if all(ndims(a) == 1 for a in coords)
-    RectilinearGrid(coords...)
-  else
+  if !all(ndims(a) == 1 for a in coords)
     error("invalid grid arrays")
   end
 
@@ -34,6 +33,37 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
     vdims = CDM.dimnames(ds[name])
     issetequal(vdims, cnames) || issetequal(vdims, dnames)
   end
+
+  # get grid mapping (CRS)
+  gridmappings = map(vnames) do name
+    attribs = CDM.attribnames(ds[name])
+    if "grid_mapping" ∈ attribs
+      CDM.attrib(var, "grid_mapping")
+    else
+      nothing
+    end
+  end
+
+  # parse grid mapping
+  crs = if all(isnothing, gridmappings)
+    nothing
+  else
+    if !allequal(gridmappings)
+      error("all variables must have the same CRS")
+    end
+
+    # delete grid mapping from variable list
+    gridmapping = first(gridmappings)
+    deleteat!(vnames, findfirst(==(gridmapping), vnames))
+
+    # convert grid mapping to CRS
+    _gm2crs(ds[gridmapping])
+  end
+
+  # construct grid with CRS and Manifold
+  C = isnothing(crs) ? Cartesian{NoDatum,N,Met{Float64}} : crs
+  M = CRS <: CoordRefSystems.Geographic ? 🌐 : 𝔼{N}
+  grid = RectilinearGrid{M,C}(coords...)
 
   vtable = if isempty(vnames)
     nothing
@@ -107,6 +137,12 @@ function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t=nothing)
   end
 end
 
+# reference of ellipsoid names: https://raw.githubusercontent.com/wiki/cf-convention/cf-conventions/csv/ellipsoid.csv
+const ELLIP2DATUM = Dict(
+  "WGS 84" => WGS84Latest
+  # TODO: add more ellipsoids
+)
+
 function _gribdataset(fname)
   if Sys.iswindows()
     error("loading GRIB files is currently not supported on Windows")
@@ -167,5 +203,28 @@ function _dimnames(Dim, xnm, ynm, znm, tnm, names)
       name = name * "_"
     end
     name
+  end
+end
+
+function _gm2crs(gridmapping)
+  attribs = CDM.attribnames(gridmapping)
+
+  # get datum from reference ellipsoid
+  D = if "reference_ellipsoid_name" ∈ attribs
+    ellip = CDM.attrib(gridmapping, "reference_ellipsoid_name")
+    ELLIP2DATUM[ellip]
+  else
+    WGS84Latest
+  end
+
+  # parse CRS type and properties
+  # reference: https://cfconventions.org/cf-conventions/cf-conventions.html#appendix-grid-mappings
+  gmname = CDM.attrib(gridmapping, "grid_mapping_name")
+  if gmname == "latitude_longitude"
+    LatLon{D,Deg{Float64}}
+    # elseif 
+    # TODO: parse more grid mappings
+  else
+    nothing
   end
 end
