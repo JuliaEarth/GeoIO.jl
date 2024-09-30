@@ -2,6 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# helper type alias
 const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
 const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
 
