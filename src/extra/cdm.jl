@@ -233,7 +233,7 @@ function _gm2crs(gridmapping)
     CoordRefSystems.Shift(lonₒ=lonₒ * u"°", xₒ=xₒ * u"m", yₒ=yₒ * u"m")
   end
 
-  # parse CRS type and properties
+  # parse CRS type and parameters
   # reference: https://cfconventions.org/cf-conventions/cf-conventions.html#appendix-grid-mappings
   gmname = CDM.attrib(gridmapping, "grid_mapping_name")
   if gmname == "latitude_longitude"
