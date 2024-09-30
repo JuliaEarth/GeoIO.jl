@@ -45,7 +45,7 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
     end
   end
 
-  # parse grid mapping
+  # convert grid mapping to CRS
   crs = if all(isnothing, gridmappings)
     nothing
   else
@@ -53,7 +53,6 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
       error("all variables must have the same CRS")
     end
 
-    # convert grid mapping to CRS
     gridmapping = first(gridmappings)
     _gm2crs(ds[gridmapping])
   end
