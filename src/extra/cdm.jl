@@ -217,13 +217,36 @@ function _gm2crs(gridmapping)
     WGS84Latest
   end
 
+  # shift parameters
+  function shift()
+    lonₒ = "longitude_of_central_meridian" ∈ attribs ? CDM.attrib(gridmapping, "longitude_of_central_meridian") : 0.0
+    xₒ = "false_easting" ∈ attribs ? CDM.attrib(gridmapping, "false_easting") : 0.0
+    yₒ = "false_easting" ∈ attribs ? CDM.attrib(gridmapping, "false_easting") : 0.0
+    CoordRefSystems.Shift(lonₒ=lonₒ * u"°", xₒ=xₒ * u"m", yₒ=yₒ * u"m")
+  end
+
   # parse CRS type and properties
   # reference: https://cfconventions.org/cf-conventions/cf-conventions.html#appendix-grid-mappings
   gmname = CDM.attrib(gridmapping, "grid_mapping_name")
   if gmname == "latitude_longitude"
     LatLon{D,Deg{Float64}}
-    # elseif 
-    # TODO: parse more grid mappings
+  elseif gmname == "lambert_cylindrical_equal_area"
+    latₜₛ = if "standard_parallel" ∈ attribs
+      CDM.attrib(gridmapping, "standard_parallel")
+    elseif "scale_factor_at_projection_origin" ∈ attribs
+      CDM.attrib(gridmapping, "scale_factor_at_projection_origin")
+    end
+    CoordRefSystems.EqualAreaCylindrical{latₜₛ * u"°",D,shift(),Met{Float64}}
+  elseif gmname == "mercator"
+    Mercator{D,shift(),Met{Float64}}
+  elseif gmname == "orthographic"
+    latₒ = CDM.attrib(gridmapping, "latitude_of_projection_origin")
+    Mode = CoordRefSystems.EllipticalMode
+    CoordRefSystems.Orthographic{Mode,latₒ * u"°",D,shift(),Met{Float64}}
+  elseif gmname == "transverse_mercator"
+    k₀ = CDM.attrib(gridmapping, "scale_factor_at_central_meridian")
+    latₒ = CDM.attrib(gridmapping, "latitude_of_projection_origin")
+    TransverseMercator{k₀,latₒ * u"°",D,shift(),Met{Float64}}
   else
     nothing
   end
