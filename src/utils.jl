@@ -47,3 +47,14 @@ function uniquenames(names, newnames)
     uniquename(names, name)
   end
 end
+
+function wktstring(code; format="WKT2", multiline=false)
+  spref = AG.importUserInput(codestring(code))
+  options = ["FORMAT=$format", "MULTILINE=$(multiline ? "YES" : "NO")"]
+  wktptr = Ref{Cstring}()
+  AG.GDAL.osrexporttowktex(spref, wktptr, options)
+  unsafe_string(wktptr[])
+end
+
+codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
+codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
