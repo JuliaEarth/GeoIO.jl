@@ -37,8 +37,14 @@ function agwrite(fname, geotable; layername="data", options=Dict("geometry_name"
     end
   end
 
+  spref = try
+    spatialref(CoordRefSystems.code(crs(geoms)))
+  catch
+    AG.SpatialRef()
+  end
+
   AG.create(fname; driver) do dataset
-    AG.createlayer(; dataset, name=layername, options=optionlist) do layer
+    AG.createlayer(; dataset, name=layername, options=optionlist, spatialref=spref) do layer
       if isnothing(table)
         for geom in geoms
           AG.addfeature(layer) do feature

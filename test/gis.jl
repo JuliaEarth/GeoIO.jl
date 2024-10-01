@@ -73,7 +73,7 @@
   GeoIO.save(file, gtpoint)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtpoly))
-  @test_broken gtb.geometry == gtpoly.geometry
+  @test gtb.geometry == gtpoly.geometry
   @test gtb.float == gtpoly.float
   @test gtb.int == gtpoly.int
   @test gtb.string == gtpoly.string
@@ -82,7 +82,7 @@
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtpoly))
-  @test_broken gtb.geometry == gtpoly.geometry
+  @test gtb.geometry == gtpoly.geometry
   @test gtb.float == gtpoly.float
   @test gtb.int == gtpoly.int
   @test gtb.string == gtpoly.string
@@ -91,7 +91,7 @@
   GeoIO.save(file, gtpoly)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtpoly))
-  @test_broken gtb.geometry == gtpoly.geometry
+  @test gtb.geometry == gtpoly.geometry
   @test gtb.float == gtpoly.float
   @test gtb.int == gtpoly.int
   @test gtb.string == gtpoly.string
