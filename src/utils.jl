@@ -52,7 +52,7 @@ function wktstring(code; format="WKT2", multiline=false)
   spref = spatialref(code)
   wktptr = Ref{Cstring}()
   options = ["FORMAT=$format", "MULTILINE=$(multiline ? "YES" : "NO")"]
-  AG.GDAL.osrexporttowktex(spref, wktptr, options)
+  GDAL.osrexporttowktex(spref, wktptr, options)
   unsafe_string(wktptr[])
 end
 
