@@ -68,7 +68,7 @@
     file1 = joinpath(datadir, "points.shp")
     file2 = joinpath(savedir, "points.shp")
     gtb1 = GeoIO.load(file1)
-    GeoIO.save(file2, gtb1, force=true)
+    GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test gtb1.geometry == gtb2.geometry
     @test values(gtb1) == values(gtb2)
