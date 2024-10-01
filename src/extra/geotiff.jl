@@ -73,6 +73,12 @@ function geotiffwrite(fname, geotable; kwargs...)
   nbands = iscolor ? length(coltype) : length(names)
   dtype = iscolor ? eltype(coltype) : coltype
 
+  crsstr = try
+    wktstring(CoordRefSystems.code(crs(grid)))
+  catch
+    nothing
+  end
+
   AG.create(fname; driver, width, height, nbands, dtype, kwargs...) do dataset
     if iscolor
       column = Tables.getcolumn(cols, first(names))
@@ -90,6 +96,10 @@ function geotiffwrite(fname, geotable; kwargs...)
         band = reshape(column, dims)
         AG.write!(dataset, band, i)
       end
+    end
+
+    if !isnothing(crsstr)
+      AG.setproj!(dataset, crsstr)
     end
   end
 end
