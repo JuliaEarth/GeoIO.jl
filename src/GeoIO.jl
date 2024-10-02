@@ -49,6 +49,7 @@ import ArchGDAL as AG
 import GeoParquet as GPQ
 import GeoInterface as GI
 import GeoFormatTypes as GFT
+import ArchGDAL.GDAL
 
 # image extensions
 const IMGEXTS = [".png", ".jpg", ".jpeg"]

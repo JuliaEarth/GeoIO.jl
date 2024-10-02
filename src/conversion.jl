@@ -17,6 +17,8 @@ GI.geomtrait(::MultiRope) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiRing) = GI.MultiLineStringTrait()
 GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 
+GI.crs(geom::Geometry) = gicrs(crs(geom))
+
 GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
 GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(raw(coords(p)))
 GI.getcoord(trait::GI.PointTrait, p::Point, i) = GI.getcoord(trait, p)[i]
@@ -42,8 +44,17 @@ GI.getgeom(::GI.AbstractGeometryTrait, m::Multi, i) = parent(m)[i]
 
 GI.isfeaturecollection(::Type{<:AbstractGeoTable}) = true
 GI.trait(::AbstractGeoTable) = GI.FeatureCollectionTrait()
+GI.crs(gtb::AbstractGeoTable) = gicrs(crs(domain(gtb)))
 GI.nfeature(::Any, gtb::AbstractGeoTable) = nrow(gtb)
 GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
+
+function gicrs(CRS)
+  try
+    GFT.WellKnownText2(GFT.CRS(), wktstring(CoordRefSystems.code(CRS)))
+  catch
+    nothing
+  end
+end
 
 # --------------------------------------
 # Convert geometries to Meshes.jl types
