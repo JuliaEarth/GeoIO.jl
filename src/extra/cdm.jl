@@ -118,7 +118,7 @@ function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t="t")
   else
     _coordnames(CRS, customnames, String[])
   end
-  dnames = (cnames..., string(t))
+  dnames = [cnames..., string(t)]
 
   crsattribs = _crsattribs(crs(grid))
   varattribs = isnothing(crsattribs) ? [] : ["grid_mapping" => "crs"]
@@ -207,7 +207,7 @@ _var2array(var, lazy) = lazy ? var : Array(var)
 
 function _coordnames(CRS, customnames, tablenames)
   defaultnames = CoordRefSystems.names(CRS)
-  names = map((cnm, dnm) -> string(isnothing(cnm) ? dnm : cnm), customnames, defaultnames)
+  names = [string(isnothing(cnm) ? dnm : cnm) for (cnm, dnm) in zip(customnames, defaultnames)]
   # make unique
   map(names) do name
     while name ∈ tablenames
