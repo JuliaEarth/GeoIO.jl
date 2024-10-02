@@ -106,7 +106,7 @@ function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t="t")
   end
 
   xyz = map(x -> ustrip.(x), Meshes.xyz(grid))
-  # swap x and y for geografic coordinates
+  # swap x and y in geographic case
   customnames = if CRS <: CoordRefSystems.Geographic
     (y, x, z)
   else
