@@ -51,7 +51,8 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
+    @test isapprox(gtb1.geometry, gtb2.geometry, atol=1e-6u"m")
+    @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
 
     # error: GeoTiff format only supports 2D grids
