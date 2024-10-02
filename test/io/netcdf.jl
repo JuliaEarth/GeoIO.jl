@@ -60,6 +60,31 @@
     @test gtb1 == gtb2
     @test isequal(values(gtb1, 0).tempanomaly, values(gtb2, 0).tempanomaly)
 
+    # CRS
+    file1 = joinpath(datadir, "test_latlon.nc")
+    file2 = joinpath(savedir, "test_latlon.nc")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test isequal(values(gtb1, 0).tempanomaly, values(gtb2, 0).tempanomaly)
+
+    file1 = joinpath(datadir, "test_latlon_itrf.nc")
+    file2 = joinpath(savedir, "test_latlon_itrf.nc")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test isequal(values(gtb1, 0).tempanomaly, values(gtb2, 0).tempanomaly)
+
+    file1 = joinpath(datadir, "test_utm_north_32.nc")
+    file2 = joinpath(savedir, "test_utm_north_32.nc")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test isequal(values(gtb1, 0).tempanomaly, values(gtb2, 0).tempanomaly)
+
     # grids
     grid = CartesianGrid(10, 10)
     rgrid = convert(RectilinearGrid, grid)

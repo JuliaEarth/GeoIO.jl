@@ -40,9 +40,9 @@ all supported file formats.
 
 ### NetCDF
 
-* `x`: name of the column where the coordinate x will be saved (default to `"x"`);
-* `y`: name of the column where the coordinate y will be saved (default to `"y"`);
-* `z`: name of the column where the coordinate z will be saved (default to `"z"`);
+* `x`: name of the column where the coordinate x will be saved (default to CRS coordinate name);
+* `y`: name of the column where the coordinate y will be saved (default to CRS coordinate name);
+* `z`: name of the column where the coordinate z will be saved (default to CRS coordinate name);
 * `t`: name of the column where the time measurements will be saved (default to `"t"`);
 
 ### GeoTIFF
