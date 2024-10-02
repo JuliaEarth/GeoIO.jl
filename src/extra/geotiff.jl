@@ -73,6 +73,58 @@ function geotiffwrite(fname, geotable; kwargs...)
   nbands = iscolor ? length(coltype) : length(names)
   dtype = iscolor ? eltype(coltype) : coltype
 
+  crsstr = try
+    wktstring(CoordRefSystems.code(crs(grid)))
+  catch
+    nothing
+  end
+
+  # geotransform
+  # let's define:
+  # grid[i, j] = vertex(grid, (i, j))
+  # gridₒ = Grid((0, 0), (nx, ny))
+  # A₁, A₂ = A[:, 1], A[:, 2]
+  # A*x = A₁*x₁ + A₂*x₂
+  # y = A*x + b
+  # with:
+  # x ∈ vertices(gridₒ)
+  # y ∈ vertices(grid)
+  # 1st step: find b
+  # x = gridₒ[1, 1] = (0, 0)
+  # y = grid[1, 1]
+  # y = A*x + b
+  # A*x = A₁ * 0 + A₂ * 0 = (0, 0)
+  # y = b
+  # b = grid[1, 1]
+  g₁₁ = coords(vertex(grid, (1, 1)))
+  b = CoordRefSystems.raw(g₁₁)
+  # 2nd step: find A₁
+  # x = gridₒ[2, 1] = (1, 0)
+  # y = grid[2, 1]
+  # y = A*x + b
+  # A*x = A₁ * 1 + A₂ * 0
+  # y = A₁ + b
+  # A₁ = y - b
+  # A₁ = grid[2, 1] - grid[1, 1]
+  g₂₁ = coords(vertex(grid, (2, 1)))
+  A₁ = CoordRefSystems.raw(g₂₁) .- b
+  # 3rd step: find A₂
+  # x = gridₒ[1, 2] = (0, 1)
+  # y = grid[1, 2]
+  # y = A*x + b
+  # A*x = A₁ * 0 + A₂ * 1
+  # y = A₂ + b
+  # A₂ = y - b
+  # A₂ = grid[1, 2] - grid[1, 1]
+  g₁₂ = coords(vertex(grid, (1, 2)))
+  A₂ = CoordRefSystems.raw(g₁₂) .- b
+  # GDAL transform:
+  # [b₁, A₁₁, A₁₂, b₂, A₂₁, A₂₂]
+  # b₁, b₂ = b[1], b[2]
+  # A₁₁, A₂₁ = A₁[1], A₁[2]
+  # A₁₂, A₂₂ = A₂[1], A₂[2]
+  gt = [b[1], A₁[1], A₂[1], b[2], A₁[2], A₂[2]]
+
   AG.create(fname; driver, width, height, nbands, dtype, kwargs...) do dataset
     if iscolor
       column = Tables.getcolumn(cols, first(names))
@@ -90,6 +142,11 @@ function geotiffwrite(fname, geotable; kwargs...)
         band = reshape(column, dims)
         AG.write!(dataset, band, i)
       end
+    end
+
+    AG.setgeotransform!(dataset, gt)
+    if !isnothing(crsstr)
+      AG.setproj!(dataset, crsstr)
     end
   end
 end
