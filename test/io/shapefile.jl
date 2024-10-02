@@ -70,7 +70,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test_broken gtb1.geometry == gtb2.geometry
+    @test gtb1.geometry == gtb2.geometry
     @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
 
@@ -79,7 +79,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test_broken gtb1.geometry == gtb2.geometry
+    @test gtb1.geometry == gtb2.geometry
     @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
 
@@ -88,7 +88,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test_broken gtb1.geometry == gtb2.geometry
+    @test gtb1.geometry == gtb2.geometry
     @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
   end
