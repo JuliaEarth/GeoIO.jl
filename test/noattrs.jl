@@ -60,7 +60,7 @@
   gtb1 = georef(nothing, pset)
   file = joinpath(savedir, "noattribs.geojson")
   GeoIO.save(file, gtb1)
-  gtb2 = GeoIO.load(file, numbertype=Float64)
+  gtb2 = GeoIO.load(file)
   @test isnothing(values(gtb2))
   @test gtb2 == gtb1
 end
