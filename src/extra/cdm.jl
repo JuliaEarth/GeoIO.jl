@@ -88,36 +88,49 @@ function cdmread(fname; x=nothing, y=nothing, z=nothing, t=nothing, lazy=false)
   GeoTable(grid; vtable)
 end
 
-function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t=nothing)
+function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t="t")
   if endswith(fname, ".grib")
     error("saving GRIB files is currently not supported")
   end
 
   grid = domain(geotable)
   vtable = values(geotable, 0)
-  Dim = embeddim(grid)
+  CRS = crs(grid)
 
-  if !(grid isa Union{RectilinearGrid,CartesianGrid})
-    throw(ArgumentError("NC format only supports rectilinear or cartesian grids"))
+  if !(grid isa Union{RectilinearGrid,RegularGrid})
+    throw(ArgumentError("NetCDF format only supports rectilinear or regular grids"))
   end
 
-  if Dim > 3
-    throw(ArgumentError("embedding dimensions greater than 3 are not supported"))
+  if paramdim(grid) > 3
+    throw(ArgumentError("parametric dimensions greater than 3 are not supported"))
   end
 
   xyz = map(x -> ustrip.(x), Meshes.xyz(grid))
-  dnames = if !isnothing(vtable)
-    names = Tables.schema(vtable).names
-    _dimnames(Dim, x, y, z, t, string.(names))
+  # swap x and y in geographic case
+  customnames = if CRS <: CoordRefSystems.Geographic
+    (y, x, z)
   else
-    _dimnames(Dim, x, y, z, t, String[])
+    (x, y, z)
   end
-  cnames = dnames[1:(end - 1)]
+  cnames = if !isnothing(vtable)
+    names = Tables.schema(vtable).names
+    _coordnames(CRS, customnames, string.(names))
+  else
+    _coordnames(CRS, customnames, String[])
+  end
+  dnames = [cnames..., string(t)]
 
-  sz = size(grid) .+ 1
+  crsattribs = _crsattribs(crs(grid))
+  varattribs = isnothing(crsattribs) ? [] : ["grid_mapping" => "crs"]
+
+  sz = Meshes.vsize(grid)
   NCDatasets.Dataset(fname, "c") do ds
     for (d, x) in zip(dnames, xyz)
       NCDatasets.defVar(ds, d, x, [d])
+    end
+
+    if !isnothing(crsattribs)
+      NCDatasets.defVar(ds, "crs", Int, (), attrib=crsattribs)
     end
 
     if !isnothing(vtable)
@@ -128,10 +141,10 @@ function cdmwrite(fname, geotable; x=nothing, y=nothing, z=nothing, t=nothing)
         nmstr = string(name)
         if eltype(x) <: AbstractArray
           y = reshape(transpose(stack(x)), sz..., :)
-          NCDatasets.defVar(ds, nmstr, y, dnames)
+          NCDatasets.defVar(ds, nmstr, y, dnames, attrib=varattribs)
         else
           y = reshape(x, sz...)
-          NCDatasets.defVar(ds, nmstr, y, cnames)
+          NCDatasets.defVar(ds, nmstr, y, cnames, attrib=varattribs)
         end
       end
     end
@@ -150,6 +163,8 @@ const ELLIP2DATUM = Dict(
   "GRS 1967 Modified" => SAD69
 )
 
+const DATUM2ELLIP = Dict(v => k for (k, v) in ELLIP2DATUM)
+
 function _gribdataset(fname)
   if Sys.iswindows()
     error("loading GRIB files is currently not supported on Windows")
@@ -162,7 +177,7 @@ _ncdataset(fname) = NCDatasets.NCDataset(fname, "r")
 
 const XNAMES = ["x", "X", "lon", "longitude"]
 const YNAMES = ["y", "Y", "lat", "latitude"]
-const ZNAMES = ["z", "Z", "depth", "height"]
+const ZNAMES = ["z", "Z", "alt", "altitude", "depth", "height"]
 const TNAMES = ["t", "time", "TIME"]
 
 _xnames(x) = isnothing(x) ? XNAMES : [string(x)]
@@ -190,23 +205,12 @@ end
 _var2vec(var, lazy) = lazy ? reshape(var, :) : var[:]
 _var2array(var, lazy) = lazy ? var : Array(var)
 
-function _dimnames(Dim, xnm, ynm, znm, tnm, names)
-  xstr = isnothing(xnm) ? "x" : string(xnm)
-  ystr = isnothing(ynm) ? "y" : string(ynm)
-  zstr = isnothing(znm) ? "z" : string(znm)
-  tstr = isnothing(tnm) ? "t" : string(tnm)
-
-  dnames = if Dim == 1
-    [xstr, tstr]
-  elseif Dim == 2
-    [xstr, ystr, tstr]
-  else
-    [xstr, ystr, zstr, tstr]
-  end
-
+function _coordnames(CRS, customnames, tablenames)
+  defaultnames = CoordRefSystems.names(CRS)
+  names = [string(isnothing(cnm) ? dnm : cnm) for (cnm, dnm) in zip(customnames, defaultnames)]
   # make unique
-  map(dnames) do name
-    while name ∈ names
+  map(names) do name
+    while name ∈ tablenames
       name = name * "_"
     end
     name
@@ -258,3 +262,49 @@ function _gm2crs(gridmapping)
     nothing
   end
 end
+
+function _crsattribs(CRS)
+  D = datum(CRS)
+
+  function shift()
+    (; lonₒ, xₒ, yₒ) = CoordRefSystems.projshift(CRS)
+    ["longitude_of_central_meridian" => ustrip(lonₒ), "false_easting" => ustrip(xₒ), "false_northing" => ustrip(yₒ)]
+  end
+
+  if CRS <: LatLon
+    ["grid_mapping_name" => "latitude_longitude", "reference_ellipsoid_name" => DATUM2ELLIP[D]]
+  elseif CRS <: CoordRefSystems.EqualAreaCylindrical
+    latₜₛ = first(_params(CRS))
+    [
+      "grid_mapping_name" => "lambert_cylindrical_equal_area",
+      "reference_ellipsoid_name" => DATUM2ELLIP[D],
+      "standard_parallel" => ustrip(latₜₛ),
+      shift()...
+    ]
+  elseif CRS <: Mercator
+    ["grid_mapping_name" => "mercator", "reference_ellipsoid_name" => DATUM2ELLIP[D], shift()...]
+  elseif CRS <: CoordRefSystems.Orthographic
+    latₒ = first(_params(CRS))
+    [
+      "grid_mapping_name" => "orthographic",
+      "reference_ellipsoid_name" => DATUM2ELLIP[D],
+      "latitude_of_projection_origin" => ustrip(latₒ),
+      shift()...
+    ]
+  elseif CRS <: TransverseMercator
+    k₀, latₒ = _params(CRS)
+    [
+      "grid_mapping_name" => "transverse_mercator",
+      "reference_ellipsoid_name" => DATUM2ELLIP[D],
+      "scale_factor_at_central_meridian" => ustrip(k₀),
+      "latitude_of_projection_origin" => ustrip(latₒ),
+      shift()...
+    ]
+  else
+    nothing
+  end
+end
+
+_params(::Type{<:CoordRefSystems.EqualAreaCylindrical{latₜₛ}}) where {latₜₛ} = (latₜₛ,)
+_params(::Type{<:CoordRefSystems.Orthographic{Mode,latₒ}}) where {Mode,latₒ} = (latₒ,)
+_params(::Type{<:TransverseMercator{k₀,latₒ}}) where {k₀,latₒ} = (k₀, latₒ)
