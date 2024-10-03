@@ -72,8 +72,8 @@ end
 projsoncode(crs::String) = projsoncode(JSON3.read(crs, Dict))
 
 function projsoncode(crs::Dict)
-  code = parse(Int, crs.id.code)
-  type = crs.id.authority
+  code = parse(Int, crs["id"]["code"])
+  type = crs["id"]["authority"]
   type == "EPSG" ? EPSG{code} : ESRI{code}
 end
 
