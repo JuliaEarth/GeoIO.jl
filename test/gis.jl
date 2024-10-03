@@ -38,11 +38,10 @@
   @test values(gtb) == values(gtpoly)
 
   # GeoJSON
-  # note 1: GeoJSON loads data in Float32 by default
-  # note 2: GeoJSON does not preserve column order
+  # note: GeoJSON does not preserve column order
   file = joinpath(savedir, "gis-points.geojson")
   GeoIO.save(file, gtpoint)
-  gtb = GeoIO.load(file, numbertype=Float64)
+  gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtpoint))
   @test gtb.geometry == gtpoint.geometry
   @test gtb.float == gtpoint.float
@@ -51,7 +50,7 @@
 
   file = joinpath(savedir, "gis-rings.geojson")
   GeoIO.save(file, gtring)
-  gtb = GeoIO.load(file, numbertype=Float64)
+  gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtring))
   @test gtb.geometry == gtring.geometry
   @test gtb.float == gtring.float
@@ -60,7 +59,7 @@
 
   file = joinpath(savedir, "gis-polys.geojson")
   GeoIO.save(file, gtpoly)
-  gtb = GeoIO.load(file, numbertype=Float64)
+  gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtpoly))
   @test gtb.geometry == gtpoly.geometry
   @test gtb.float == gtpoly.float

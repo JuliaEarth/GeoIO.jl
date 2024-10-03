@@ -48,6 +48,11 @@ all supported file formats.
 * `z`: name of the column with z coordinates (default to `"z"`, `"Z"`, `"depth"`, or `"height"`);
 * `t`: name of the column with time measurements (default to `"t"`, `"time"`, or `"TIME"`);
 
+### GeoJSON
+
+* `numbertype`: number type of geometry coordinates (default to `Float64`)
+* Other options are passed to `GeoJSON.read`, see the GeoJSON.jl documentation for more details;
+
 ### GSLIB
 
 * Other options are passed to `GslibIO.load`, see the GslibIO.jl documentation for more details;
@@ -55,10 +60,6 @@ all supported file formats.
 ### Shapefile
 
 * Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
-
-### GeoJSON
-
-* Other options are passed to `GeoJSON.read`, see the GeoJSON.jl documentation for more details;
 
 ### GeoParquet
 
@@ -71,11 +72,13 @@ all supported file formats.
 ## Examples
 
 ```julia
-# load coordinates of geojson file as Float64
-GeoIO.load("file.geojson", numbertype = Float64)
+# load coordinates of geojson file as Float64 (default)
+GeoIO.load("file.geojson")
+# load coordinates of geojson file as Float32
+GeoIO.load("file.geojson", numbertype=Float32)
 ```
 """
-function load(fname; repair=true, layer=0, lenunit=m, kwargs...)
+function load(fname; repair=true, layer=0, lenunit=m, numbertype=Float64, kwargs...)
   # VTK formats
   if any(ext -> endswith(fname, ext), VTKEXTS)
     return vtkread(fname; lenunit, kwargs...)
@@ -135,7 +138,7 @@ function load(fname; repair=true, layer=0, lenunit=m, kwargs...)
   table = if endswith(fname, ".shp")
     SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
-    GJS.read(fname; kwargs...)
+    GJS.read(fname; numbertype, kwargs...)
   elseif endswith(fname, ".parquet")
     GPQ.read(fname; kwargs...)
   else # fallback to GDAL
