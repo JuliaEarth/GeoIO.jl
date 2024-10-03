@@ -164,7 +164,9 @@ function save(fname, geotable; kwargs...)
     end
     GJS.write(fname, geotable |> proj; kwargs...)
   elseif endswith(fname, ".parquet")
-    GPQ.write(fname, geotable, (:geometry,); kwargs...)
+    code = CoordRefSystems.code(crs(domain(geotable)))
+    gpqcrs = GFT.ProjJSON(projjson(code))
+    GPQ.write(fname, geotable, (:geometry,), gpqcrs; kwargs...)    
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end

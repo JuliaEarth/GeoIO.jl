@@ -18,6 +18,10 @@ using TransformsBase: Identity, →
 using ImageCore: channelview
 using Unitful: m
 
+# for GeoPackage utils
+import Parquet2
+import JSON3
+
 # image formats
 import FileIO
 

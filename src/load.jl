@@ -147,7 +147,11 @@ function load(fname; repair=true, layer=0, lenunit=m, numbertype=Float64, kwargs
   end
 
   # construct geotable
-  geotable = asgeotable(table)
+  geotable = if endswith(fname, ".parquet")
+    asgeotable(table, gpqcrs(fname))
+  else
+    asgeotable(table)
+  end
 
   # repair pipeline
   pipeline = if repair

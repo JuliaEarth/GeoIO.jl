@@ -6,8 +6,7 @@
 const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
 const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
 
-function asgeotable(table)
-  crs = GI.crs(table)
+function asgeotable(table, crs=GI.crs(table))
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
@@ -60,3 +59,28 @@ spatialref(code) = AG.importUserInput(codestring(code))
 
 codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
 codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
+
+function projjson(code)
+  spref = spatialref(code)
+  wktptr = Ref{Cstring}()
+  options = ["MULTILINE=NO"]
+  GDAL.osrexporttoprojjson(spref, wktptr, options)
+  str = unsafe_string(wktptr[])
+  JSON3.read(str, Dict)
+end
+
+projsoncode(crs::String) = projsoncode(JSON3.read(crs, Dict))
+
+function projsoncode(crs::Dict)
+  code = parse(Int, crs.id.code)
+  type = crs.id.authority
+  type == "EPSG" ? EPSG{code} : ESRI{code}
+end
+
+function gpqcrs(fname)
+  ds = Parquet2.Dataset(fname)
+  meta = Parquet2.metadata(ds)["geo"]
+  json = JSON3.read(meta, Dict)
+  crs = json["columns"]["geometry"]["crs"]
+  isnothing(crs) ? nothing : GFT.ProjJSON(crs)
+end
