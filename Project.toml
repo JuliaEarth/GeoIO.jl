@@ -37,7 +37,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 [compat]
 ArchGDAL = "0.10"
 CSV = "0.10"
-Colors = "0.12"
+Colors = "0.12, 0.13"
 CommonDataModel = "0.2, 0.3"
 CoordRefSystems = "0.15"
 FileIO = "1.16"
