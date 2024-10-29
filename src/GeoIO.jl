@@ -42,6 +42,9 @@ import CSV
 # geostats formats
 import GslibIO
 
+# GeoTIFF format
+import TiffImages 
+
 # GIS formats
 import Shapefile as SHP
 import GeoJSON as GJS

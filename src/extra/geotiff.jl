@@ -14,27 +14,16 @@ _reinterpret(::Type{CRS}, (x, y)) where {CRS} = CRS(x, y)
 _reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
 
 function geotiffread(fname; kwargs...)
-  dataset = AG.read(fname; kwargs...)
-  crs = AG.getproj(dataset)
-  CRS = isempty(crs) ? Cartesian2D : CoordRefSystems.get(crs)
-  gt = AG.getgeotransform(dataset)
-  dims = (Int(AG.width(dataset)), Int(AG.height(dataset)))
-  # GDAL transform:
-  # xnew = gt[1] + x * gt[2] + y * gt[3]
-  # ynew = gt[4] + x * gt[5] + y * gt[6]
-  pipe = Affine(SA[gt[2] gt[3]; gt[5] gt[6]], SA[gt[1], gt[4]]) → Reinterpret(CRS)
+  tiff = TiffImages.load(fname; kwargs...)
+  ifd = TiffImages.ifds(tiff)
+  geokeys = _geokeys(ifd)
+  code = _crscode(geokeys)
+  CRS = isnothing(code) ? Cartesian : CoordRefSystems.get(code)
+  trans = _transform(ifd)
+  pipe = trans → Reinterpret(CRS) 
+  dims = size(tiff)
   domain = CartesianGrid(dims) |> pipe
-  pairs = try
-    img = AG.imread(dataset)
-    [:color => vec(transpose(img))]
-  catch
-    map(1:AG.nraster(dataset)) do i
-      name = Symbol(:BAND, i)
-      column = AG.read(dataset, i)
-      name => vec(column)
-    end
-  end
-  table = (; pairs...)
+  table = (; color=vec(tiff))
   georef(table, domain)
 end
 
@@ -148,5 +137,78 @@ function geotiffwrite(fname, geotable; kwargs...)
     if !isnothing(crsstr)
       AG.setproj!(dataset, crsstr)
     end
+  end
+end
+
+struct GeoKey
+  id::UInt16
+  tag::UInt16
+  count::UInt16
+  value::UInt16
+end
+
+function _geokeys(ifd)
+  # The first 4 elements of the GeoKeyDirectory contains:
+  # 1 - KeyDirectoryVersion
+  # 2 - KeyRevision
+  # 3 - MinorRevision
+  # 4 - NumberOfKeys
+  geokeydir = TiffImages.getdata(ifd, UInt16(34735), nothing)
+  isnothing(geokeydir) && return nothing
+
+  nkeys = geokeydir[4]
+  map(1:nkeys) do i
+    k = i * 4
+    id = geokeydir[1 + k]
+    tag = geokeydir[2 + k]
+    count = geokeydir[3 + k]
+    value = geokeydir[4 + k]
+    GeoKey(id, tag, count, value)
+  end
+end
+
+function _getgeokey(geokeys, id)
+  i = findfirst(gk -> gk.id == id, geokeys)
+  isnothing(i) ? nothing : geokeys[i]
+end
+
+function _crscode(geokeys)
+  proj = _getgeokey(geokeys, 3072)
+  geod = _getgeokey(geokeys, 2048)
+  if !isnothing(proj)
+    EPSG{Int(proj.value)}
+  elseif !isnothing(geod)
+    EPSG{Int(geod.value)}
+  else
+    nothing
+  end
+end
+
+function _transform(ifd)
+  tmatrix = TiffImages.getdata(ifd, UInt16(34264), nothing)
+  tiepoint = TiffImages.getdata(ifd, UInt16(33922), nothing)
+  scale = TiffImages.getdata(ifd, UInt16(33550), nothing)
+
+  if !isnothing(tmatrix)
+    A = SA[
+      tmatrix[1] tmatrix[2]
+      tmatrix[5] tmatrix[6]
+    ]
+    b = SA[tmatrix[4], tmatrix[8]]
+    Affine(A, b)
+  elseif !isnothing(tiepoint) && !isnothing(scale)
+    sx, sy = scale[1], scale[2]
+    i, j = tiepoint[1], tiepoint[2]
+    x, y = tiepoint[4], tiepoint[5]
+    tx = x - i / sx
+    ty = y + j / sy
+    A = SA[
+      sx 0
+      0 sy
+    ]
+    b = SA[tx, ty]
+    Affine(A, b)
+  else
+    Identity()
   end
 end
