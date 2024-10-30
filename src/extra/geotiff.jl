@@ -16,11 +16,11 @@ _reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
 function geotiffread(fname; kwargs...)
   tiff = TiffImages.load(fname; kwargs...)
   ifd = TiffImages.ifds(tiff)
-  geokeys = _geokeys(ifd)
-  code = _crscode(geokeys)
+  geokeydir = _geokeydir(ifd)
+  code = _crscode(geokeydir)
   CRS = isnothing(code) ? Cartesian : CoordRefSystems.get(code)
   trans = _transform(ifd)
-  pipe = trans → Reinterpret(CRS) 
+  pipe = trans → Reinterpret(CRS)
   dims = size(tiff)
   domain = CartesianGrid(dims) |> pipe
   table = (; color=vec(tiff))
@@ -140,41 +140,121 @@ function geotiffwrite(fname, geotable; kwargs...)
   end
 end
 
+@enum GeoTIFFTag::UInt16 begin
+  GeoKeyDirectoryTag = 34735
+  GeoDoubleParamsTag = 34736
+  GeoAsciiParamsTag = 34737
+  ModelPixelScaleTag = 33550
+  ModelTiepointTag = 33922
+  ModelTransformationTag = 34264
+end
+
+@enum GeoKeyID::UInt16 begin
+  GTRasterTypeGeoKey = 1025
+  GTModelTypeGeoKey = 1024
+  ProjectedCRSGeoKey = 3072
+  GeodeticCRSGeoKey = 2048
+  VerticalGeoKey = 4096
+  GTCitationGeoKey = 1026
+  GeodeticCitationGeoKey = 2049
+  ProjectedCitationGeoKey = 3073
+  VerticalCitationGeoKey = 4097
+  GeogAngularUnitsGeoKey = 2054
+  GeogAzimuthUnitsGeoKey = 2060
+  GeogLinearUnitsGeoKey = 2052
+  ProjLinearUnitsGeoKey = 3076
+  VerticalUnitsGeoKey = 4099
+  GeogAngularUnitSizeGeoKey = 2055
+  GeogLinearUnitSizeGeoKey = 2053
+  ProjLinearUnitSizeGeoKey = 3077
+  GeodeticDatumGeoKey = 2050
+  PrimeMeridianGeoKey = 2051
+  PrimeMeridianLongitudeGeoKey = 2061
+  EllipsoidGeoKey = 2056
+  EllipsoidSemiMajorAxisGeoKey = 2057
+  EllipsoidSemiMinorAxisGeoKey = 2058
+  EllipsoidInvFlatteningGeoKey = 2059
+  VerticalDatumGeoKey = 4098
+  ProjectionGeoKey = 3074
+  ProjMethodGeoKey = 3075
+  ProjStdParallel1GeoKey = 3078
+  ProjStdParallel2GeoKey = 3079
+  ProjNatOriginLongGeoKey = 3080
+  ProjNatOriginLatGeoKey = 3081
+  ProjFalseOriginLongGeoKey = 3084
+  ProjFalseOriginLatGeoKey = 3085
+  ProjCenterLongGeoKey = 3088
+  ProjCenterLatGeoKey = 3089
+  ProjStraightVertPoleLongGeoKey = 3095
+  ProjAzimuthAngleGeoKey = 3094
+  ProjFalseEastingGeoKey = 3082
+  ProjFalseNorthingGeoKey = 3083
+  ProjFalseOriginEastingGeoKey = 3086
+  ProjFalseOriginNorthingGeoKey = 3087
+  ProjCenterEastingGeoKey = 3090
+  ProjCenterNorthingGeoKey = 3091
+  ProjScaleAtNatOriginGeoKey = 3092
+  ProjScaleAtCenterGeoKey = 3093
+end
+
+# Corresponding names in the GeoTIFF specification:
+# id - KeyID
+# tag - TIFFTagLocation
+# count - Count
+# value - ValueOffset
 struct GeoKey
-  id::UInt16
+  id::GeoKeyID
   tag::UInt16
   count::UInt16
   value::UInt16
 end
 
-function _geokeys(ifd)
-  # The first 4 elements of the GeoKeyDirectory contains:
-  # 1 - KeyDirectoryVersion
-  # 2 - KeyRevision
-  # 3 - MinorRevision
-  # 4 - NumberOfKeys
-  geokeydir = TiffImages.getdata(ifd, UInt16(34735), nothing)
-  isnothing(geokeydir) && return nothing
-
-  nkeys = geokeydir[4]
-  map(1:nkeys) do i
-    k = i * 4
-    id = geokeydir[1 + k]
-    tag = geokeydir[2 + k]
-    count = geokeydir[3 + k]
-    value = geokeydir[4 + k]
-    GeoKey(id, tag, count, value)
-  end
+# Corresponding names in the GeoTIFF specification:
+# version - KeyDirectoryVersion
+# revision - KeyRevision
+# minor - MinorRevision
+# nkeys - NumberOfKeys
+# geokeys - Key Entry Set
+struct GeoKeyDirectory
+  version::UInt16
+  revision::UInt16
+  minor::UInt16
+  nkeys::UInt16
+  geokeys::Vector{GeoKey}
 end
 
-function _getgeokey(geokeys, id)
+_gettag(ifd, tag) = TiffImages.getdata(ifd, UInt16(tag), nothing)
+
+function _getgeokey(geokeydir, id)
+  geokeys = geokeydir.geokeys
   i = findfirst(gk -> gk.id == id, geokeys)
   isnothing(i) ? nothing : geokeys[i]
 end
 
-function _crscode(geokeys)
-  proj = _getgeokey(geokeys, 3072)
-  geod = _getgeokey(geokeys, 2048)
+function _geokeydir(ifd)
+  geokeydir = _gettag(ifd, GeoKeyDirectoryTag)
+  isnothing(geokeydir) && return nothing
+
+  geokeyview = @view geokeydir[5:end]
+  geokeys = map(Iterators.partition(geokeyview, 4)) do geokey
+    id = GeoKeyID(geokey[1])
+    tag = geokey[2]
+    count = geokey[3]
+    value = geokey[4]
+    GeoKey(id, tag, count, value)
+  end
+
+  version = geokeydir[1]
+  revision = geokeydir[2]
+  minor = geokeydir[3]
+  nkeys = geokeydir[4]
+  GeoKeyDirectory(version, revision, minor, nkeys, geokeys)
+end
+
+function _crscode(geokeydir)
+  isnothing(geokeydir) && return nothing
+  proj = _getgeokey(geokeydir, ProjectedCRSGeoKey)
+  geod = _getgeokey(geokeydir, GeodeticCRSGeoKey)
   if !isnothing(proj)
     EPSG{Int(proj.value)}
   elseif !isnothing(geod)
@@ -185,16 +265,16 @@ function _crscode(geokeys)
 end
 
 function _transform(ifd)
-  tmatrix = TiffImages.getdata(ifd, UInt16(34264), nothing)
-  tiepoint = TiffImages.getdata(ifd, UInt16(33922), nothing)
-  scale = TiffImages.getdata(ifd, UInt16(33550), nothing)
+  transmat = _gettag(ifd, ModelTransformationTag)
+  tiepoint = _gettag(ifd, ModelTiepointTag)
+  scale = _gettag(ifd, ModelPixelScaleTag)
 
-  if !isnothing(tmatrix)
+  if !isnothing(transmat)
     A = SA[
-      tmatrix[1] tmatrix[2]
-      tmatrix[5] tmatrix[6]
+      transmat[1] transmat[2]
+      transmat[5] transmat[6]
     ]
-    b = SA[tmatrix[4], tmatrix[8]]
+    b = SA[transmat[4], transmat[8]]
     Affine(A, b)
   elseif !isnothing(tiepoint) && !isnothing(scale)
     sx, sy = scale[1], scale[2]
