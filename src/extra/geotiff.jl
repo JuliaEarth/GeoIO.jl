@@ -21,9 +21,9 @@ function geotiffread(fname; kwargs...)
   CRS = isnothing(code) ? Cartesian : CoordRefSystems.get(code)
   trans = _transform(ifd)
   pipe = trans → Reinterpret(CRS)
-  dims = size(tiff)
+  dims = size(tiff) |> reverse
   domain = CartesianGrid(dims) |> pipe
-  table = (; color=vec(tiff))
+  table = (; color=vec(transpose(tiff)))
   georef(table, domain)
 end
 
@@ -45,7 +45,8 @@ function geotiffwrite(fname, geotable; kwargs...)
     throw(ArgumentError("color column not found"))
   end
   colors = Tables.getcolumn(cols, :color)
-  tiff = TiffImages.DenseTaggedImage(reshape(colors, dims))
+  img = transpose(reshape(colors, dims))
+  tiff = TiffImages.DenseTaggedImage(img)
 
   CRS = crs(grid)
   code = try
