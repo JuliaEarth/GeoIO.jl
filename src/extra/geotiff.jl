@@ -282,7 +282,7 @@ function _transform(ifd)
     ty = y + j / sy
     A = SA[
       sx 0
-      0 sy
+      0 -sy
     ]
     b = SA[tx, ty]
     Affine(A, b)
