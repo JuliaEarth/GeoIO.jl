@@ -41,34 +41,44 @@ function geotiffwrite(fname, geotable; kwargs...)
 
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
-  coltype = eltype(Tables.getcolumn(cols, first(names)))
-  iscolor = coltype <: Colorant
-
-  if iscolor
-    if length(names) > 1
-      throw(ArgumentError("only one color column is allowed"))
-    end
-  else
-    for name in names
-      column = Tables.getcolumn(cols, name)
-      if !(eltype(column) <: coltype)
-        throw(ArgumentError("all variables must have the same type"))
-      end
-    end
+  if :color ∉ names
+    throw(ArgumentError("color column not found"))
   end
+  colors = Tables.getcolumn(cols, :color)
+  tiff = TiffImages.DenseTaggedImage(reshape(colors, dims))
 
-  driver = AG.getdriver("GTiff")
-  width, height = dims
-  nbands = iscolor ? length(coltype) : length(names)
-  dtype = iscolor ? eltype(coltype) : coltype
-
-  crsstr = try
-    wktstring(CoordRefSystems.code(crs(grid)))
+  CRS = crs(grid)
+  code = try
+    CoordRefSystems.code(CRS)
   catch
     nothing
   end
+  isproj = CRS <: CoordRefSystems.Projected
+  islatlon = CRS <: LatLon
+  # GeoTIFF only supports EPSG codes
+  isepsg = !isnothing(code) && code <: EPSG
 
-  # geotransform
+  # GeoKeyDirectoryTag
+  geokeys = GeoKey[]
+  if (isproj || islatlon) && isepsg
+    # GTRasterTypeGeoKey: 1 = Raster type is PixelIsArea
+    push!(geokeys, GeoKey(GTRasterTypeGeoKey, 0, 1, 1))
+    # GTModelTypeGeoKey: 1 = Projected 2D, 2 = Geographic 2D
+    modeltype = isproj ? 1 : 2
+    push!(geokeys, GeoKey(GTModelTypeGeoKey, 0, 1, modeltype))
+    # ProjectedCRSGeoKey or GeodeticCRSGeoKey
+    codenum = _codenum(code)
+    if isproj
+      push!(geokeys, GeoKey(ProjectedCRSGeoKey, 0, 1, codenum))
+    else
+      push!(geokeys, GeoKey(GeodeticCRSGeoKey, 0, 1, codenum))
+    end
+  end
+
+  geokeydir = GeoKeyDirectory(1, 1, 1, length(geokeys), geokeys)
+  _settag!(tiff, GeoKeyDirectoryTag, _geokeydir2vec(geokeydir))
+
+  # ModelTransformationTag
   # let's define:
   # grid[i, j] = vertex(grid, (i, j))
   # gridₒ = Grid((0, 0), (nx, ny))
@@ -107,37 +117,20 @@ function geotiffwrite(fname, geotable; kwargs...)
   # A₂ = grid[1, 2] - grid[1, 1]
   g₁₂ = coords(vertex(grid, (1, 2)))
   A₂ = CoordRefSystems.raw(g₁₂) .- b
-  # GDAL transform:
-  # [b₁, A₁₁, A₁₂, b₂, A₂₁, A₂₂]
-  # b₁, b₂ = b[1], b[2]
-  # A₁₁, A₂₁ = A₁[1], A₁[2]
-  # A₁₂, A₂₂ = A₂[1], A₂[2]
-  gt = [b[1], A₁[1], A₂[1], b[2], A₁[2], A₂[2]]
+  # GeoTIFF Transformation Matrix:
+  # | a b c d |
+  # | e f g h |
+  # | i j k l |
+  # | m n o p |
+  # where:
+  # m = n = o = 0, p = 1
+  # A = [a b c; e f g]
+  # b = [d, h, l]
+  # and, for 2D, c = g = k = i = j = k = l = 0
+  transmat = Float64[A₁[1], A₂[1], 0, b[1], A₁[2], A₂[2], 0, b[2], 0, 0, 0, 0, 0, 0, 0, 1]
+  _settag!(tiff, ModelTransformationTag, transmat)
 
-  AG.create(fname; driver, width, height, nbands, dtype, kwargs...) do dataset
-    if iscolor
-      column = Tables.getcolumn(cols, first(names))
-      C = channelview(reshape(column, dims))
-      if ndims(C) == 3
-        B = permutedims(C, (2, 3, 1))
-        AG.write!(dataset, B, 1:nbands)
-      else # single channel colors
-        B = Array(C)
-        AG.write!(dataset, B, 1)
-      end
-    else
-      for (i, name) in enumerate(names)
-        column = Tables.getcolumn(cols, name)
-        band = reshape(column, dims)
-        AG.write!(dataset, band, i)
-      end
-    end
-
-    AG.setgeotransform!(dataset, gt)
-    if !isnothing(crsstr)
-      AG.setproj!(dataset, crsstr)
-    end
-  end
+  TiffImages.save(fname, tiff)
 end
 
 @enum GeoTIFFTag::UInt16 begin
@@ -253,13 +246,18 @@ end
 
 function _crscode(geokeydir)
   isnothing(geokeydir) && return nothing
-  proj = _getgeokey(geokeydir, ProjectedCRSGeoKey)
-  geod = _getgeokey(geokeydir, GeodeticCRSGeoKey)
-  if !isnothing(proj)
+
+  model = _getgeokey(geokeydir, GTModelTypeGeoKey)
+  isnothing(model) && return nothing
+
+  if model.value == 1 # Projected 2D
+    proj = _getgeokey(geokeydir, ProjectedCRSGeoKey)
     EPSG{Int(proj.value)}
-  elseif !isnothing(geod)
+  elseif model.value == 2 # Geographic 2D
+    geod = _getgeokey(geokeydir, GeodeticCRSGeoKey)
     EPSG{Int(geod.value)}
   else
+    # value 3 - geocentric Cartesian 3D is not supported yet
     nothing
   end
 end
@@ -292,3 +290,18 @@ function _transform(ifd)
     Identity()
   end
 end
+
+function _settag!(tiff, tag, value)
+  ifd = TiffImages.ifds(tiff)
+  ifd[UInt16(tag)] = value
+end
+
+function _geokeydir2vec(geokeydir)
+  vec = [geokeydir.version, geokeydir.revision, geokeydir.minor, geokeydir.nkeys]
+  for geokey in geokeydir.geokeys
+    append!(vec, [UInt16(geokey.id), geokey.tag, geokey.count, geokey.value])
+  end
+  vec
+end
+
+_codenum(::Type{EPSG{Code}}) where {Code} = Code
