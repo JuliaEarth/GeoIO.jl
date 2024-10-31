@@ -29,7 +29,7 @@ function geotiffread(fname; kwargs...)
   colors = vec(PermutedDimsArray(tiff, (2, 1)))
   table = if C <: TiffImages.WidePixel
     nchanels = TiffImages.nchannels(C)
-    channel(i) = [TiffImages.channel(c, i) for c in colors]
+    channel(i) = [_channelvalue(TiffImages.channel(c, i)) for c in colors]
     (; (Symbol(:channel, i) => channel(i) for i in 1:nchanels)...)
   else
     (; color=colors)
@@ -261,6 +261,10 @@ struct GeoKeyDirectory
   nkeys::UInt16
   geokeys::Vector{GeoKey}
 end
+
+# unwrap the integer value of a fixed point number
+_channelvalue(x) = x
+_channelvalue(x::FixedPoint) = reinterpret(x)
 
 _gettag(ifd, tag) = TiffImages.getdata(ifd, UInt16(tag), nothing)
 

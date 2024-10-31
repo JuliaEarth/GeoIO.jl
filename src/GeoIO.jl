@@ -15,7 +15,7 @@ using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: Identity, →
-using FixedPointNumbers: Fixed, Normed
+using FixedPointNumbers: FixedPoint, Fixed, Normed
 using Unitful: m
 
 # image formats
