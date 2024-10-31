@@ -16,6 +16,7 @@ _reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
 function geotiffread(fname; kwargs...)
   tiff = TiffImages.load(fname; kwargs...)
   ifd = TiffImages.ifds(tiff)
+
   geokeydir = _geokeydir(ifd)
   code = _crscode(geokeydir)
   CRS = isnothing(code) ? Cartesian : CoordRefSystems.get(code)
@@ -23,7 +24,17 @@ function geotiffread(fname; kwargs...)
   pipe = trans → Reinterpret(CRS)
   dims = size(tiff) |> reverse
   domain = CartesianGrid(dims) |> pipe
-  table = (; color=vec(transpose(tiff)))
+
+  C = eltype(tiff)
+  colors = vec(PermutedDimsArray(tiff, (2, 1)))
+  table = if C <: TiffImages.WidePixel
+    nchanels = TiffImages.nchannels(C)
+    channel(i) = [TiffImages.channel(c, i) for c in colors]
+    (; (Symbol(:channel, i) => channel(i) for i in 1:nchanels)...)
+  else
+    (; color=colors)
+  end
+
   georef(table, domain)
 end
 
@@ -41,11 +52,33 @@ function geotiffwrite(fname, geotable; kwargs...)
 
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
-  if :color ∉ names
-    throw(ArgumentError("color column not found"))
+  coltype = eltype(Tables.getcolumn(cols, first(names)))
+  iscolor = coltype <: Colorant
+
+  if iscolor
+    if length(names) > 1
+      throw(ArgumentError("only one color column is allowed"))
+    end
+  else
+    for name in names
+      column = Tables.getcolumn(cols, name)
+      if !(eltype(column) <: coltype)
+        throw(ArgumentError("all variables must have the same type"))
+      end
+    end
   end
-  colors = Tables.getcolumn(cols, :color)
-  img = transpose(reshape(colors, dims))
+
+  colors = if iscolor
+    Tables.getcolumn(cols, first(names))
+  else
+    columns = [Tables.getcolumn(cols, nm) for nm in names]
+    map(zip(columns...)) do row
+      gray, extra... = row
+      color = Gray{coltype}(gray)
+      TiffImages.WidePixel(color, extra)
+    end
+  end
+  img = PermutedDimsArray(reshape(colors, dims), (2, 1))
   tiff = TiffImages.DenseTaggedImage(img)
 
   CRS = crs(grid)
