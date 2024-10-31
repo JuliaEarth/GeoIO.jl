@@ -61,7 +61,7 @@ function geotiffwrite(fname, geotable; kwargs...)
     end
   else
     if !(ColType <: GeoTIFFType)
-      throw(ArgumentError("type $ColType is not supported by GeoTIFF"))
+      throw(ArgumentError("the type `$ColType` is not supported by GeoTIFF"))
     end
     for name in names
       column = Tables.getcolumn(cols, name)

@@ -55,12 +55,75 @@
     @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
 
+    # float data
+    # single channel
+    file = joinpath(savedir, "float_single.tif")
+    grid = CartesianGrid(10, 10)
+    gtb1 = georef((; color=rand(100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.color) <: Gray
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+    # multiple channels
+    file = joinpath(savedir, "float_multi.tif")
+    gtb1 = georef((channel1=rand(100), channel2=rand(100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.channel1) <: Float64
+    @test eltype(gtb2.channel2) <: Float64
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    # int data
+    # single channel
+    file = joinpath(savedir, "int_single.tif")
+    grid = CartesianGrid(10, 10)
+    gtb1 = georef((; color=rand(1:10, 100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.color) <: Gray
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+    # multiple channels
+    file = joinpath(savedir, "int_multi.tif")
+    gtb1 = georef((channel1=rand(1:10, 100), channel2=rand(1:10, 100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.channel1) <: Q0f63
+    @test eltype(gtb2.channel2) <: Q0f63
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    # uint data
+    # single channel
+    file = joinpath(savedir, "uint_single.tif")
+    grid = CartesianGrid(10, 10)
+    gtb1 = georef((; color=rand(UInt(1):UInt(10), 100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.color) <: Gray
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+    # multiple channels
+    file = joinpath(savedir, "uint_multi.tif")
+    gtb1 = georef((channel1=rand(UInt(1):UInt(10), 100), channel2=rand(UInt(1):UInt(10), 100)), grid)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test eltype(gtb2.channel1) <: N0f64
+    @test eltype(gtb2.channel2) <: N0f64
+    @test gtb1.geometry == gtb2.geometry
+    @test values(gtb1, 0) == values(gtb2, 0)
+
     # error: GeoTiff format only supports 2D grids
     file = joinpath(savedir, "error.tif")
     gtb = georef((; a=rand(8)), CartesianGrid(2, 2, 2))
     @test_throws ArgumentError GeoIO.save(file, gtb)
     # error: GeoTiff format needs data to save
     gtb = georef(nothing, CartesianGrid(2, 2))
+    @test_throws ArgumentError GeoIO.save(file, gtb)
+    # error: the type `Char` is not supported by GeoTIFF
+    gtb = georef((; a=['a', 'b', 'c', 'd']), CartesianGrid(2, 2))
     @test_throws ArgumentError GeoIO.save(file, gtb)
     # error: all variables must have the same type
     gtb = georef((a=rand(1:9, 25), b=rand(25)), CartesianGrid(5, 5))
