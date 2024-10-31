@@ -345,7 +345,7 @@ end
 # WRITE HELPERS
 # --------------
 
-const GeoTIFFType = Union{AbstractFloat,Unsigned,Signed}
+const GeoTIFFType = Union{AbstractFloat,Integer}
 
 function _settag!(tiff, tag, value)
   ifd = TiffImages.ifds(tiff)
