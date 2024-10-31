@@ -52,17 +52,20 @@ function geotiffwrite(fname, geotable; kwargs...)
 
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
-  coltype = eltype(Tables.getcolumn(cols, first(names)))
-  iscolor = coltype <: Colorant
+  ColType = eltype(Tables.getcolumn(cols, first(names)))
+  iscolor = ColType <: Colorant
 
   if iscolor
     if length(names) > 1
       throw(ArgumentError("only one color column is allowed"))
     end
   else
+    if !(ColType <: GeoTIFFType)
+      throw(ArgumentError("type $ColType is not supported by GeoTIFF"))
+    end
     for name in names
       column = Tables.getcolumn(cols, name)
-      if !(eltype(column) <: coltype)
+      if !(eltype(column) <: ColType)
         throw(ArgumentError("all variables must have the same type"))
       end
     end
@@ -71,11 +74,16 @@ function geotiffwrite(fname, geotable; kwargs...)
   colors = if iscolor
     Tables.getcolumn(cols, first(names))
   else
-    columns = [Tables.getcolumn(cols, nm) for nm in names]
-    map(zip(columns...)) do row
-      gray, extra... = row
-      color = Gray{coltype}(gray)
-      TiffImages.WidePixel(color, extra)
+    T = _colordatatype(ColType)
+    if length(names) > 1
+      columns = [Tables.getcolumn(cols, nm) for nm in names]
+      map(zip(columns...)) do row
+        gray, extra... = reinterpret.(T, row)
+        TiffImages.WidePixel(Gray(gray), extra)
+      end
+    else
+      column = Tables.getcolumn(cols, first(names))
+      reinterpret(Gray{T}, column)
     end
   end
   img = PermutedDimsArray(reshape(colors, dims), (2, 1))
@@ -166,6 +174,10 @@ function geotiffwrite(fname, geotable; kwargs...)
 
   TiffImages.save(fname, tiff)
 end
+
+# -------------
+# READ HELPERS
+# -------------
 
 @enum GeoTIFFTag::UInt16 begin
   GeoKeyDirectoryTag = 34735
@@ -325,6 +337,12 @@ function _transform(ifd)
   end
 end
 
+# --------------
+# WRITE HELPERS
+# --------------
+
+const GeoTIFFType = Union{AbstractFloat,Unsigned,Signed}
+
 function _settag!(tiff, tag, value)
   ifd = TiffImages.ifds(tiff)
   ifd[UInt16(tag)] = value
@@ -339,3 +357,7 @@ function _geokeydir2vec(geokeydir)
 end
 
 _codenum(::Type{EPSG{Code}}) where {Code} = Code
+
+_colordatatype(::Type{T}) where {T<:AbstractFloat} = T
+_colordatatype(::Type{T}) where {T<:Unsigned} = Normed{T,sizeof(T) * 8}
+_colordatatype(::Type{T}) where {T<:Signed} = Fixed{T,sizeof(T) * 8 - 1}
