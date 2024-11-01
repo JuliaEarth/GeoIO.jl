@@ -90,9 +90,9 @@
     gtb1 = georef((channel1=rand(1:10, 100), channel2=rand(1:10, 100)), grid)
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
-    @test eltype(gtb2.channel1) <: Int
-    @test eltype(gtb2.channel2) <: Int
-    @test gtb1 == gtb2
+    @test eltype(gtb2.channel1) <: FixedPoint
+    @test eltype(gtb2.channel2) <: FixedPoint
+    @test gtb1.geometry == gtb2.geometry
     @test values(gtb1, 0) == values(gtb2, 0)
 
     # uint data
@@ -110,9 +110,9 @@
     gtb1 = georef((channel1=rand(UInt(1):UInt(10), 100), channel2=rand(UInt(1):UInt(10), 100)), grid)
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
-    @test eltype(gtb2.channel1) <: UInt
-    @test eltype(gtb2.channel2) <: UInt
-    @test gtb1 == gtb2
+    @test eltype(gtb2.channel1) <: FixedPoint
+    @test eltype(gtb2.channel2) <: FixedPoint
+    @test gtb1.geometry == gtb2.geometry
     @test values(gtb1, 0) == values(gtb2, 0)
 
     # error: GeoTiff format only supports 2D grids
