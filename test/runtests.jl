@@ -5,6 +5,7 @@ using GeoTables
 using CoordRefSystems
 using Test, Random
 using ReferenceTests
+using FixedPointNumbers
 using Colors
 using Dates
 using Unitful
