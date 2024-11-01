@@ -44,7 +44,7 @@ import CSV
 import GslibIO
 
 # GeoTIFF format
-import TiffImages 
+import TiffImages
 
 # GIS formats
 import Shapefile as SHP
