@@ -2,26 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# this transform is used internally to reinterpret the CRS of points using raw coordinate values
-# it also flips the coordinates into a "xy" order as this is assumed by geotiff and other formats
-struct Reinterpret{CRS} <: CoordinateTransform end
-
-Reinterpret(CRS) = Reinterpret{CRS}()
-
-Meshes.applycoord(::Reinterpret{CRS}, p::Point) where {CRS} = Point(_reinterpret(CRS, CoordRefSystems.raw(coords(p))))
-
-_reinterpret(::Type{CRS}, (x, y)) where {CRS} = CRS(x, y)
-_reinterpret(::Type{CRS}, (x, y)) where {CRS<:LatLon} = CRS(y, x)
-
 function geotiffread(fname; kwargs...)
   tiff = TiffImages.load(fname; kwargs...)
-  ifd = TiffImages.ifds(tiff)
 
-  geokeydir = _geokeydir(ifd)
-  code = _crscode(geokeydir)
-  CRS = isnothing(code) ? Cartesian : CoordRefSystems.get(code)
-  trans = _transform(ifd)
-  pipe = trans → Reinterpret(CRS)
+  pipe = _pipeline(tiff)
   dims = size(tiff) |> reverse
   domain = CartesianGrid(dims) |> pipe
 
@@ -72,8 +56,10 @@ function geotiffwrite(fname, geotable; kwargs...)
   end
 
   colors = if iscolor
+    # the column contains valid colors
     Tables.getcolumn(cols, first(names))
   else
+    # the column contains numeric values
     T = _colordatatype(ColType)
     if length(names) > 1
       columns = [Tables.getcolumn(cols, nm) for nm in names]
@@ -294,7 +280,8 @@ function _geokeydir(ifd)
   GeoKeyDirectory(version, revision, minor, nkeys, geokeys)
 end
 
-function _crscode(geokeydir)
+function _crscode(ifd)
+  geokeydir = _geokeydir(ifd)
   isnothing(geokeydir) && return nothing
 
   model = _getgeokey(geokeydir, GTModelTypeGeoKey)
@@ -307,15 +294,18 @@ function _crscode(geokeydir)
     geod = _getgeokey(geokeydir, GeodeticCRSGeoKey)
     EPSG{Int(geod.value)}
   else
-    # value 3 - geocentric Cartesian 3D is not supported yet
+    # not supported yet
+    # value 0 - undefined model
+    # value 3 - geocentric Cartesian 3D
+    # value 32767 - user defined
     nothing
   end
 end
 
-function _transform(ifd)
+function _affine(ifd)
   transmat = _gettag(ifd, ModelTransformationTag)
   tiepoint = _gettag(ifd, ModelTiepointTag)
-  scale = _gettag(ifd, ModelPixelScaleTag)
+  pixscale = _gettag(ifd, ModelPixelScaleTag)
 
   if !isnothing(transmat)
     A = SA[
@@ -324,8 +314,8 @@ function _transform(ifd)
     ]
     b = SA[transmat[4], transmat[8]]
     Affine(A, b)
-  elseif !isnothing(tiepoint) && !isnothing(scale)
-    sx, sy = scale[1], scale[2]
+  elseif !isnothing(tiepoint) && !isnothing(pixscale)
+    sx, sy = pixscale[1], pixscale[2]
     i, j = tiepoint[1], tiepoint[2]
     x, y = tiepoint[4], tiepoint[5]
     tx = x - i / sx
@@ -339,6 +329,22 @@ function _transform(ifd)
   else
     Identity()
   end
+end
+
+function _pipeline(tiff)
+  ifd = TiffImages.ifds(tiff)
+  code = _crscode(ifd)
+  affine = _affine(ifd)
+  morpho = if isnothing(code)
+    Identity()
+  else
+    CRS = CoordRefSystems.get(code)
+    Morphological() do coords
+      raw = CoordRefSystems.raw(coords)
+      CoordRefSystems.reconstruct(CRS, raw)
+    end
+  end
+  affine → morpho
 end
 
 # --------------
