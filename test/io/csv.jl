@@ -18,6 +18,15 @@
     @test gtb2[2, :] == gtb1[3, :]
     @test gtb2[3, :] == gtb1[5, :]
 
+    # latlon coordinates
+    gtb = GeoIO.load(joinpath(datadir, "latlon.csv"), coords=["lat", "lon"])
+    @test eltype(gtb.code) <: Integer
+    @test eltype(gtb.name) <: AbstractString
+    @test eltype(gtb.variable) <: Real
+    @test gtb.geometry isa PointSet
+    @test crs(gtb.geometry) <: LatLon
+    @test length(gtb.geometry) == 5
+
     # custom lenunit
     gtb = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"], lenunit=cm)
     @test unit(Meshes.lentype(crs(gtb.geometry))) == cm

@@ -20,7 +20,7 @@ function stlraed(fname; lenunit)
     connect(inds, Triangle)
   end
 
-  u = lenunit
+  u = lengthunit(lenunit)
 
   norms = map(n -> Vec(n .* u), normals)
   table = (; normal=norms)

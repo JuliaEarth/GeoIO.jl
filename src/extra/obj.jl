@@ -37,7 +37,7 @@ function objread(fname; lenunit)
     end
   end
 
-  u = lenunit
+  u = lengthunit(lenunit)
   points = map(v -> Point(v[1]u, v[2]u, v[3]u), vertices)
   connec = map(inds -> connect(Tuple(inds), Ngon), faceinds)
   mesh = SimpleMesh(points, connec)
