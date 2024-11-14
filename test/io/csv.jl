@@ -7,15 +7,6 @@
     @test gtb1.geometry isa PointSet
     @test length(gtb1.geometry) == 5
 
-    # latlon coordinates
-    gtb1 = GeoIO.load(joinpath(datadir, "latlon.csv"), coords=["lat", "lon"])
-    @test eltype(gtb1.code) <: Integer
-    @test eltype(gtb1.name) <: AbstractString
-    @test eltype(gtb1.variable) <: Real
-    @test gtb1.geometry isa PointSet
-    @test crs(gtb1.geometry) <: LatLon
-    @test length(gtb1.geometry) == 5
-
     # coordinates with missing values
     gtb2 = GeoIO.load(joinpath(datadir, "missingcoords.csv"), coords=[:x, :y])
     @test eltype(gtb2.code) <: Integer
@@ -26,6 +17,15 @@
     @test gtb2[1, :] == gtb1[1, :]
     @test gtb2[2, :] == gtb1[3, :]
     @test gtb2[3, :] == gtb1[5, :]
+
+    # latlon coordinates
+    gtb = GeoIO.load(joinpath(datadir, "latlon.csv"), coords=["lat", "lon"])
+    @test eltype(gtb.code) <: Integer
+    @test eltype(gtb.name) <: AbstractString
+    @test eltype(gtb.variable) <: Real
+    @test gtb.geometry isa PointSet
+    @test crs(gtb.geometry) <: LatLon
+    @test length(gtb.geometry) == 5
 
     # custom lenunit
     gtb = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"], lenunit=cm)
