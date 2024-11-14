@@ -9,7 +9,7 @@ function imgread(fname; lenunit)
   # translation followed by rotation is faster
   transform = Translate(-dims[1], 0) → Rotate(-π / 2)
   # construct grid
-  u = lenunit
+  u = lengthunit(lenunit)
   origin = ntuple(i -> 0.0u, length(dims))
   spacing = ntuple(i -> 1.0u, length(dims))
   domain = CartesianGrid(dims, origin, spacing) |> transform

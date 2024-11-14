@@ -44,7 +44,8 @@ function vturead(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
-  points = _points(vtk, lenunit)
+  u = lengthunit(lenunit)
+  points = _points(vtk, u)
   connec = _vtuconnec(vtk)
   mesh = SimpleMesh(points, connec)
 
@@ -59,7 +60,8 @@ function vtpread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct mesh
-  points = _points(vtk, lenunit)
+  u = lengthunit(lenunit)
+  points = _points(vtk, u)
   connec = _vtpconnec(vtk)
   mesh = SimpleMesh(points, connec)
 
@@ -74,7 +76,7 @@ function vtrread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
-  u = lenunit
+  u = lengthunit(lenunit)
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
   xyz = map(x -> x * u, coords[inds])
@@ -91,7 +93,7 @@ function vtsread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
-  u = lenunit
+  u = lengthunit(lenunit)
   coords = ReadVTK.get_coordinates(vtk)
   inds = map(!allequal, coords) |> collect
   dims = findall(!, inds) |> Tuple
@@ -109,7 +111,7 @@ function vtiread(fname; lenunit)
   vtk = ReadVTK.VTKFile(fname)
 
   # construct grid
-  u = lenunit
+  u = lengthunit(lenunit)
   ext = ReadVTK.get_whole_extent(vtk)
   # the get_origin and get_spacing functions drop the z dimension if it is empty, 
   # but the get_whole_extent function does not

@@ -6,6 +6,9 @@
 const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
 const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
 
+# return the default length unit if it is not seted
+lengthunit(u) = isnothing(u) ? m : u
+
 function asgeotable(table)
   crs = GI.crs(table)
   cols = Tables.columns(table)

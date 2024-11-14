@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, repair=true, layer=0, lenunit=m, kwargs...)
+    load(fname, repair=true, layer=0, lenunit=nothing, kwargs...)
 
 Load geospatial table from file `fname` stored in any format.
 
@@ -78,7 +78,7 @@ GeoIO.load("file.geojson")
 GeoIO.load("file.geojson", numbertype=Float32)
 ```
 """
-function load(fname; repair=true, layer=0, lenunit=m, numbertype=Float64, kwargs...)
+function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, kwargs...)
   # VTK formats
   if any(ext -> endswith(fname, ext), VTKEXTS)
     return vtkread(fname; lenunit, kwargs...)
