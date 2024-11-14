@@ -8,7 +8,7 @@
     @test length(gtb1.geometry) == 5
 
     # latlon coordinates
-    gtb1 = GeoIO.load(joinpath(datadir, "latlon.csv"), coords=["lat", "lon"])
+    gtb1 = GeoIO.load(joinpath(datadir, "latlon.csv"), coords=("lat", "lon"))
     @test eltype(gtb1.code) <: Integer
     @test eltype(gtb1.name) <: AbstractString
     @test eltype(gtb1.variable) <: Real
