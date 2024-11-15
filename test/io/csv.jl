@@ -30,6 +30,9 @@
     # custom lenunit
     gtb = GeoIO.load(joinpath(datadir, "points.csv"), coords=["x", "y"], lenunit=cm)
     @test unit(Meshes.lentype(crs(gtb.geometry))) == cm
+
+    # coords error message
+    @test_throws ArgumentError GeoIO.load(joinpath(datadir, "points.csv"))
   end
 
   @testset "save" begin
