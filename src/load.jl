@@ -111,6 +111,20 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
 
   # CSV format
   if endswith(fname, ".csv")
+    if :coords ∉ keys(kwargs)
+      throw(ArgumentError("""
+      the `coords` keyword argument is required in the CSV format.
+
+      Examples:
+
+      # load a CSV file with "x" and "y" coordinates
+      GeoIO.load("file.csv", coords = ("x", "y"))
+
+      # load a CSV file with "lat" and "lon" coordinates
+      GeoIO.load("file.csv", coords = ("lat", "lon"))
+      """
+      ))
+    end
     return csvread(fname; lenunit, kwargs...)
   end
 
