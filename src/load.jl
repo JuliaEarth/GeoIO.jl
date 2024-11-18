@@ -122,8 +122,7 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
 
       # load a CSV file with "lat" and "lon" coordinates
       GeoIO.load("file.csv", coords = ("lat", "lon"))
-      """
-      ))
+      """))
     end
     return csvread(fname; lenunit, kwargs...)
   end
