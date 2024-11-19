@@ -136,7 +136,12 @@ function _affine(metadata)
     Identity()
   else
     A, b = params
-    Affine(A, b)
+    # check if Affine is an Identity
+    if A == SA[1 0; 0 1] && b == SA[0, 0]
+      Identity()
+    else
+      Affine(A, b)
+    end
   end
 end
 
