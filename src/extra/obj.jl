@@ -53,7 +53,7 @@ function objwrite(fname, geotable)
   end
 
   open(fname, write=true) do io
-    for point in vertices(mesh)
+    for point in eachvertex(mesh)
       coords = ustrip.(to(point))
       write(io, "v $(join(coords, " "))\n")
     end

@@ -21,7 +21,7 @@ function vtkwrite(fname, geotable)
 end
 
 function vtuwrite(fname, mesh::Mesh, etable, vtable)
-  verts = vertices(mesh)
+  verts = eachvertex(mesh)
   connec = elements(topology(mesh))
   points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(_vtktype(pltype(c)), indices(c)) for c in connec]
@@ -32,7 +32,7 @@ function vtuwrite(fname, mesh::Mesh, etable, vtable)
 end
 
 function vtpwrite(fname, mesh::Mesh, etable, vtable)
-  verts = vertices(mesh)
+  verts = eachvertex(mesh)
   connec = elements(topology(mesh))
   points = stack(p -> ustrip.(to(p)), verts)
   cells = [VTKBase.MeshCell(PolyData.Polys(), indices(c)) for c in connec]

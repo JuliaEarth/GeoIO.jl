@@ -40,7 +40,7 @@ function plywrite(fname, geotable; kwargs...)
   vtable = values(geotable, 0)
 
   # retrive vertices and connectivity
-  verts = vertices(mesh)
+  verts = eachvertex(mesh)
   connec = elements(topology(mesh))
 
   # create ply dictionary
