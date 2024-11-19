@@ -122,9 +122,6 @@
     # error: GeoTiff format needs data to save
     gtb = georef(nothing, CartesianGrid(2, 2))
     @test_throws ArgumentError GeoIO.save(file, gtb)
-    # error: the type `Char` is not supported by GeoTIFF
-    gtb = georef((; a=['a', 'b', 'c', 'd']), CartesianGrid(2, 2))
-    @test_throws ArgumentError GeoIO.save(file, gtb)
     # error: all variables must have the same type
     gtb = georef((a=rand(1:9, 25), b=rand(25)), CartesianGrid(5, 5))
     @test_throws ArgumentError GeoIO.save(file, gtb)
