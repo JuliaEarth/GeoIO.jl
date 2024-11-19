@@ -15,8 +15,6 @@ using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: Identity, →
-using FixedPointNumbers: FixedPoint, Fixed, Normed
-using MappedArrays: mappedarray
 using Unitful: m
 
 # image formats
@@ -44,7 +42,7 @@ import CSV
 import GslibIO
 
 # GeoTIFF format
-import TiffImages
+import GeoTIFF
 
 # GIS formats
 import Shapefile as SHP
