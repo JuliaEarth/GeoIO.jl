@@ -97,11 +97,11 @@ function geotiffwrite(fname, geotable; kwargs...)
   if iscolor
     # the column contains valid colors
     colors = image(Tables.getcolumn(table, first(names)))
-    GeoTIFF.save(fname, colors; metadata)
+    GeoTIFF.save(fname, colors; metadata, kwargs...)
   else
     # the column contains numeric values
     channels = (image(Tables.getcolumn(table, nm)) for nm in names)
-    GeoTIFF.save(fname, channels...; metadata)
+    GeoTIFF.save(fname, channels...; metadata, kwargs...)
   end
 end
 
