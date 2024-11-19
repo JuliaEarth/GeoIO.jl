@@ -86,7 +86,7 @@ function offwrite(fname, geotable; color=nothing)
     # number of edges must be ignored by passing 0
     write(io, "$nverts $nfaces 0\n")
 
-    for point in vertices(mesh)
+    for point in eachvertex(mesh)
       coords = ustrip.(to(point))
       write(io, "$(join(coords, " "))\n")
     end

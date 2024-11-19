@@ -85,7 +85,7 @@ function mshwrite(fname, geotable; vcolumn=nothing, ecolumn=nothing)
       write(io, "$i\n")
     end
     # node coordinates
-    for point in vertices(mesh)
+    for point in eachvertex(mesh)
       coords = ustrip.(to(point))
       write(io, "$(join(coords, " "))\n")
     end

@@ -110,7 +110,7 @@ function stlasciiwrite(fname, mesh)
       write(io, "facet normal $(frmtcoords(n))\n")
       write(io, "    outer loop\n")
 
-      for point in vertices(triangle)
+      for point in eachvertex(triangle)
         c = ustrip.(to(point))
         write(io, "        vertex $(frmtcoords(c))\n")
       end
@@ -139,7 +139,7 @@ function stlbinwrite(fname, mesh)
     for triangle in elements(mesh)
       n = ustrip.(normal(triangle))
       foreach(c -> write(io, Float32(c)), n)
-      for point in vertices(triangle)
+      for point in eachvertex(triangle)
         foreach(c -> write(io, Float32(c)), ustrip.(to(point)))
       end
       write(io, 0x0000) # empty attribute byte count
