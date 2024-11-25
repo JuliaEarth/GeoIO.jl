@@ -123,9 +123,16 @@ function _morphological(metadata)
   else
     epsg = EPSG{Int(code)}
     CRS = CoordRefSystems.get(epsg)
-    Morphological() do coords
-      raw = CoordRefSystems.raw(coords)
-      CoordRefSystems.reconstruct(CRS, raw)
+    if CRS <: LatLon
+      Morphological() do coords
+        lon, lat = CoordRefSystems.raw(coords)
+        CRS(lat, lon)
+      end
+    else
+      Morphological() do coords
+        x, y = CoordRefSystems.raw(coords)
+        CRS(x, y)
+      end
     end
   end
 end

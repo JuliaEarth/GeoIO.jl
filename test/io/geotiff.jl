@@ -18,6 +18,25 @@
     @test gtb.geometry isa CartesianGrid
     @test size(gtb.geometry) == (108, 108)
 
+    # the "natural_earth_1.tif" file is an upscale of a NaturalEarth file
+    # link: https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-1/
+    file = joinpath(datadir, "natural_earth_1.tif")
+    gtb = GeoIO.load(file)
+    @test crs(gtb.geometry) <: LatLon
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (162, 81)
+
+    # the "natural_earth_1_projected.tif" file is a project version of "natural_earth_1.tif"
+    file = joinpath(datadir, "natural_earth_1_projected.tif")
+    gtb = GeoIO.load(file)
+    @test crs(gtb.geometry) <: PlateCarree
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (162, 81)
+
     # the "utm.tif" file is from the GeoTIFF/test-data repo
     # link: https://github.com/GeoTIFF/test-data/blob/main/files/utm.tif
     file = joinpath(datadir, "utm.tif")
