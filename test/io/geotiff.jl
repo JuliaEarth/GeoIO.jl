@@ -18,6 +18,25 @@
     @test gtb.geometry isa CartesianGrid
     @test size(gtb.geometry) == (108, 108)
 
+    # the "natural_earth_1.tif" file is an upscale of a NaturalEarth file
+    # link: https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-1/
+    file = joinpath(datadir, "natural_earth_1.tif")
+    gtb = GeoIO.load(file)
+    @test crs(gtb.geometry) <: LatLon
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (162, 81)
+
+    # the "natural_earth_1_projected.tif" file is a project version of "natural_earth_1.tif"
+    file = joinpath(datadir, "natural_earth_1_projected.tif")
+    gtb = GeoIO.load(file)
+    @test crs(gtb.geometry) <: PlateCarree
+    @test propertynames(gtb) == [:color, :geometry]
+    @test eltype(gtb.color) <: Colorant
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (162, 81)
+
     # the "utm.tif" file is from the GeoTIFF/test-data repo
     # link: https://github.com/GeoTIFF/test-data/blob/main/files/utm.tif
     file = joinpath(datadir, "utm.tif")
@@ -48,6 +67,24 @@
 
     file1 = joinpath(datadir, "utm.tif")
     file2 = joinpath(savedir, "utm.tif")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test isapprox(gtb1.geometry, gtb2.geometry, atol=1e-6u"m")
+    @test values(gtb1) == values(gtb2)
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "natural_earth_1.tif")
+    file2 = joinpath(savedir, "natural_earth_1.tif")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test isapprox(gtb1.geometry, gtb2.geometry, atol=1e-6u"m")
+    @test values(gtb1) == values(gtb2)
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "natural_earth_1_projected.tif")
+    file2 = joinpath(savedir, "natural_earth_1_projected.tif")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
