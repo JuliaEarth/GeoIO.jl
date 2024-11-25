@@ -7,17 +7,15 @@ function geotiffread(fname; kwargs...)
 
   # georeferenced grid
   pipe = _pipeline(geotiff)
-  dims = size(geotiff) |> reverse
-  domain = CartesianGrid(dims) |> pipe
+  img = GeoTIFF.image(geotiff)
+  domain = CartesianGrid(size(img)) |> pipe
 
-  # adjust the image orientation
-  column(x) = vec(PermutedDimsArray(x, (2, 1)))
   # table with colors or channels
   table = if eltype(geotiff) <: Colorant
-    (; color=column(geotiff))
+    (; color=vec(img))
   else
     nchanels = GeoTIFF.nchannels(geotiff)
-    channel(i) = column(GeoTIFF.channel(geotiff, i))
+    channel(i) = vec(GeoTIFF.channel(geotiff, i))
     (; (Symbol(:channel, i) => channel(i) for i in 1:nchanels)...)
   end
 
@@ -92,8 +90,8 @@ function geotiffwrite(fname, geotable; kwargs...)
   # construct the metadata
   metadata = GeoTIFF.metadata(; transformation=(A, b), rastertype, modeltype, projectedcrs, geodeticcrs)
 
-  # reshape back to GeoTIFF orientation
-  image(x) = PermutedDimsArray(reshape(x, dims), (2, 1))
+  # reshape column back to image
+  image(x) = reshape(x, dims)
   if iscolor
     # the column contains valid colors
     colors = image(Tables.getcolumn(table, first(names)))
