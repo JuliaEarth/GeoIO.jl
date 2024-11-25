@@ -74,6 +74,24 @@
     @test values(gtb1) == values(gtb2)
     @test values(gtb1, 0) == values(gtb2, 0)
 
+    file1 = joinpath(datadir, "natural_earth_1.tif")
+    file2 = joinpath(savedir, "natural_earth_1.tif")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test isapprox(gtb1.geometry, gtb2.geometry, atol=1e-6u"m")
+    @test values(gtb1) == values(gtb2)
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "natural_earth_1_projected.tif")
+    file2 = joinpath(savedir, "natural_earth_1_projected.tif")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test isapprox(gtb1.geometry, gtb2.geometry, atol=1e-6u"m")
+    @test values(gtb1) == values(gtb2)
+    @test values(gtb1, 0) == values(gtb2, 0)
+
     # float data
     # single channel
     file = joinpath(savedir, "float_single.tif")
