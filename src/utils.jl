@@ -63,3 +63,21 @@ spatialref(code) = AG.importUserInput(codestring(code))
 
 codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
 codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
+
+function projjsoncrs(json)
+  id = json["id"]
+  code = Int(id["code"])
+  authority = id["authority"]
+  if authority == "EPSG"
+    EPSG{code}
+  elseif authority == "ESRI"
+    ESRI{code}
+  else
+    throw(ArgumentError("unsupported authority '$authority' in ProjJSON"))
+  end
+end
+
+function projjsoncrs(jsonstr::AbstractString)
+  json = JSON3.read(jsonstr)
+  projjsoncrs(json)
+end
