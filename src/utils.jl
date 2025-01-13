@@ -59,12 +59,20 @@ function wktstring(code; format="WKT2", multiline=false)
   unsafe_string(wktptr[])
 end
 
+function projjsonstring(code; multiline=false)
+  spref = spatialref(code)
+  wktptr = Ref{Cstring}()
+  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
+  GDAL.osrexporttoprojjson(spref, wktptr, options)
+  unsafe_string(wktptr[])
+end
+
 spatialref(code) = AG.importUserInput(codestring(code))
 
 codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
 codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
 
-function projjsoncrs(json)
+function projjsoncode(json)
   id = json["id"]
   code = Int(id["code"])
   authority = id["authority"]
@@ -77,7 +85,18 @@ function projjsoncrs(json)
   end
 end
 
-function projjsoncrs(jsonstr::AbstractString)
+function projjsoncode(jsonstr::AbstractString)
   json = JSON3.read(jsonstr)
-  projjsoncrs(json)
+  projjsoncode(json)
+end
+
+function projjson(CRS)
+  try
+    code = CoordRefSystems.code(CRS)
+    jsonstr = projjsonstring(code)
+    json = JSON3.read(jsonstr, Dict)
+    GFT.ProjJSON(json)
+  catch
+    nothing
+  end
 end

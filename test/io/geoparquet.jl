@@ -69,5 +69,21 @@
     gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "points_latlon.parquet")
+    file2 = joinpath(savedir, "points_latlon.parquet")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test values(gtb1, 0) == values(gtb2, 0)
+
+    file1 = joinpath(datadir, "points_projected.parquet")
+    file2 = joinpath(savedir, "points_projected.parquet")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test gtb1 == gtb2
+    @test values(gtb1, 0) == values(gtb2, 0)
   end
 end
