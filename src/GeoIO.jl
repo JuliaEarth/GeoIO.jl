@@ -53,6 +53,9 @@ import GeoInterface as GI
 import GeoFormatTypes as GFT
 import ArchGDAL.GDAL
 
+# ProjJSON CRS
+import JSON3
+
 # image extensions
 const IMGEXTS = [".png", ".jpg", ".jpeg"]
 
