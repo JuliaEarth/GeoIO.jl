@@ -92,8 +92,8 @@ const FORMATS = [
   (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
   (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".tif", load="ArchGDAL.jl", save="ArchGDAL.jl"),
-  (extension=".tiff", load="ArchGDAL.jl", save="ArchGDAL.jl")
+  (extension=".tif", load="TiffImages.jl", save="TiffImages.jl"),
+  (extension=".tiff", load="TiffImages.jl", save="TiffImages.jl")
 ]
 
 """

@@ -38,10 +38,10 @@ GeoIO.save("file.shp", table, force = true)
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on January 3rd, 2024:
+Below is the output generated on March 1st, 2025:
 
 ```julia
-GeoIO.formats()
+julia> GeoIO.formats()
 ┌───────────┬─────────────────┬───────────────┐
 │ extension │      load       │     save      │
 ├───────────┼─────────────────┼───────────────┤
@@ -62,8 +62,8 @@ GeoIO.formats()
 │   .png    │   ImageIO.jl    │  ImageIO.jl   │
 │   .shp    │  Shapefile.jl   │ Shapefile.jl  │
 │   .stl    │    GeoIO.jl     │   GeoIO.jl    │
-│   .tif    │   ArchGDAL.jl   │  ArchGDAL.jl  │
-│   .tiff   │   ArchGDAL.jl   │  ArchGDAL.jl  │
+│   .tif    │  TiffImages.jl  │ TiffImages.jl │
+│   .tiff   │  TiffImages.jl  │ TiffImages.jl │
 │   .vti    │   ReadVTK.jl    │  WriteVTK.jl  │
 │   .vtp    │   ReadVTK.jl    │  WriteVTK.jl  │
 │   .vtr    │   ReadVTK.jl    │  WriteVTK.jl  │
