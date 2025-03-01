@@ -6,10 +6,10 @@ Load/save geospatial data compatible with the
 [GeoStats.jl](https://github.com/JuliaEarth/GeoStats.jl)
 framework. 
 
-GeoIO.jl uses various backend packages spread across
-different Julia organizations to load a universal
-representation of geospatial data as discussed in
-the book [*Geospatial Data Science with Julia*](https://juliaearth.github.io/geospatial-data-science-with-julia).
+GeoIO.jl uses various backend packages that are spread across
+different Julia organizations to load and save the universal
+representation of geospatial data described in the book
+[*Geospatial Data Science with Julia*](https://juliaearth.github.io/geospatial-data-science-with-julia).
 
 ## Usage
 
