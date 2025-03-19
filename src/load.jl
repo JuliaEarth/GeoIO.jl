@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    load(fname, repair=true, layer=0, lenunit=nothing, kwargs...)
+    GeoIO.load(fname; repair=true, layer=0, lenunit=nothing, kwargs...)
 
 Load geospatial table from file `fname` stored in any format.
 

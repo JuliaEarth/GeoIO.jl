@@ -4,7 +4,7 @@
 
   # Shapefile
   file = joinpath(savedir, "noattribs.shp")
-  GeoIO.save(file, gtb1)
+  GeoIO.save(file, gtb1, warn=false)
   gtb2 = GeoIO.load(file)
   @test all(ismissing, gtb2[:, 1])
   @test gtb2.geometry == gtb1.geometry
