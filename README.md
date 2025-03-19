@@ -22,7 +22,7 @@ using GeoIO
 
 table = GeoIO.load("file.shp")
 
-GeoIO.save("file.geojson", table)
+GeoIO.save("file.gpkg", table)
 ```
 
 Additional keyword arguments are forwarded to the backends:
@@ -30,9 +30,6 @@ Additional keyword arguments are forwarded to the backends:
 ```julia
 # read `.geojson` geometries with Float64 precision
 table = GeoIO.load("file.geojson", numbertype = Float64)
-
-# force writing on existing `.shp` file
-GeoIO.save("file.shp", table, force = true)
 ```
 
 ### Supported formats

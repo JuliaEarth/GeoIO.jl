@@ -18,21 +18,21 @@
 
   # Shapefile
   file = joinpath(savedir, "gis-points.shp")
-  GeoIO.save(file, gtpoint)
+  GeoIO.save(file, gtpoint, warn=false)
   gtb = GeoIO.load(file)
   @test gtb.geometry == gtpoint.geometry
   @test values(gtb) == values(gtpoint)
 
   # note: Shapefile saves Chain as MultiChain
   file = joinpath(savedir, "gis-rings.shp")
-  GeoIO.save(file, gtring)
+  GeoIO.save(file, gtring, warn=false)
   gtb = GeoIO.load(file)
   @test _isequal(gtb.geometry, gtring.geometry)
   @test values(gtb) == values(gtring)
 
   # note: Shapefile saves PolyArea as MultiPolyArea
   file = joinpath(savedir, "gis-polys.shp")
-  GeoIO.save(file, gtpoly)
+  GeoIO.save(file, gtpoly, warn=false)
   gtb = GeoIO.load(file)
   @test _isequal(gtb.geometry, gtpoly.geometry)
   @test values(gtb) == values(gtpoly)

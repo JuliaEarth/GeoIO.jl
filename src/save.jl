@@ -3,10 +3,14 @@
 # ------------------------------------------------------------------
 
 """
-    save(fname, geotable; kwargs...)
+    GeoIO.save(fname, geotable; warn=true, kwargs...)
 
 Save `geotable` to file `fname` of given format
 based on the file extension.
+
+The function displays a warning whenever the format
+is obsolete (e.g. Shapefile). The warning can be
+disabled with the `warn` keyword argument.
 
 Other `kwargs` are forwarded to the backend packages.
 
@@ -73,11 +77,11 @@ all supported file formats.
 ## Examples
 
 ```julia
-# overwrite an existing shapefile
-GeoIO.save("file.shp", force = true)
+# set layer name in GeoPackage
+GeoIO.save("file.gpkg", layername = "mylayer")
 ```
 """
-function save(fname, geotable; kwargs...)
+function save(fname, geotable; warn=true, kwargs...)
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     grid = domain(geotable)
@@ -150,6 +154,18 @@ function save(fname, geotable; kwargs...)
 
   # GIS formats
   if endswith(fname, ".shp")
+    if warn
+      @warn """
+      The Shapefile format is not recommended for various reasons.
+      Please http://switchfromshapefile.org if you have the option.
+      We recommend the GeoPackage file format (i.e., .gpkg extension)
+      instead.
+
+      If you really need to save your data in Shapefile format due to
+      project and/or non-technical constraints, you can disable this
+      warning by setting `warn=false`.
+      """
+    end
     SHP.write(fname, geotable; kwargs...)
   elseif endswith(fname, ".geojson")
     proj = if !(crs(domain(geotable)) <: LatLon{WGS84Latest})
