@@ -50,7 +50,7 @@ GI.getfeature(::Any, gtb::AbstractGeoTable, i) = gtb[i, :]
 
 function gicrs(CRS)
   try
-    GFT.WellKnownText2(GFT.CRS(), wktstring(CoordRefSystems.code(CRS)))
+    GFT.WellKnownText2(GFT.CRS(), CoordRefSystems.wkt2(CRS))
   catch
     nothing
   end
