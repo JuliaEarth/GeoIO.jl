@@ -49,10 +49,6 @@ all supported file formats.
 * `z`: name of the column where the coordinate z will be saved (default to CRS coordinate name);
 * `t`: name of the column where the time measurements will be saved (default to `"t"`);
 
-### GeoTIFF
-
-* `options`: list with options that will be passed to GDAL;
-
 ### GeoPackage
 
 * `layername`: name of the layer where the data will be saved (default to `"data"`);

@@ -65,7 +65,7 @@ all supported file formats.
 
 * Other options are passed to `GeoParquet.read`, see the GeoParquet.jl documentation for more details;
 
-### GeoTIFF, GeoPackage, KML
+### Formats handled by GDAL (GeoPackage, KML)
 
 * Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
 
