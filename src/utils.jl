@@ -57,7 +57,7 @@ function projjsonstring(code; multiline=false)
 end
 
 # Constants for WKT2 to PROJJSON conversion
-const DEG_TO_RAD = 0.0174532925199433
+const DEG_TO_RAD = π / 180
 
 function wkt2_to_projjson(wkt2str; multiline=false)
   # For now, let's implement a basic parser that handles common CRS types
