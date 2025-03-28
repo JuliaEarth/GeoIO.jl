@@ -52,11 +52,33 @@ function uniquenames(names, newnames)
 end
 
 function projjsonstring(code; multiline=false)
-  spref = spatialref(code)
-  wktptr = Ref{Cstring}()
-  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
-  GDAL.osrexporttoprojjson(spref, wktptr, options)
-  unsafe_string(wktptr[])
+  try
+    wkt = CoordRefSystems.wkt2(code)
+    json_obj = WKT2ProjJSON.parse_wkt2(wkt)
+    projjson_obj = WKT2ProjJSON.convert_to_projjson(json_obj)
+
+    if multiline
+      io = IOBuffer()
+      JSON3.pretty(io, projjson_obj)
+      return String(take!(io))
+    else
+      return JSON3.write(projjson_obj)
+    end
+  catch e
+    @warn "Native WKT2 to PROJJSON conversion failed: $e. Falling back to GDAL."
+    if e isa ErrorException
+      @debug "Error details: $(e.msg)"
+    else
+      @debug "Error type: $(typeof(e))"
+    end
+
+    # Fallback to GDAL
+    spref = spatialref(code)
+    wktptr = Ref{Cstring}()
+    options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
+    GDAL.osrexporttoprojjson(spref, wktptr, options)
+    return unsafe_string(wktptr[])
+  end
 end
 
 spatialref(code) = AG.importUserInput(codestring(code))

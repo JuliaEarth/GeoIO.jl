@@ -44,6 +44,8 @@ import GslibIO
 # GeoTIFF format
 import GeoTIFF
 
+import JSON3
+
 # GIS formats
 import Shapefile as SHP
 import GeoJSON as GJS
@@ -130,6 +132,7 @@ include("extra/img.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
+include("extra/wkt2projjson.jl")
 
 # user functions
 include("load.jl")
