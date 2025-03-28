@@ -38,7 +38,7 @@ all supported file formats.
 
 ### VTK formats (`.vtu`, `.vtp`, `.vtr`, `.vts`, `.vti`)
 
-* mask: name of the boolean column that encodes the indices of a grid view (default to `:MASK`).
+* mask: name of the boolean column that encodes the indices of a grid view (default to `:mask`).
   If the column does not exist in the file, the full grid is returned;
 
 ### Common Data Model formats (NetCDF, GRIB)

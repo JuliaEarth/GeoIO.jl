@@ -191,12 +191,12 @@
     @test vgtb.geometry == view(gtb.geometry, 1:25)
 
     # mask column with different name
-    gtb = georef((; MASK=rand(100)), grid)
+    gtb = georef((; mask=rand(100)), grid)
     file = joinpath(savedir, "imagedata_view.vti")
     GeoIO.save(file, view(gtb, 1:25))
-    vgtb = GeoIO.load(file, mask=:MASK_)
-    @test vgtb == GeoIO.load(file, mask="MASK_") # mask as string
-    @test vgtb.MASK == view(gtb.MASK, 1:25)
+    vgtb = GeoIO.load(file, mask=:mask_)
+    @test vgtb == GeoIO.load(file, mask="mask_") # mask as string
+    @test vgtb.mask == view(gtb.mask, 1:25)
     @test parent(vgtb.geometry) isa CartesianGrid
     @test vgtb.geometry == view(gtb.geometry, 1:25)
 

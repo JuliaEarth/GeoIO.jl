@@ -14,7 +14,7 @@ const GEOMTYPE = Dict(
   VTKCellTypes.VTK_PYRAMID => Pyramid
 )
 
-function vtkread(fname; lenunit, mask=:MASK)
+function vtkread(fname; lenunit, mask=:mask)
   gtb = if endswith(fname, ".vtu")
     vturead(fname; lenunit)
   elseif endswith(fname, ".vtp")

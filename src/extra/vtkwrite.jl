@@ -91,7 +91,7 @@ function _extractvals(subdom::SubDomain, etable, vtable)
       name => y
     end
 
-    mask = uniquename(names, :MASK)
+    mask = uniquename(names, :mask)
     maskcol = zeros(UInt8, nelems)
     maskcol[inds] .= 1
 
