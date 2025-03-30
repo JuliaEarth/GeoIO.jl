@@ -74,3 +74,156 @@
   chain = GJS.read("""{"type":"LineString","coordinates":[[2.2,2.2],[2.2,2.2]]}""")
   @test GeoIO.geom2meshes(chain) == Ring(Point(LatLon(2.2f0, 2.2f0)))
 end
+
+@testset "Data conversion" begin
+  # test GI.getindex for geom/mesh types
+  # ----------------------------------
+  point = Point(LatLon(0, 0))
+  @test GI.ncoord(GI.geomtrait(point), point) == 2
+  @test GI.getcoord(GI.geomtrait(point), point) == [0.0, 0.0]
+  @test GI.getcoord(GI.geomtrait(point), point, 1) == 0.0
+  @test GI.getcoord(GI.geomtrait(point), point, 2) == 0.0
+
+  # test GI.getcoord for geom/mesh types using default crs
+  # ---------------------------------------------------
+  @test raw(ETuple(1, 2, 3)) == (1, 2, 3)
+  @test raw(LatLonElev(1, 2, 3)) == (2, 1, 3)
+
+  # test WKT2 to PROJJSON conversion
+  # ---------------------------------------------------
+  @testset "WKT2 to PROJJSON" begin
+    # Test simple geographic CRS
+    wkt2_str = """
+    GEOGCRS["WGS 84",
+      DATUM["World Geodetic System 1984",
+        ELLIPSOID["WGS 84",6378137,298.257223563]],
+      CS[ellipsoidal,2],
+        AXIS["latitude",north,ORDER[1]],
+        AXIS["longitude",east,ORDER[2]],
+        ANGLEUNIT["degree",0.0174532925199433]]
+    """
+    
+    projjson_str = wkt2_to_projjson(wkt2_str)
+    projjson = JSON3.read(projjson_str)
+    
+    @test projjson["type"] == "GeographicCRS"
+    @test projjson["name"] == "WGS 84"
+    @test projjson["datum"]["name"] == "World Geodetic System 1984"
+    @test projjson["datum"]["ellipsoid"]["name"] == "WGS 84"
+    @test projjson["datum"]["ellipsoid"]["semi_major_axis"] == 6378137
+    @test projjson["datum"]["ellipsoid"]["inverse_flattening"] == 298.257223563
+    @test projjson["coordinate_system"]["subtype"] == "ellipsoidal"
+    @test length(projjson["coordinate_system"]["axis"]) == 2
+    
+    # Test projected CRS
+    wkt2_str = """
+    PROJCRS["WGS 84 / UTM zone 31N",
+      BASEGEOGCRS["WGS 84",
+        DATUM["World Geodetic System 1984",
+          ELLIPSOID["WGS 84",6378137,298.257223563]],
+        PRIMEM["Greenwich",0]],
+      CONVERSION["UTM zone 31N",
+        METHOD["Transverse Mercator",
+          ID["EPSG",9807]],
+        PARAMETER["Latitude of natural origin",0,
+          ANGLEUNIT["degree",0.0174532925199433],
+          ID["EPSG",8801]],
+        PARAMETER["Longitude of natural origin",3,
+          ANGLEUNIT["degree",0.0174532925199433],
+          ID["EPSG",8802]],
+        PARAMETER["Scale factor at natural origin",0.9996,
+          SCALEUNIT["unity",1],
+          ID["EPSG",8805]],
+        PARAMETER["False easting",500000,
+          LENGTHUNIT["metre",1],
+          ID["EPSG",8806]],
+        PARAMETER["False northing",0,
+          LENGTHUNIT["metre",1],
+          ID["EPSG",8807]]],
+      CS[Cartesian,2],
+        AXIS["(E)",east,
+          ORDER[1],
+          LENGTHUNIT["metre",1]],
+        AXIS["(N)",north,
+          ORDER[2],
+          LENGTHUNIT["metre",1]],
+      ID["EPSG",32631]]
+    """
+    
+    projjson_str = wkt2_to_projjson(wkt2_str)
+    projjson = JSON3.read(projjson_str)
+    
+    @test projjson["type"] == "ProjectedCRS"
+    @test projjson["name"] == "WGS 84 / UTM zone 31N"
+    @test projjson["base_crs"]["name"] == "WGS 84"
+    @test projjson["conversion"]["name"] == "UTM zone 31N"
+    @test projjson["conversion"]["method"]["name"] == "Transverse Mercator"
+    @test projjson["id"]["authority"] == "EPSG"
+    @test projjson["id"]["code"] == 32631
+  end
+
+  # test geojson compat
+  # ------------------
+  p = Point(LatLon(0, 0))
+  @test GI.geomjson(p) == Dict("type" => "Point", "coordinates" => [0.0, 0.0])
+
+  s = Segment(Point(LatLon(0, 0)), Point(LatLon(1, 1)))
+  @test GI.geomjson(s) == Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0]])
+
+  r = Rope([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
+  @test GI.geomjson(r) ==
+        Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+
+  ring = Ring([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
+  @test GI.geomjson(ring) ==
+        Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]])
+
+  poly = PolyArea(ring)
+  @test GI.geomjson(poly) ==
+        Dict("type" => "Polygon", "coordinates" => [[[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]])
+
+  # with inner ring
+  inner = Ring([Point(LatLon(0.5, 0.5)), Point(LatLon(1.0, 1.5)), Point(LatLon(1.5, 1.0))])
+  poly = PolyArea([ring, inner])
+  @test GI.geomjson(poly) == Dict(
+    "type" => "Polygon",
+    "coordinates" => [
+      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
+      [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
+    ]
+  )
+
+  points = Multi([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
+  @test GI.geomjson(points) == Dict("type" => "MultiPoint", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+
+  ropes = Multi([
+    Rope([Point(LatLon(0, 0)), Point(LatLon(1, 1))]),
+    Rope([Point(LatLon(2, 2)), Point(LatLon(3, 3))])
+  ])
+  @test GI.geomjson(ropes) ==
+        Dict("type" => "MultiLineString", "coordinates" => [[[0.0, 0.0], [1.0, 1.0]], [[2.0, 2.0], [3.0, 3.0]]])
+
+  rings = Multi([Ring([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))]), ring])
+  @test GI.geomjson(rings) == Dict(
+    "type" => "MultiLineString",
+    "coordinates" => [
+      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
+      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]
+    ]
+  )
+
+  polys = Multi([poly, poly])
+  @test GI.geomjson(polys) == Dict(
+    "type" => "MultiPolygon",
+    "coordinates" => [
+      [
+        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
+        [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
+      ],
+      [
+        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
+        [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
+      ]
+    ]
+  )
+end

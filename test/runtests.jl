@@ -56,7 +56,8 @@ testfiles = [
   "formats.jl",
   "convert.jl",
   "gis.jl",
-  "noattrs.jl"
+  "noattrs.jl",
+  "wkt2_to_projjson.jl"
 ]
 
 @testset "GeoIO.jl" begin
