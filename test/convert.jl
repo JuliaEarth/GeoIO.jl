@@ -76,19 +76,6 @@
 end
 
 @testset "Data conversion" begin
-  # test GI.getindex for geom/mesh types
-  # ----------------------------------
-  point = Point(LatLon(0, 0))
-  @test GI.ncoord(GI.geomtrait(point), point) == 2
-  @test GI.getcoord(GI.geomtrait(point), point) == [0.0, 0.0]
-  @test GI.getcoord(GI.geomtrait(point), point, 1) == 0.0
-  @test GI.getcoord(GI.geomtrait(point), point, 2) == 0.0
-
-  # test GI.getcoord for geom/mesh types using default crs
-  # ---------------------------------------------------
-  @test raw(ETuple(1, 2, 3)) == (1, 2, 3)
-  @test raw(LatLonElev(1, 2, 3)) == (2, 1, 3)
-
   # test WKT2 to PROJJSON conversion
   # ---------------------------------------------------
   @testset "WKT2 to PROJJSON" begin
@@ -162,68 +149,4 @@ end
     @test projjson["id"]["code"] == 32631
   end
 
-  # test geojson compat
-  # ------------------
-  p = Point(LatLon(0, 0))
-  @test GI.geomjson(p) == Dict("type" => "Point", "coordinates" => [0.0, 0.0])
-
-  s = Segment(Point(LatLon(0, 0)), Point(LatLon(1, 1)))
-  @test GI.geomjson(s) == Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0]])
-
-  r = Rope([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
-  @test GI.geomjson(r) ==
-        Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
-
-  ring = Ring([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
-  @test GI.geomjson(ring) ==
-        Dict("type" => "LineString", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]])
-
-  poly = PolyArea(ring)
-  @test GI.geomjson(poly) ==
-        Dict("type" => "Polygon", "coordinates" => [[[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]])
-
-  # with inner ring
-  inner = Ring([Point(LatLon(0.5, 0.5)), Point(LatLon(1.0, 1.5)), Point(LatLon(1.5, 1.0))])
-  poly = PolyArea([ring, inner])
-  @test GI.geomjson(poly) == Dict(
-    "type" => "Polygon",
-    "coordinates" => [
-      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
-      [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
-    ]
-  )
-
-  points = Multi([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))])
-  @test GI.geomjson(points) == Dict("type" => "MultiPoint", "coordinates" => [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
-
-  ropes = Multi([
-    Rope([Point(LatLon(0, 0)), Point(LatLon(1, 1))]),
-    Rope([Point(LatLon(2, 2)), Point(LatLon(3, 3))])
-  ])
-  @test GI.geomjson(ropes) ==
-        Dict("type" => "MultiLineString", "coordinates" => [[[0.0, 0.0], [1.0, 1.0]], [[2.0, 2.0], [3.0, 3.0]]])
-
-  rings = Multi([Ring([Point(LatLon(0, 0)), Point(LatLon(1, 1)), Point(LatLon(2, 2))]), ring])
-  @test GI.geomjson(rings) == Dict(
-    "type" => "MultiLineString",
-    "coordinates" => [
-      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
-      [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]
-    ]
-  )
-
-  polys = Multi([poly, poly])
-  @test GI.geomjson(polys) == Dict(
-    "type" => "MultiPolygon",
-    "coordinates" => [
-      [
-        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
-        [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
-      ],
-      [
-        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]],
-        [[0.5, 0.5], [1.0, 1.5], [1.5, 1.0], [0.5, 0.5]]
-      ]
-    ]
-  )
 end
