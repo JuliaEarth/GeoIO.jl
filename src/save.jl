@@ -174,10 +174,24 @@ function save(fname, geotable; warn=true, kwargs...)
     else
       Identity()
     end
-    GJS.write(fname, geotable |> proj; kwargs...)
+    transformed = geotable |> proj
+    GJS.write(fname, transformed; kwargs...)
   elseif endswith(fname, ".parquet")
     CRS = crs(domain(geotable))
-    GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
+    # Get proper JSON representation of the CRS for GeoParquet
+    json = projjson(CRS)
+    
+    # If we couldn't get a valid PROJJSON, create a coordinate reference system with
+    # the same CRS type but without trying to match coordinates
+    if isnothing(json)
+      @warn """
+      Failed to create PROJJSON for the coordinate system.
+      Saving GeoParquet file with minimal CRS information.
+      """
+    end
+    
+    # Save the GeoParquet file with the CRS information
+    GPQ.write(fname, geotable, (:geometry,), json; kwargs...)
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end

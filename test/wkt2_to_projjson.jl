@@ -6,8 +6,8 @@ using JSON3
 @testset "WKT2 to PROJJSON conversion" begin
   # Test different CRS types
   
-  # Test LatLon with WGS84
-  crs = LatLon{WGS84}
+  # Test LatLon with WGS84Latest (using correct type)
+  crs = LatLon{WGS84Latest}
   wkt2_str = CoordRefSystems.wkt2(crs)
   projjson_str = GeoIO.wkt2_to_projjson(wkt2_str)
   projjson = JSON3.read(projjson_str)
@@ -17,8 +17,8 @@ using JSON3
   @test projjson["datum"]["ellipsoid"]["name"] == "WGS 84"
   @test projjson["coordinate_system"]["subtype"] == "ellipsoidal"
   
-  # Test UTM projection
-  crs = UTM{32, WGS84, :north}
+  # Test UTM projection with correct type references
+  crs = UTM{32,WGS84Latest,:north}
   wkt2_str = CoordRefSystems.wkt2(crs)
   projjson_str = GeoIO.wkt2_to_projjson(wkt2_str)
   projjson = JSON3.read(projjson_str)
@@ -103,7 +103,8 @@ using JSON3
   @test projjson["components"][2]["type"] == "VerticalCRS"
   @test projjson["components"][2]["name"] == "EGM96 height"
   
-  # Test comparison with GDAL
+  # Test comparison with GDAL - wrapped in try/catch to avoid test failures
+  # when GDAL is not available
   @testset "Compare with GDAL output" begin
     # Only run if GDAL is available
     try
@@ -124,8 +125,8 @@ using JSON3
         @test our_json["id"]["authority"] == gdal_json["id"]["authority"]
         @test our_json["id"]["code"] == gdal_json["id"]["code"]
       end
-    catch
-      @info "GDAL comparison tests skipped (GDAL not available)"
+    catch e
+      @info "GDAL comparison tests skipped" exception=e
     end
   end
 end 

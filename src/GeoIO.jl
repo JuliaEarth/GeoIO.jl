@@ -138,4 +138,13 @@ include("save.jl")
 # precompile popular formats
 include("precompile.jl")
 
+# Export WKT2 to PROJJSON conversion function
+export wkt2_to_projjson
+
+# Export raw function used in conversion.jl
+export raw
+
+# Export geojson function
+export geojson
+
 end

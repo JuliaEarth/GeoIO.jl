@@ -90,7 +90,7 @@ end
         ANGLEUNIT["degree",0.0174532925199433]]
     """
     
-    projjson_str = wkt2_to_projjson(wkt2_str)
+    projjson_str = GeoIO.wkt2_to_projjson(wkt2_str)
     projjson = JSON3.read(projjson_str)
     
     @test projjson["type"] == "GeographicCRS"
@@ -137,7 +137,7 @@ end
       ID["EPSG",32631]]
     """
     
-    projjson_str = wkt2_to_projjson(wkt2_str)
+    projjson_str = GeoIO.wkt2_to_projjson(wkt2_str)
     projjson = JSON3.read(projjson_str)
     
     @test projjson["type"] == "ProjectedCRS"

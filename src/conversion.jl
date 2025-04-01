@@ -20,7 +20,7 @@ GI.geomtrait(::MultiPolygon) = GI.MultiPolygonTrait()
 GI.crs(geom::Geometry) = gicrs(crs(geom))
 
 GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
-GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(raw(coords(p)))
+GI.getcoord(::GI.PointTrait, p::Point) = collect(ustrip.(raw(coords(p))))
 GI.getcoord(trait::GI.PointTrait, p::Point, i) = GI.getcoord(trait, p)[i]
 
 raw(coords::CRS) = coords.x, coords.y
@@ -54,6 +54,83 @@ function gicrs(CRS)
   catch
     nothing
   end
+end
+
+# Implement GI.geojson for Geometry
+GI.geojson(geom::Geometry) = GI.geojson(geom, GI.geomtrait(geom))
+
+# Add implementation for GI.geomjson
+GI.geomjson(geom::Geometry) = GI.geomjson(geom, GI.geomtrait(geom))
+
+# convert tuple coordinates to vector format required by GeoJSON
+tuplevec(t) = collect(t)
+
+# Point
+function GI.geomjson(p::Point, ::GI.PointTrait)
+    coords = tuplevec(GI.getcoord(GI.PointTrait(), p))
+    Dict("type" => "Point", "coordinates" => coords)
+end
+
+# Segment/Line
+function GI.geomjson(s::Segment, ::GI.LineTrait)
+    coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.LineTrait(), s, i)))
+              for i in 1:GI.ngeom(GI.LineTrait(), s)]
+    Dict("type" => "LineString", "coordinates" => coords)
+end
+
+# Chain/LineString
+function GI.geomjson(c::Chain, ::GI.LineStringTrait)
+    coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.LineStringTrait(), c, i)))
+              for i in 1:GI.ngeom(GI.LineStringTrait(), c)]
+    Dict("type" => "LineString", "coordinates" => coords)
+end
+
+# Polygon
+function GI.geomjson(p::Polygon, ::GI.PolygonTrait)
+    rings = []
+    for i in 1:GI.ngeom(GI.PolygonTrait(), p)
+        ring = GI.getgeom(GI.PolygonTrait(), p, i)
+        coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.LineStringTrait(), ring, j)))
+                  for j in 1:GI.ngeom(GI.LineStringTrait(), ring)]
+        push!(rings, coords)
+    end
+    Dict("type" => "Polygon", "coordinates" => rings)
+end
+
+# MultiPoint
+function GI.geomjson(mp::MultiPoint, ::GI.MultiPointTrait)
+    coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.MultiPointTrait(), mp, i)))
+              for i in 1:GI.ngeom(GI.MultiPointTrait(), mp)]
+    Dict("type" => "MultiPoint", "coordinates" => coords)
+end
+
+# MultiRope/MultiLineString
+function GI.geomjson(mr::Multi, ::GI.MultiLineStringTrait)
+    lines = []
+    for i in 1:GI.ngeom(GI.MultiLineStringTrait(), mr)
+        line = GI.getgeom(GI.MultiLineStringTrait(), mr, i)
+        coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.LineStringTrait(), line, j)))
+                  for j in 1:GI.ngeom(GI.LineStringTrait(), line)]
+        push!(lines, coords)
+    end
+    Dict("type" => "MultiLineString", "coordinates" => lines)
+end
+
+# MultiPolygon
+function GI.geomjson(mp::MultiPolygon, ::GI.MultiPolygonTrait)
+    polys = []
+    for i in 1:GI.ngeom(GI.MultiPolygonTrait(), mp)
+        poly = GI.getgeom(GI.MultiPolygonTrait(), mp, i)
+        rings = []
+        for j in 1:GI.ngeom(GI.PolygonTrait(), poly)
+            ring = GI.getgeom(GI.PolygonTrait(), poly, j)
+            coords = [tuplevec(GI.getcoord(GI.PointTrait(), GI.getgeom(GI.LineStringTrait(), ring, k)))
+                      for k in 1:GI.ngeom(GI.LineStringTrait(), ring)]
+            push!(rings, coords)
+        end
+        push!(polys, rings)
+    end
+    Dict("type" => "MultiPolygon", "coordinates" => polys)
 end
 
 # --------------------------------------

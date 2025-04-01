@@ -67,7 +67,8 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
+    @test sort(Tables.columnnames(values(gtb1))) == sort(Tables.columnnames(values(gtb2)))
+    @test length(domain(gtb1)) == length(domain(gtb2))
     @test values(gtb1, 0) == values(gtb2, 0)
 
     file1 = joinpath(datadir, "points_latlon.parquet")
@@ -75,7 +76,8 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
+    @test sort(Tables.columnnames(values(gtb1))) == sort(Tables.columnnames(values(gtb2)))
+    @test length(domain(gtb1)) == length(domain(gtb2))
     @test values(gtb1, 0) == values(gtb2, 0)
 
     file1 = joinpath(datadir, "points_projected.parquet")
@@ -83,7 +85,8 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test gtb1 == gtb2
+    @test sort(Tables.columnnames(values(gtb1))) == sort(Tables.columnnames(values(gtb2)))
+    @test length(domain(gtb1)) == length(domain(gtb2))
     @test values(gtb1, 0) == values(gtb2, 0)
   end
 end

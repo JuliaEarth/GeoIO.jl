@@ -629,3 +629,12 @@ function projjson(CRS)
     nothing
   end
 end
+
+function geojson(CRS)
+  try
+    code = CoordRefSystems.code(CRS)
+    GFT.GeoJSON(CoordRefSystems.wkt2(code))
+  catch
+    nothing
+  end
+end
