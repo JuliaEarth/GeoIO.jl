@@ -18,7 +18,7 @@
       @testset "EPSG:$code" begin
         # Test with multiline=false
         projjson1 = gdalprojjsonstring(EPSG{code})
-        projjson2 = juliaprojjsonstring(EPSG{code})
+        projjson2 = GeoIO.projjsonstring(EPSG{code})
         
         # Parse and normalize the JSON structures for comparison
         normalized1 = normalize_json_for_comparison(projjson1)
@@ -29,7 +29,7 @@
         
         # Test with multiline=true - check that they're valid
         projjson1 = gdalprojjsonstring(EPSG{code}, multiline=true)
-        projjson2 = juliaprojjsonstring(EPSG{code}, multiline=true)
+        projjson2 = GeoIO.projjsonstring(EPSG{code}, multiline=true)
         
         @test isvalidprojjson(projjson1)
         @test isvalidprojjson(projjson2)
@@ -40,7 +40,7 @@
   @testset "Schema Validation" begin
     for code in codes
       @testset "EPSG:$code" begin
-        projjson = juliaprojjsonstring(EPSG{code})
+        projjson = GeoIO.projjsonstring(EPSG{code})
         @test isvalidprojjson(projjson)
       end
     end

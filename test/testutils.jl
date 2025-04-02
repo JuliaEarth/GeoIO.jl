@@ -23,12 +23,6 @@ function gdalprojjsonstring(code; multiline=false)
   unsafe_string(wktptr[])
 end
 
-# New Julia implementation
-function juliaprojjsonstring(code; multiline=false)
-  wkt2str = CoordRefSystems.wkt2(code)
-  GeoIO.wkt2toprojjson(wkt2str, multiline=multiline)
-end
-
 # Helper function to validate PROJJSON against schema
 function isvalidprojjson(jsonstr)
   try
