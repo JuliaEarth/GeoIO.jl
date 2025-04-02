@@ -26,7 +26,7 @@ end
 # New Julia implementation
 function juliaprojjsonstring(code; multiline=false)
   wkt2str = CoordRefSystems.wkt2(code)
-  wkt2toprojjson(wkt2str, multiline=multiline)
+  GeoIO.wkt2toprojjson(wkt2str, multiline=multiline)
 end
 
 # Helper function to validate PROJJSON against schema
