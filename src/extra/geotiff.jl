@@ -136,17 +136,12 @@ function _morphological(metadata)
 end
 
 function _affine(metadata)
-  params = GeoTIFF.affineparams2D(metadata)
-  if isnothing(params)
+  A, b = GeoTIFF.affineparams2D(metadata)
+  # check if Affine is an Identity
+  if A == SA[1 0; 0 1] && b == SA[0, 0]
     Identity()
   else
-    A, b = params
-    # check if Affine is an Identity
-    if A == SA[1 0; 0 1] && b == SA[0, 0]
-      Identity()
-    else
-      Affine(A, b)
-    end
+    Affine(A, b)
   end
 end
 
