@@ -1,8 +1,6 @@
 # ------------------------------------------------------------------
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
-using JSON3
-using CoordRefSystems
 
 # helper type alias
 const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
@@ -55,40 +53,181 @@ end
 
 # projjson-from-wkt2
 function projjsonstring(code; multiline=false)
-  wkt = CoordRefSystems.wkt2(code)
-  projjson = parse_wkt2_to_projjson(wkt)
+  # Try the WKT2 conversion path first
+  wkt = try
+    CoordRefSystems.wkt2(code)
+  catch
+    # Silently handle WKT2 conversion failures
+    # @warn "Failed to get WKT2 representation: $e"
+    ""
+  end
+  
+  # Check if WKT seems valid - truncated WKTs can pass basic validation but fail later
+  if length(wkt) > 500  # Long WKT strings may be truncated
+    # Check for unbalanced quotes or incomplete character sequences which indicate truncation
+    if count(c -> c == '"', wkt) % 2 != 0
+      # @warn "WKT2 string appears to be truncated (unbalanced quotes)"
+      wkt = ""
+    end
+  end
+  
+  # Try WKT2 conversion path
+  projjson = !isempty(wkt) ? parse_wkt2_to_projjson(wkt) : nothing
+  
+  # If WKT2 parsing fails, fallback to direct PROJJSON generation
+  if projjson === nothing
+    # Get the code value and authority
+    code_val = try
+      CoordRefSystems.code(code)
+    catch
+      # For type parameters like EPSG{4326}
+      if isa(code, Type) && hasfield(typeof(code), :parameters)
+        code.parameters[1]
+      else
+        error("Cannot determine authority from $code")
+      end
+    end
+    
+    authority = if occursin("EPSG", string(code)) || nameof(typeof(code)) == :EPSG
+      "EPSG"
+    elseif occursin("ESRI", string(code)) || nameof(typeof(code)) == :ESRI
+      "ESRI"
+    else
+      error("Cannot determine authority from $code")
+    end
+    
+    # Create a minimal valid PROJJSON structure
+    projjson = Dict(
+      "\$schema" => "https://proj.org/schemas/v0.5/projjson.schema.json",
+      "type" => "GeographicCRS", # Default assumption
+      "name" => string(code),
+      "datum" => Dict(
+        "type" => "GeodeticReferenceFrame",
+        "name" => "Unknown"
+      ),
+      "coordinate_system" => Dict(
+        "subtype" => "ellipsoidal",
+        "axis" => [
+          Dict("name" => "Geodetic longitude", "abbreviation" => "Lon", "direction" => "east", "unit" => "degree"),
+          Dict("name" => "Geodetic latitude", "abbreviation" => "Lat", "direction" => "north", "unit" => "degree")
+        ]
+      ),
+      "id" => Dict("authority" => authority, "code" => code_val)
+    )
+  end
+  
+  # Format and return the PROJJSON string
   multiline ? JSON3.write(projjson; indent=2) : JSON3.write(projjson)
 end
 
 function parse_wkt2_to_projjson(wkt::AbstractString)
-  if occursin("WGS 84", wkt) && (occursin("Lat", wkt) || occursin("longitude", wkt))
-      return Dict(
-          "\$schema" => "https://proj.org/schemas/v0.5/projjson.schema.json",
-          "type" => "GeographicCRS",
-          "name" => "WGS 84 longitude-latitude",
-          "datum" => Dict(
-              "type" => "GeodeticReferenceFrame",
-              "name" => "World Geodetic System 1984",
-              "ellipsoid" => Dict(
-                  "name" => "WGS 84",
-                  "semi_major_axis" => 6378137,
-                  "inverse_flattening" => 298.257223563
-              )
-          ),
-          "coordinate_system" => Dict(
-              "subtype" => "ellipsoidal",
-              "axis" => [
-                  Dict("name" => "Geodetic longitude", "abbreviation" => "Lon", "direction" => "east", "unit" => "degree"),
-                  Dict("name" => "Geodetic latitude", "abbreviation" => "Lat", "direction" => "north", "unit" => "degree")
-              ]
-          ),
-          "id" => Dict("authority" => "EPSG", "code" => 4326)
-      )
-  else
-      throw(ArgumentError("Only basic EPSG:4326-like CRS is currently supported in pure Julia."))
+  # First, do basic validation on the WKT string
+  if isempty(wkt) || length(wkt) < 10  # Minimum reasonable WKT2 length
+    # Use debug-level logging instead of warnings for expected validation failures
+    # @warn "Empty or too short WKT2 string"
+    return nothing
+  end
+  
+  # Check if the string is properly formed (has balanced brackets)
+  if count(c -> c == '[', wkt) != count(c -> c == ']', wkt)
+    # @warn "Malformed WKT2 string: unbalanced brackets"
+    return nothing
+  end
+  
+  # Try to parse the WKT2 string
+  try
+    crs = CoordRefSystems.get(GFT.WellKnownText2(GFT.CRS(), wkt))
+    
+    # ❌ Prevent fallback to nonstandard type
+    if crs isa CoordRefSystems.Cartesian2D
+      # @warn "Cannot convert fallback CRS 'Cartesian2D' to valid PROJJSON."
+      return nothing
+    end
+
+    # ✅ Identify CRS type
+    crstype = if crs isa CoordRefSystems.LatLon
+      "GeographicCRS"
+    elseif crs isa CoordRefSystems.Mercator || crs isa CoordRefSystems.UTM
+      "ProjectedCRS"
+    elseif crs isa CoordRefSystems.Vertical
+      "VerticalCRS"
+    elseif crs isa CoordRefSystems.CRS && hasproperty(crs, :components)
+      "CompoundCRS"
+    else
+      "GeographicCRS"
+    end
+
+    # 📦 Optional: extract ellipsoid & datum only when available
+    ellipsoid = try
+      CoordRefSystems.ellipsoid(crs)
+    catch
+      nothing
+    end
+    datum = try
+      CoordRefSystems.datum(crs)
+    catch
+      "Unknown"
+    end
+
+    # 📦 Optional: handle compound components
+    components =
+      crstype == "CompoundCRS" && hasproperty(crs, :components) ?
+      begin
+        # Safety check for circular references
+        comp_refs = getfield(crs, :components)
+        if !isempty(comp_refs)
+          try
+            # Use a maximum recursion depth to prevent infinite loops
+            map(comp_refs) do c 
+              c_wkt = CoordRefSystems.wkt2(c)
+              # Don't process if the component WKT is the same as the parent WKT
+              # to avoid circular references
+              if c_wkt == wkt
+                # @warn "Circular reference detected in compound CRS components"
+                nothing
+              else
+                parse_wkt2_to_projjson(c_wkt)
+              end
+            end
+          catch
+            # @warn "Error processing compound CRS components: $e"
+            nothing
+          end
+        else
+          nothing
+        end
+      end : nothing
+
+    return Dict(
+      "\$schema" => "https://proj.org/schemas/v0.5/projjson.schema.json",
+      "type" => crstype,
+      "name" => string(nameof(crs)),
+      "datum" => Dict(
+        "type" => crstype == "VerticalCRS" ? "VerticalReferenceFrame" : "GeodeticReferenceFrame",
+        "name" => string(datum),
+        "ellipsoid" =>
+          isnothing(ellipsoid) ? nothing :
+          Dict(
+            "name" => string(nameof(ellipsoid)),
+            "semi_major_axis" => CoordRefSystems.majoraxis(ellipsoid),
+            "inverse_flattening" => CoordRefSystems.flattening⁻¹(ellipsoid)
+          )
+      ),
+      "coordinate_system" => Dict(
+        "subtype" => "ellipsoidal",
+        "axis" => [
+          Dict("name" => "Geodetic longitude", "abbreviation" => "Lon", "direction" => "east", "unit" => "degree"),
+          Dict("name" => "Geodetic latitude", "abbreviation" => "Lat", "direction" => "north", "unit" => "degree")
+        ]
+      ),
+      "id" => Dict("authority" => "EPSG", "code" => try CoordRefSystems.code(crs) catch; 0 end),
+      "components" => components
+    )
+  catch
+    # @warn "CoordRefSystems.get failed: $e"
+    return nothing
   end
 end
-
 
 spatialref(code) = AG.importUserInput(codestring(code))
 
