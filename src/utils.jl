@@ -2,6 +2,8 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+include("wkt2_parser.jl")
+
 # helper type alias
 const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
 const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
@@ -52,11 +54,8 @@ function uniquenames(names, newnames)
 end
 
 function projjsonstring(code; multiline=false)
-  spref = spatialref(code)
-  wktptr = Ref{Cstring}()
-  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
-  GDAL.osrexporttoprojjson(spref, wktptr, options)
-  unsafe_string(wktptr[])
+  wkt2str = CoordRefSystems.wkt2(code)
+  wkt2toprojjson(wkt2str, multiline=multiline)
 end
 
 spatialref(code) = AG.importUserInput(codestring(code))
@@ -84,11 +83,81 @@ end
 
 function projjson(CRS)
   try
-    code = CoordRefSystems.code(CRS)
-    jsonstr = projjsonstring(code)
+    wkt2str = CoordRefSystems.wkt2(CRS)
+    jsonstr = wkt2toprojjson(wkt2str)
     json = JSON3.read(jsonstr, Dict)
     GFT.ProjJSON(json)
-  catch
+  catch e
+    @warn "Failed to convert to PROJJSON: $e"
     nothing
   end
+end
+
+# Helper function to determine the coordinate system subtype based on axis count and direction
+function determinecsstype(axis_matches)
+  # No axes defined
+  if isempty(axis_matches)
+    return "unknown"
+  end
+  
+  # Count axes
+  num_axes = length(axis_matches)
+  
+  # Extract directions
+  directions = [lowercase(m.captures[2]) for m in axis_matches]
+  
+  # Handle common cases
+  if num_axes == 2 || num_axes == 3
+    # Check for typical Cartesian system
+    if all(d in ["east", "north", "up"] for d in directions) || 
+       all(d in ["west", "south", "down"] for d in directions) ||
+       all(d in ["south", "west", "down"] for d in directions) ||
+       all(d in ["north", "east", "up"] for d in directions)
+      return "Cartesian"
+    end
+    
+    # Check for ellipsoidal system
+    if all(d in ["north", "east", "up"] for d in directions) ||
+       all(d in ["south", "west", "down"] for d in directions) ||
+       all(d in ["latitude", "longitude", "height"] for d in directions) ||
+       all(d in ["longitude", "latitude", "height"] for d in directions)
+      return "ellipsoidal"
+    end
+  end
+  
+  # Single axis cases
+  if num_axes == 1
+    direction = directions[1]
+    if direction in ["up", "down", "height", "depth"]
+      return "vertical"
+    elseif direction in ["future", "past"]
+      return "temporal"
+    end
+  end
+  
+  # Default to cartesian if we can't determine
+  return "Cartesian"
+end
+
+# Extract CS subtype directly from the WKT string if specified
+function extractcstype(wkt2str)
+  # Try to find explicit CS type
+  cs_type_match = match(r"CS\[\"([^\"]+)\"", wkt2str)
+  if cs_type_match !== nothing
+    cs_type = cs_type_match.captures[1]
+    # Map WKT CS types to PROJJSON subtypes
+    type_map = Dict(
+      "Cartesian" => "Cartesian",
+      "ellipsoidal" => "ellipsoidal",
+      "vertical" => "vertical",
+      "Spherical" => "spherical",
+      "ordinal" => "ordinal",
+      "parametric" => "parametric",
+      "temporal" => "temporal"
+    )
+    return get(type_map, cs_type, lowercase(cs_type))
+  end
+  
+  # If not found, return nothing and let caller use axis-based determination
+  return nothing
 end
