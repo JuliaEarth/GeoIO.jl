@@ -2,7 +2,6 @@
     WKT2 AST parser for coordinate reference systems
 """
 
-using JSON3
 
 # Abstract type for all WKT2 nodes
 abstract type WKT2Node end
