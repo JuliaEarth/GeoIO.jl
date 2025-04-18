@@ -98,6 +98,7 @@ end
 function read_number(l::Lexer)
   start_pos = l.position
   has_decimal = false
+  has_exponent = false
   
   # Handle sign
   if peek(l) == '-' || peek(l) == '+'
@@ -118,11 +119,31 @@ function read_number(l::Lexer)
     end
   end
   
+  # Handle scientific notation (e or E)
+  if lowercase(peek(l)) == 'e'
+    has_exponent = true
+    advance(l)
+    # Handle exponent sign
+    if peek(l) == '-' || peek(l) == '+'
+      advance(l)
+    end
+    # Read exponent digits
+    while isdigit(peek(l))
+      advance(l)
+    end
+  end
+  
   num_str = l.input[start_pos:l.position-1]
-  if has_decimal
+  # Always parse as Float64 if exponent or decimal is present
+  if has_exponent || has_decimal
     (parse(Float64, num_str), false)
   else
-    (parse(Int64, num_str), true)
+    # Try parsing as Int64 first, fall back to Float64 if too large or contains exponent implicitly
+    try
+        (parse(Int64, num_str), true)
+    catch
+        (parse(Float64, num_str), false)
+    end
   end
 end
 
@@ -308,7 +329,7 @@ function geogcrs_to_json(node::WKT2Object)
       elseif arg.keyword == "AXIS"
         if !haskey(json, "coordinate_system")
           json["coordinate_system"] = Dict{String,Any}(
-            "subtype" => "ellipsoidal",
+            "subtype" => "Ellipsoidal",
             "axis" => []
           )
         end
@@ -403,8 +424,13 @@ end
 
 function cs_to_json(node::WKT2Object)
   subtype = node_to_json(node.args[1])
-  # Ensure first letter is capitalized
-  subtype = uppercasefirst(lowercase(subtype))
+  # Ensure correct casing based on common subtypes
+  subtype_lower = lowercase(subtype)
+  if subtype_lower == "cartesian"
+      subtype = "Cartesian" # Capitalize Cartesian
+  else
+      subtype = subtype_lower # Keep others lowercase (like ellipsoidal)
+  end
   
   cs = Dict{String,Any}(
     "subtype" => subtype,
@@ -564,7 +590,6 @@ function basegeogcrs_to_json(node::WKT2Object)
   name = node_to_json(node.args[1])
   
   base_crs = Dict{String,Any}(
-    "type" => "GeographicCRS",
     "name" => name
   )
   
@@ -605,7 +630,7 @@ function basegeogcrs_to_json(node::WKT2Object)
   # If CS was not defined explicitly, create it from collected axes/unit
   elseif !isempty(axes_list)
       cs = Dict{String,Any}(
-          "subtype" => "Ellipsoidal", # Default for BASEGEOGCRS axes, ensure capitalized
+          "subtype" => "ellipsoidal", # Use lowercase for the default ellipsoidal
           "axis" => axes_list
       )
       # Apply temp unit if available and axes don't have units
@@ -621,7 +646,7 @@ function basegeogcrs_to_json(node::WKT2Object)
   # If CS was not defined AND no axes were found, add a default ellipsoidal CS
   else
       base_crs["coordinate_system"] = Dict{String,Any}(
-          "subtype" => "Ellipsoidal",
+          "subtype" => "ellipsoidal", # Use lowercase for the default ellipsoidal
           "axis" => [
               Dict{String,Any}(
                   "name" => "Geodetic latitude",
@@ -682,7 +707,12 @@ end
 function parameter_to_json(node::WKT2Object)
   name = node_to_json(node.args[1])
   value = node_to_json(node.args[2])
-  
+
+  # Round float values to reduce minor precision differences
+  if value isa Float64
+      value = round(value, digits=12)
+  end
+
   param = Dict{String,Any}(
     "name" => name,
     "value" => value
