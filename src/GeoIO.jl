@@ -11,6 +11,7 @@ using Unitful
 using GeoTables
 using StaticArrays
 using PrettyTables
+using PROJ_jll
 using CoordRefSystems
 using Meshes: SubDomain
 using Format: generate_formatter

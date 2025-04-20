@@ -1,3 +1,9 @@
+function load_reference_projjson(path)
+  open(path) do io
+    JSON3.read(io, Dict)
+  end
+end
+
 @testset "GeoParquet" begin
   @testset "load" begin
     gtb = GeoIO.load(joinpath(datadir, "points.parquet"))
@@ -85,5 +91,21 @@
     gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
+  end
+
+  @testset "ProjJSON Golden Output" begin
+    gtb_latlon = GeoIO.load(joinpath(datadir, "points_latlon.parquet"))
+    CRS_latlon = crs(domain(gtb_latlon))
+    json_new_latlon = GeoIO.projjson(CRS_latlon)
+    @test json_new_latlon !== nothing
+    dict_new_latlon = GFT.val(json_new_latlon)
+
+    ref_dict = load_reference_projjson(joinpath(datadir, "projjson_epsg4326.json"))
+
+    if dict_new_latlon == ref_dict
+      @test true
+    else
+      @test false
+    end
   end
 end

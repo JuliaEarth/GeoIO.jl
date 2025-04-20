@@ -177,7 +177,8 @@ function save(fname, geotable; warn=true, kwargs...)
     GJS.write(fname, geotable |> proj; kwargs...)
   elseif endswith(fname, ".parquet")
     CRS = crs(domain(geotable))
-    GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
+    proj_metadata = projjson(CRS)
+    GPQ.write(fname, geotable, (:geometry,), proj_metadata; kwargs...)
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end

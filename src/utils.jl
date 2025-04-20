@@ -52,11 +52,21 @@ function uniquenames(names, newnames)
 end
 
 function projjsonstring(code; multiline=false)
-  spref = spatialref(code)
-  wktptr = Ref{Cstring}()
-  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
-  GDAL.osrexporttoprojjson(spref, wktptr, options)
-  unsafe_string(wktptr[])
+  # generate the WKT2 string
+  wkt2str = CoordRefSystems.wkt2(code)
+  # create a PROJ context
+  ctx = ccall((:proj_context_create, PROJ_jll.libproj), Ptr{Cvoid}, ())
+  # create the CRS object from WKT2
+  crs_ptr = ccall((:proj_create, PROJ_jll.libproj), Ptr{Cvoid}, (Ptr{Cvoid}, Cstring), ctx, wkt2str)
+  # export to PROJJSON
+  json_ptr = ccall((:proj_as_projjson, PROJ_jll.libproj), Ptr{Cchar}, (Ptr{Cvoid}, Ptr{Cvoid}, Int32), ctx, crs_ptr, 0)
+  json_str = unsafe_string(json_ptr)
+  # free PROJ-allocated string
+  ccall(:free, Cvoid, (Ptr{Cvoid},), json_ptr)
+  ccall((:proj_context_destroy, PROJ_jll.libproj), Cvoid, (Ptr{Cvoid},), ctx)
+  # parse and reserialize to control multiline formatting
+  json_dict = JSON3.read(json_str, Dict)
+  multiline ? JSON3.write(json_dict; indent=2) : JSON3.write(json_dict)
 end
 
 spatialref(code) = AG.importUserInput(codestring(code))

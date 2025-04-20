@@ -10,7 +10,9 @@ using Colors
 using Dates
 using Unitful
 import ReadVTK
+import JSON3
 import GeoInterface as GI
+import GeoFormatTypes as GFT
 import Shapefile as SHP
 import ArchGDAL as AG
 import GeoJSON as GJS
