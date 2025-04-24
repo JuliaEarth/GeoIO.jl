@@ -113,6 +113,7 @@ function formats(io::IO=stdout; sortby::Symbol=:extension)
 end
 
 include("utils.jl")
+include("wkt2json.jl")
 
 # conversions
 include("conversion.jl")
