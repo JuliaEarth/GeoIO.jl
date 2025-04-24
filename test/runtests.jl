@@ -11,6 +11,7 @@ using Dates
 using Unitful
 using JSON3
 using JSONSchema
+using DeepDiffs
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
@@ -40,6 +41,8 @@ end
 testfiles = [
   "jsonutils.jl",
   "projjson.jl",
+  "io/images.jl",
+  "io/stl.jl",
   "io/obj.jl",
   "io/off.jl",
   "io/msh.jl",

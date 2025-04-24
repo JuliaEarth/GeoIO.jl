@@ -32,6 +32,12 @@ crs_structs = [(code = c, wktdict = w, type = t) for (c, w, t) in zip(epsgcodes,
     
     @test_broken isvalidprojjson(ourjson)
     
+    gdaljson = gdalprojjsondict(EPSG{crs.code})
+    diff = test_diff_json(gdaljson, ourjson)
+    res = @test_broken isempty(diff)
+    # if res isa Test.Fail 
+      # diff_json(gdaljson, ourjson) |> show
+    # end
   end
   
 end
