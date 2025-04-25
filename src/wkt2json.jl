@@ -34,14 +34,89 @@ function wktdict2jsondict_geog(wkt::Dict)
   jsondict["type"] = "GeographicCRS"
   jsondict["name"] = wkt[:GEOGCRS][1]
   
+  ## DESIGN
+  # there are two types of datum entries
+  gen_datum = wktdict2jsondict_gen_datum(wkt[:GEOGCRS][2])
+  jsondict[gen_datum[1]] = gen_datum[2]
   # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
-  jsondict["datum_ensemble"] = wktdict2jsondict_ensemble(wkt[:GEOGCRS][2])
-  
+
   # decision, either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
-  # jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
+  jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
     
   jsondict["id"] = wktdict2jsondict_id(wkt[:GEOGCRS][end])
-  # return Dict(:root => jsondict)  
+  return jsondict
+end
+
+function wktdict2jsondict_cs(wkt::Dict)
+    # Initialize coordinate system dictionary
+    cs_dict = Dict{String, Any}()
+    
+    # Get CS type (ellipsoidal, cartesian, etc.)
+    cs_type = wkt[:GEOGCRS][3][:CS][1]
+    cs_dict["subtype"] = string(cs_type)
+    cs_dict["axis"] = []
+    
+    # Get AXIS entries from the WKT
+    axis_entries = get_items_with_key(:AXIS, wkt[:GEOGCRS])
+    
+    for axis in axis_entries
+        axis_dict = Dict{String, Any}()
+        
+        # Parse axis name and abbreviation
+        name_parts = split(axis[:AXIS][1], " (")
+        axis_dict["name"] = name_parts[1]
+        axis_dict["abbreviation"] = strip(name_parts[2], ')')
+        
+        # Get direction
+        axis_dict["direction"] = string(lowercase(string(axis[:AXIS][2])))
+        
+        # Get unit from the ANGLEUNIT or LENGTHUNIT entry
+        # In your example, it's after the AXIS entries
+        unit_entry = get_items_with_key(:ANGLEUNIT, wkt[:GEOGCRS])
+        if !isempty(unit_entry)
+            axis_dict["unit"] = unit_entry[1][:ANGLEUNIT][1]
+        end
+        
+        push!(cs_dict["axis"], axis_dict)
+    end
+    
+    return cs_dict
+end
+
+function wktdict2jsondict_gen_datum(wkt::Dict)#::(String, Dict)
+  if wkt |> get_main_key == :ENSEMBLE
+    return ("datum_ensemble", wktdict2jsondict_long_datum(wkt))
+  elseif wkt |> get_main_key == :DATUM
+    return ("datum", wktdict2jsondict_short_datum(wkt))
+  end
+end
+
+function wktdict2jsondict_long_datum(wkt::Dict)
+  # schema: "required" : [ "name", "members", "accuracy" ],
+  
+  @assert wkt |> keys |> collect == [:ENSEMBLE]
+  jsondict = Dict{String, Any}()
+  jsondict["name"] = wkt[:ENSEMBLE][1]
+  
+  jsondict["members"] = []
+  members = get_items_with_key(:MEMBER, wkt[:ENSEMBLE])
+  for m in members
+    mdict = Dict{String, Any}()
+    mdict["name"] = m[:MEMBER][1]
+    mdict["id"] = wktdict2jsondict_id(m[:MEMBER][2])
+    push!(jsondict["members"], mdict)
+  end
+  
+  ## TODO: potentially another version of get_items_with_key to avoid redundancy 
+  acc_elems = get_items_with_key(:ENSEMBLEACCURACY, wkt[:ENSEMBLE])[1]
+  jsondict["accuracy"] = string(float(acc_elems[:ENSEMBLEACCURACY][1]))
+  
+  ell_elems = get_items_with_key(:ELLIPSOID, wkt[:ENSEMBLE])
+  if !isempty(ell_elems) 
+    jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])["ellipsoid"]
+  end
+  jsondict["id"] = wktdict2jsondict_id(wkt[:ENSEMBLE][end])
+  
   return jsondict
 end
 
@@ -60,25 +135,6 @@ function wktdict2jsondict_id(id_dict::Dict)::Dict
   jsondict = Dict{String, Any}() # "list" of key value pairs
   jsondict["authority"] = id_dict[:ID][1]
   jsondict["code"] = id_dict[:ID][2]
-  return jsondict
-end
-
-function wktdict2jsondict_ensemble(wkt::Dict)
-  @assert wkt |> keys |> collect == [:ENSEMBLE]
-  jsondict = Dict{String, Any}()
-  jsondict["name"] = wkt[:ENSEMBLE][1]
-  
-  members = get_items_with_key(:MEMBER, wkt[:ENSEMBLE])
-  jsondict["members"] = []
-  for m in members
-    mdict = Dict{String, Any}()
-    mdict["name"] = m[:MEMBER][1]
-    mdict["id"] = wktdict2jsondict_id(m[:MEMBER][2])
-    push!(jsondict["members"], mdict)
-  end
-  
-  jsondict["id"] = wktdict2jsondict_id(wkt[:ENSEMBLE][end])
-  
   return jsondict
 end
 
