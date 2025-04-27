@@ -51,12 +51,9 @@ function uniquenames(names, newnames)
   end
 end
 
-function projjsonstring(code; multiline=false)
-  spref = spatialref(code)
-  wktptr = Ref{Cstring}()
-  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
-  GDAL.osrexporttoprojjson(spref, wktptr, options)
-  unsafe_string(wktptr[])
+function projjsonstring(code)
+  wkt_string = CoordRefSystems.wkt2(code)
+  WKTStringToPROJJSONString.wkt_string_to_projjson_string(wkt_string)
 end
 
 spatialref(code) = AG.importUserInput(codestring(code))
