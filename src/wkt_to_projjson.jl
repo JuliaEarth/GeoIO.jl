@@ -656,7 +656,7 @@ end
 # TODO: implement `Base.iterate` as a performance optimization
 end
 
-module WKTParseTreeRootedUtil
+module WKTParseTreeUtil
 export get_wkt_keyword,
   get_wkt_number, get_wkt_quoted_text, destructure_wkt_parse_tree, parse_tree_is_wkt_keyword_with_delimited_list
 using ..ParseTrees, ..WKTGrammarSymbolKinds, ..WKTKeywordKinds, ..WKTTokens, ..WKTParseTreeRootedListIterators
@@ -1035,7 +1035,7 @@ using ..ParseTrees,
   ..WKTGrammarSymbolKinds,
   ..WKTTokens,
   ..WKTKeywordKinds,
-  ..WKTParseTreeRootedUtil
+  ..WKTParseTreeUtil
 const json_terminal_symbols = (
   JSONGrammarSymbolKinds.number,
   JSONGrammarSymbolKinds.keyword,
