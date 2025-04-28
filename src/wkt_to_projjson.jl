@@ -127,10 +127,13 @@ end
 Unparse `tree` to `io`.
 """
 function unparse(io::IO, tree::ParseTreeRooted)
+  unparse(Base.Fix1(print, io), tree)
+end
+function unparse(print_token::PrTok, tree::ParseTreeRooted) where {PrTok}
   if parse_node_is_terminal(tree)
-    print(io, parse_node_to_token(tree))
+    print_token(parse_node_to_token(tree))
   else
-    foreach(Base.Fix1(unparse, io), parse_node_children(tree))
+    foreach(Base.Fix1(unparse, print_token), parse_node_children(tree))
   end
   nothing
 end
