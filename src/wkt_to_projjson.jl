@@ -122,13 +122,10 @@ function terminal_symbol_given_token!(
   terminal_symbol
 end
 """
-    unparse(io::IO, tree::ParseTreeRooted)::Nothing
+    unparse(print_token, tree::ParseTreeRooted)::Nothing
 
-Unparse `tree` to `io`.
+Unparse `tree`, calling `print_token(token)` for each token.
 """
-function unparse(io::IO, tree::ParseTreeRooted)
-  unparse(Base.Fix1(print, io), tree)
-end
 function unparse(print_token::PrTok, tree::ParseTreeRooted) where {PrTok}
   if parse_node_is_terminal(tree)
     print_token(parse_node_to_token(tree))
@@ -319,35 +316,6 @@ struct JSONToken
   end
   global function new_pair_element_separator()
     new(JSONGrammarSymbolKinds.pair_element_separator)
-  end
-end
-function Base.print(io::IO, token::JSONToken)
-  k = token.kind
-  if k == JSONGrammarSymbolKinds.quoted_text
-    print(io, '"')  # TODO: implement JSON string escaping properly instead
-    print(io, token.payload)
-    print(io, '"')
-  elseif k ∈ (JSONGrammarSymbolKinds.number, JSONGrammarSymbolKinds.keyword)
-    print(io, token.payload)
-  else
-    let
-      c = if k == JSONGrammarSymbolKinds.dictionary_delimiter_left
-        '{'
-      elseif k == JSONGrammarSymbolKinds.dictionary_delimiter_right
-        '}'
-      elseif k == JSONGrammarSymbolKinds.list_delimiter_left
-        '['
-      elseif k == JSONGrammarSymbolKinds.list_delimiter_right
-        ']'
-      elseif k == JSONGrammarSymbolKinds.list_element_separator
-        ','
-      elseif k == JSONGrammarSymbolKinds.pair_element_separator
-        ':'
-      else
-        throw(ArgumentError("unrecognized grammar symbol kind"))
-      end::Char
-      print(io, c)
-    end
   end
 end
 end
@@ -1766,11 +1734,43 @@ end
 
 module WKTStringToPROJJSONString
 export wkt_string_to_projjson_string
-using ..ParseTrees, ..WKTLexing, ..WKTParsing, ..WKTTreeToPROJJSONTree
+using ..ParseTrees, ..JSONGrammarSymbolKinds, ..JSONTokens, ..WKTLexing, ..WKTParsing, ..WKTTreeToPROJJSONTree
+function print_json_token(io::IO, token::JSONToken)
+  k = token.kind
+  if k == JSONGrammarSymbolKinds.quoted_text
+    print(io, '"')  # TODO: implement JSON string escaping properly instead
+    print(io, token.payload)
+    print(io, '"')
+  elseif k ∈ (JSONGrammarSymbolKinds.number, JSONGrammarSymbolKinds.keyword)
+    print(io, token.payload)
+  else
+    let
+      c = if k == JSONGrammarSymbolKinds.dictionary_delimiter_left
+        '{'
+      elseif k == JSONGrammarSymbolKinds.dictionary_delimiter_right
+        '}'
+      elseif k == JSONGrammarSymbolKinds.list_delimiter_left
+        '['
+      elseif k == JSONGrammarSymbolKinds.list_delimiter_right
+        ']'
+      elseif k == JSONGrammarSymbolKinds.list_element_separator
+        ','
+      elseif k == JSONGrammarSymbolKinds.pair_element_separator
+        ':'
+      else
+        throw(ArgumentError("unrecognized grammar symbol kind"))
+      end::Char
+      print(io, c)
+    end
+  end
+end
+function unparse_json(io::IO, tree::ParseTreeRooted{JSONGrammarSymbolKind,JSONToken})
+  unparse(Base.Fix1(print_json_token, io), tree)
+end
 function wkt_string_to_projjson_string(wkt::String)
   tokens = lex_wkt(wkt)
   wkt_tree = parse_wkt(tokens)
   json_tree = wkt_tree_to_projjson_tree(wkt_tree)
-  sprint(unparse, json_tree)
+  sprint(unparse_json, json_tree)
 end
 end
