@@ -1359,6 +1359,55 @@ function wkt_tree_to_projjson_tree_unit!(
     end
   end::ParseTreeNodeIdentity
 end
+function wkt_tree_to_projjson_tree_id!(
+  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+)
+  (kw, list) = destructure_wkt_parse_tree(tree_wkt)
+  if kw != WKTKeywordKinds.identifier
+    throw(ArgumentError("expected identifier"))
+  end
+  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  (simple_nodes, _) = partition(list)
+  (tree_wkt_name, simple_nodes_1) = Iterators.peel(simple_nodes)
+  dictionary["authority"] = add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_name))
+  (tree_wkt_code, _) = Iterators.peel(simple_nodes_1)
+  tree_wkt_code_kind = parse_node_symbol_kind(tree_wkt_code)
+  dictionary["code"] = if tree_wkt_code_kind == WKTGrammarSymbolKinds.number
+    add_number_to_graph!(graph, get_wkt_number(tree_wkt_code))
+  elseif tree_wkt_code_kind == WKTGrammarSymbolKinds.quoted_text
+    add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_code))
+  else
+    throw(ArgumentError("expected number or quoted text"))
+  end
+  assemble!(graph, dictionary)
+end
+function add_ids_filtered_to_dictionary!(
+  dictionary::AbstractDict{String,ParseTreeNodeIdentity},
+  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  trees_wkt
+)
+  trees_wkt_iter = Iterators.peel(trees_wkt)
+  if trees_wkt_iter !== nothing
+    let (tree_wkt_1, rest) = trees_wkt_iter
+      rest_iter = Iterators.peel(rest)
+      if rest_iter === nothing
+        dictionary["id"] = wkt_tree_to_projjson_tree_id!(graph, tree_wkt_1)
+      else
+        dictionary["ids"] = wkt_trees_to_projjson_tree!(wkt_tree_to_projjson_tree_id!, graph, trees_wkt)
+      end
+    end
+  end
+  nothing
+end
+function add_ids_to_dictionary!(
+  dictionary::AbstractDict{String,ParseTreeNodeIdentity},
+  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  list
+)
+  trees = Iterators.filter(Base.Fix2(named_list_has_keyword_kind, WKTKeywordKinds.identifier), list)
+  add_ids_filtered_to_dictionary!(dictionary, graph, trees)
+end
 function wkt_tree_to_projjson_tree_map_projection_method!(
   graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
   tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
@@ -1683,6 +1732,7 @@ function wkt_tree_to_projjson_tree_crs_geodetic!(
       dictionary["coordinate_system"] = wkt_tree_to_projjson_tree_coordinate_system!(graph, wkt_cs, wkt_axes)
     end
   end
+  add_ids_to_dictionary!(dictionary, graph, kw_with_list_nodes)
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_crs_projected!(
@@ -1710,6 +1760,7 @@ function wkt_tree_to_projjson_tree_crs_projected!(
   )
   wkt_axes = Iterators.filter(Base.Fix2(named_list_has_keyword_kind, WKTKeywordKinds.axis), kw_with_list_nodes)
   dictionary["coordinate_system"] = wkt_tree_to_projjson_tree_coordinate_system!(graph, wkt_cs, wkt_axes)
+  add_ids_to_dictionary!(dictionary, graph, kw_with_list_nodes)
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_crs!(
