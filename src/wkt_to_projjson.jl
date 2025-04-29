@@ -259,6 +259,9 @@ mutable struct JSONGrammarSymbolKind
   end
 end
 function Base.show(io::IO, kind::JSONGrammarSymbolKind)
+  if !haskey(kind_to_name, kind)
+    throw(ArgumentError("unrecognized grammar symbol kind"))
+  end
   print_qualified(io, kind_to_name[kind], @__MODULE__)
 end
 const number = JSONGrammarSymbolKind("number")
@@ -331,6 +334,9 @@ mutable struct WKTGrammarSymbolKind
   end
 end
 function Base.show(io::IO, kind::WKTGrammarSymbolKind)
+  if !haskey(kind_to_name, kind)
+    throw(ArgumentError("unrecognized grammar symbol kind"))
+  end
   print_qualified(io, kind_to_name[kind], @__MODULE__)
 end
 const eof = WKTGrammarSymbolKind("eof")
@@ -390,6 +396,9 @@ mutable struct PROJJSONTypeKind
   end
 end
 function Base.show(io::IO, kind::PROJJSONTypeKind)
+  if !haskey(kind_to_name, kind)
+    throw(ArgumentError("unrecognized kind"))
+  end
   print_qualified(io, kind_to_name[kind], @__MODULE__)
 end
 function Base.print(io::IO, kind::PROJJSONTypeKind)
@@ -472,6 +481,9 @@ mutable struct WKTKeywordKind
   end
 end
 function Base.show(io::IO, kind::WKTKeywordKind)
+  if !haskey(kind_to_internal_name, kind)
+    throw(ArgumentError("unrecognized kind"))
+  end
   print_qualified(io, kind_to_internal_name[kind], @__MODULE__)
 end
 # * Source:
