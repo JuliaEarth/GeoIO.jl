@@ -55,9 +55,7 @@
   projjson_json_schema = JSONSchema.Schema(JSON.parsefile(joinpath(datadir, "projjson.schema.json")))
   @testset "PROJJSON JSON Schema compliance" begin
     @testset "code: $code" for code in supported_epsg_codes
-      projjson_string = GeoIO.projjsonstring(CoordRefSystems.EPSG{code})
-      projjson_json_obj = JSON.parse(projjson_string)
-      @test nothing === JSONSchema.validate(projjson_json_schema, projjson_json_obj)
+      @test isvalid(projjson_json_schema, JSON.parse(GeoIO.projjsonstring(CoordRefSystems.EPSG{code})))
     end
   end
   # TODO: more testing, compare against Proj
