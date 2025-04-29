@@ -2,17 +2,6 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-module SafeIterate
-export safe_iterate
-function safe_iterate(iterator, optional_state::Union{Tuple{},Tuple{Any}})
-  if optional_state === ()
-    iterate(iterator)
-  else
-    iterate(iterator, only(optional_state))
-  end
-end
-end
-
 module ParseTrees
 export ParseTreeNodeIdentity,
   ParseTreeRootless,
@@ -707,7 +696,7 @@ end
 
 module WKTLexing
 export lex_wkt
-using ..SafeIterate, ..WKTGrammarSymbolKinds, ..WKTTokens
+using ..WKTGrammarSymbolKinds, ..WKTTokens
 struct WKTTokenIterator{T}
   wkt_string::T
 end
@@ -745,6 +734,13 @@ Invalid value, should throw when used in any way.
 Internal to this module, observing `Poison` outside may point to a `WKTLexing` bug.
 """
 struct Poison end
+function safe_iterate(iterator, optional_state::Union{Tuple{},Tuple{Any}})
+  if optional_state === ()
+    iterate(iterator)
+  else
+    iterate(iterator, only(optional_state))
+  end
+end
 function Base.iterate(
   token_iterator::WKTTokenIterator,
   token_iterator_state::NamedTuple=(;
