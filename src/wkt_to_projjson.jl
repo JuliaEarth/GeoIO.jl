@@ -11,6 +11,7 @@ export ParseTreeNodeIdentity,
   parse_node_is_childless,
   parse_node_to_token,
   parse_node_children,
+  terminal_symbol_kind_given_token,
   terminal_symbol_given_token!,
   unparse,
   parse_strong_ll_1,
@@ -100,13 +101,19 @@ function parse_node_children(tree::ParseTreeRooted)
   end
   Iterators.map(f, children)
 end
+"""
+    terminal_symbol_kind_given_token(symbol_kind_type::Type, token)::symbol_kind_type
+
+Return the grammar symbol kind of `token`. Implement for new token types.
+"""
+function terminal_symbol_kind_given_token end
 function terminal_symbol_given_token!(
   kinds::Dict{ParseTreeNodeIdentity},
   tokens::Dict{ParseTreeNodeIdentity,Token},
   token::Token
 ) where {Token}
   terminal_symbol = ParseTreeNodeIdentity()
-  kinds[terminal_symbol] = token.kind
+  kinds[terminal_symbol] = terminal_symbol_kind_given_token(valtype(kinds), token)
   tokens[terminal_symbol] = token
   terminal_symbol
 end
@@ -143,7 +150,7 @@ function parse_strong_ll_1(
   while !isempty(stack)
     stack_top_symbol = pop!(stack)
     stack_top_symbol_kind = parse_tree_kinds[stack_top_symbol]
-    lookahead_kind = lookahead.kind
+    lookahead_kind = terminal_symbol_kind_given_token(GrammarSymbolKind, lookahead)
     if lookahead_kind == stack_top_symbol_kind
       # invariant: `!haskey(parse_tree_tokens, stack_top_symbol)`
       if haskey(parse_tree_tokens, stack_top_symbol)
@@ -278,7 +285,7 @@ end
 
 module JSONTokens
 export JSONToken
-using ..JSONGrammarSymbolKinds
+using ..JSONGrammarSymbolKinds, ..ParseTrees
 struct JSONToken
   kind::JSONGrammarSymbolKind
   payload::String
@@ -309,6 +316,9 @@ struct JSONToken
   global function new_pair_element_separator()
     new(JSONGrammarSymbolKinds.pair_element_separator)
   end
+end
+function ParseTrees.terminal_symbol_kind_given_token(::Type{JSONGrammarSymbolKind}, token::JSONToken)
+  token.kind
 end
 end
 
@@ -346,7 +356,7 @@ end
 
 module WKTTokens
 export WKTToken
-using ..WKTGrammarSymbolKinds
+using ..WKTGrammarSymbolKinds, ..ParseTrees
 struct WKTToken
   kind::WKTGrammarSymbolKind
   payload::String
@@ -371,6 +381,9 @@ struct WKTToken
   global function new_list_element_separator()
     new(WKTGrammarSymbolKinds.list_element_separator)
   end
+end
+function ParseTrees.terminal_symbol_kind_given_token(::Type{WKTGrammarSymbolKind}, token::WKTToken)
+  token.kind
 end
 end
 
@@ -1209,7 +1222,7 @@ function assemble!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, wk
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
-  wkt_token_kind = wkt_token.kind
+  wkt_token_kind = terminal_symbol_kind_given_token(WKTGrammarSymbolKind, wkt_token)
   wkt_token_payload = wkt_token.payload
   json_token = if wkt_token_kind == WKTGrammarSymbolKinds.number
     JSONTokens.new_number(wkt_token_payload)
@@ -1795,7 +1808,7 @@ module WKTStringToPROJJSONString
 export wkt_string_to_projjson_string
 using ..ParseTrees, ..JSONGrammarSymbolKinds, ..JSONTokens, ..WKTLexing, ..WKTParsing, ..WKTTreeToPROJJSONTree
 function print_json_token(io::IO, token::JSONToken)
-  k = token.kind
+  k = terminal_symbol_kind_given_token(JSONGrammarSymbolKind, token)
   if k == JSONGrammarSymbolKinds.quoted_text
     print(io, '"')  # TODO: implement JSON string escaping properly instead
     print(io, token.payload)
