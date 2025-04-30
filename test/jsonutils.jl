@@ -25,7 +25,7 @@ json_round_trip(j) = JSON3.read(j |> JSON3.write, Dict)
 
 # Diff between generated json and ArchGDAL json
 function diff_json(j1::J, j2::J) where J<:Union{Dict}
-  nonsig_keys = ["bbox", "area", "scope"]
+  nonsig_keys = ["bbox", "area", "scope", "\$schema"]
   [delete!(j1, k) for k in nonsig_keys]
   # @show j1 |> keys
   diff = deepdiff(j1, j2)
@@ -38,14 +38,20 @@ end
 function test_diff_json(j1, j2)
   diff = diff_json(j1, j2)
   all_changed_keys = [union(diff.removed, diff.added, keys(diff.changed))...]
-  isempty(all_changed_keys) && return true
+  # isempty(all_changed_keys) && return true
   return all_changed_keys
 end
 
-function debug_json(crs::Int)
-  gdaljson = gdalprojjsondict(EPSG{crs})
+# For live development. run debug_json(4275) to see differences between current and expected output
+function debug_json(crs::Int, print=true)
   wktdict = GeoIO.epsg2wktdict(crs)
+  print && wktdict |> pprint
+  println()
   jsondict = GeoIO.wktdict2jsondict(wktdict)
-  diff_json(gdaljson, jsondict)
+  gdaljson = gdalprojjsondict(EPSG{crs})
+  d = diff_json(gdaljson, jsondict)
+  print && d |> display
+  # print && jsondict |> display
+  return (wkt = wktdict, jsondict = jsondict, diff = d)
 end
 
