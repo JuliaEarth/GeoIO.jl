@@ -14,6 +14,22 @@ function get_item_with_key(key::Symbol, list::Vector)
   return isempty(found) ? nothing : found
 end
 
+function get_item_with_keys(keys::Vector{Symbol}, list::Vector)
+  found = []
+  for key in keys
+    f = get_item_with_key(key, list)
+    !isnothing(f) && push!(found, f)
+  end
+
+  if length(found) == 1
+    return found[1]
+  elseif length(found) == 0
+    return nothing
+  elseif length(found) > 1
+    error("Multiple items found for keys: $keys")
+  end
+end
+
 wktdict_crs_type(wkt::Dict) = get_main_key(wkt)
 
 ###
@@ -68,7 +84,9 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
     cs_dict = Dict{String, Any}()
 
     # Get CS type (ellipsoidal, cartesian, etc.)
-    cs_type::Symbol = wkt[geo_sub_type][3][:CS][1]
+    ## Because with DYNAMIC, CS is not at the same location
+    cs_type = get_items_with_key(:CS, wkt[geo_sub_type])[1][:CS][1]
+    # cs_type::Symbol = wkt[geo_sub_type][3][:CS][1]
     cs_dict["subtype"] = string(cs_type)
     cs_dict["axis"] = []
 
@@ -115,17 +133,34 @@ function wktdict2jsondict_get_unit(axis)
   return nothing
 end
 
-function wktdict2jsondict_gen_datum(wkt::Dict)#::(String, Dict)
-  if wkt |> get_main_key == :ENSEMBLE
-    return ("datum_ensemble", wktdict2jsondict_long_datum(wkt))
-  elseif wkt |> get_main_key == :DATUM
-    return ("datum", wktdict2jsondict_short_datum(wkt))
+function wktdict2jsondict_gen_datum(datum_wkt::Dict)#::(String, Dict)
+  name = ""
+  jsondict = Dict{String,Any}()
+  
+  dynamic = get_item_with_key(:DYNAMIC, datum_wkt[get_main_key(datum_wkt)])
+  datum_wkt = get_item_with_keys([:ENSEMBLE, :DATUM], datum_wkt[get_main_key(datum_wkt)])[1]
+  
+  if get_main_key(datum_wkt) == :ENSEMBLE
+    name = "datum_ensemble"
+    jsondict = wktdict2jsondict_long_datum(datum_wkt)
+  elseif get_main_key(datum_wkt) == :DATUM
+    name = "datum"
+    jsondict = wktdict2jsondict_short_datum(datum_wkt)
+
+    # this is here as not to ruin the encapsulation of _short_datum
+    if !isnothing(dynamic)
+      jsondict["frame_reference_epoch"] = dynamic[1][:DYNAMIC][1][:FRAMEEPOCH][1]
+      jsondict["type"] = "DynamicGeodeticReferenceFrame"
+    else
+      jsondict["type"] = "GeodeticReferenceFrame"
+    end
   # was indeed needed for few niche entries, should be exhastive
   #... its ENSEMBLE location, not [1] as expected
   else
     error("Didn't find a datum node that is either ENSEMBLE or DATUM.")
-    @show wkt
   end
+
+  return (name, jsondict)
 end
 
 function wktdict2jsondict_short_datum(wkt::Dict)
@@ -138,9 +173,7 @@ function wktdict2jsondict_short_datum(wkt::Dict)
 
   ell_elems = get_items_with_key(:ELLIPSOID, wkt[:DATUM])
   jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])["ellipsoid"] 
-
-  # Optionals
-  jsondict["type"] = "GeodeticReferenceFrame"
+  
   # Optionals, not always present
   anchor_epoch = get_items_with_key(:ANCHOREPOCH, wkt[:DATUM])
   if !isempty(anchor_epoch) 
