@@ -17,7 +17,7 @@ export SymbolGraphNodeIdentity,
   unparse,
   parse_strong_ll_1,
   parse_strong_ll_1_with_appended_eof,
-  parse_tree_validate
+  validate_symbol_graph
 mutable struct SymbolGraphNodeIdentity end
 const Vec = ((@isdefined Memory) ? Memory : Vector){SymbolGraphNodeIdentity}
 const empty_vector = Vec(undef, 0)  # used for allocation-free tree traversal and other optimizations
@@ -207,7 +207,7 @@ function parse_strong_ll_1_with_appended_eof(eof_token, parsing_table, start_sym
   tokens_with_appended_eof = Iterators.flatten((tokens, (eof_token,)))
   parse_strong_ll_1(typeof(eof_token), parsing_table, start_symbol_kind, tokens_with_appended_eof)
 end
-function parse_tree_validate(tree::SymbolGraphRootless)
+function validate_symbol_graph(tree::SymbolGraphRootless)
   kinds = tree.node_to_grammar_symbol_kind
   grammar_rules = tree.nonterminal_node_to_children
   tokens = tree.terminal_node_to_token
@@ -228,8 +228,8 @@ function parse_tree_validate(tree::SymbolGraphRootless)
   # TODO: check that the symbol graph is a tree, or at least acyclic
   tree
 end
-function parse_tree_validate(tree::SymbolGraphRooted)
-  parse_tree_validate(tree.graph)
+function validate_symbol_graph(tree::SymbolGraphRooted)
+  validate_symbol_graph(tree.graph)
   # TODO: check that each symbol graph node (symbol) is reachable from the root
   tree
 end
