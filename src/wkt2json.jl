@@ -45,15 +45,13 @@ function wktdict2jsondict_geog(wkt::Dict)
   jsondict[gen_datum[1]] = gen_datum[2]
   # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
 
-  # decision, either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
+  # DESIGN: either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
   jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
-    
   jsondict["id"] = wktdict2jsondict_id(wkt[:GEOGCRS][end])
   return jsondict
 end
 
 function wktdict2jsondict_cs(wkt::Dict)
-    # Initialize coordinate system dictionary
     cs_dict = Dict{String, Any}()
     
     # Get CS type (ellipsoidal, cartesian, etc.)
@@ -61,7 +59,6 @@ function wktdict2jsondict_cs(wkt::Dict)
     cs_dict["subtype"] = string(cs_type)
     cs_dict["axis"] = []
     
-    # Get AXIS entries from the WKT
     axis_entries = get_items_with_key(:AXIS, wkt[:GEOGCRS])
     
     for axis in axis_entries
@@ -72,20 +69,33 @@ function wktdict2jsondict_cs(wkt::Dict)
         axis_dict["name"] = name_parts[1]
         axis_dict["abbreviation"] = strip(name_parts[2], ')')
         
-        # Get direction
         axis_dict["direction"] = string(lowercase(string(axis[:AXIS][2])))
         
         # Get unit from the ANGLEUNIT or LENGTHUNIT entry
-        # In your example, it's after the AXIS entries
-        unit_entry = get_items_with_key(:ANGLEUNIT, wkt[:GEOGCRS])
-        if !isempty(unit_entry)
-            axis_dict["unit"] = unit_entry[1][:ANGLEUNIT][1]
+        unit = wktdict2jsondict_get_unit(wkt[:GEOGCRS])
+        if isnothing(unit)
+          unit = wktdict2jsondict_get_unit(axis[:AXIS])
         end
-        
+        if isnothing(unit)
+          # TODO: is unit required, enumrate possible types of units
+          error("Could not find a UNIT node")
+        end
+        axis_dict["unit"] = unit[1]
         push!(cs_dict["axis"], axis_dict)
     end
     
     return cs_dict
+end
+
+
+# takes a parent node and returns the ANGLEUNIT or LENGTHUNIT child node
+function wktdict2jsondict_get_unit(axis)
+  # One-and-only-one
+  unit_entry = get_item_with_key(:ANGLEUNIT, axis)
+  !isnothing(unit_entry) && return unit_entry[1][:ANGLEUNIT]
+  unit_entry = get_item_with_key(:LENGTHUNIT, axis)
+  !isnothing(unit_entry) && return unit_entry[1][:LENGTHUNIT]
+  return nothing
 end
 
 function wktdict2jsondict_gen_datum(wkt::Dict)#::(String, Dict)
