@@ -201,7 +201,7 @@ function parse_strong_ll_1(
     end
   end
   # TODO: add another error check here?
-  parse_tree_validate(ParseTreeRooted(start_symbol, graph))
+  ParseTreeRooted(start_symbol, graph)
 end
 function parse_strong_ll_1_with_appended_eof(eof_token, parsing_table, start_symbol_kind, tokens)
   tokens_with_appended_eof = Iterators.flatten((tokens, (eof_token,)))
@@ -1821,7 +1821,7 @@ end
 function wkt_tree_to_projjson_tree(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
   graph = ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}()
   root = wkt_tree_to_projjson_tree_crs!(graph, tree_wkt)
-  parse_tree_validate(ParseTreeRooted(root, graph))
+  ParseTreeRooted(root, graph)
 end
 end
 
