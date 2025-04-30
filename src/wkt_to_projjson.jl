@@ -4,6 +4,7 @@
 
 module ParseTrees
 export ParseTreeNodeIdentity,
+  make_node_vec,
   ParseTreeRootless,
   ParseTreeRooted,
   parse_node_symbol_kind,
@@ -20,6 +21,23 @@ export ParseTreeNodeIdentity,
 mutable struct ParseTreeNodeIdentity end
 const Vec = ((@isdefined Memory) ? Memory : Vector){ParseTreeNodeIdentity}
 const empty_vector = Vec(undef, 0)  # used for allocation-free tree traversal and other optimizations
+function make_node_vec(elements::Vararg{ParseTreeNodeIdentity})
+  len = length(elements)
+  if iszero(len)
+    # invariant: `isempty(ParseTrees.empty_vector)`
+    if !isempty(empty_vector)
+      throw(ArgumentError("`empty_vector` not empty"))
+    end
+    empty_vector
+  else
+    let vec = Vec(undef, len)
+      for i ∈ eachindex(elements)
+        vec[i] = elements[i]
+      end
+      vec
+    end
+  end::Vec
+end
 struct ParseTreeRootless{GrammarSymbolKind,Token}
   node_to_grammar_symbol_kind::Dict{ParseTreeNodeIdentity,GrammarSymbolKind}
   nonterminal_node_to_children::Dict{ParseTreeNodeIdentity,Vec}
@@ -93,11 +111,7 @@ function parse_node_children(tree::ParseTreeRooted)
     ParseTreeRooted(root, graph)
   end
   children = if parse_node_is_childless(tree)
-    # invariant: `isempty(ParseTrees.empty_vector)`
-    if !isempty(empty_vector)
-      throw(ArgumentError("`empty_vector` not empty"))
-    end
-    empty_vector
+    make_node_vec()
   else
     grammar_rules[tree.root]
   end
@@ -1165,7 +1179,6 @@ function assemble!(
   collection,
   dictionary_instead_of_list::Bool=false
 )
-  # invariant: `isempty(ParseTrees.empty_vector)`
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
@@ -1198,7 +1211,7 @@ function assemble!(
           [incomplete_list]
         end
       else
-        ParseTrees.empty_vector
+        make_node_vec()
       end
       once = true
       nonempty_list = ParseTreeNodeIdentity()
@@ -1212,7 +1225,7 @@ function assemble!(
     if once
       [nonempty_list::ParseTreeNodeIdentity]
     else
-      ParseTrees.empty_vector
+      make_node_vec()
     end
   end
   nonterminal_symbol_value!(kinds, grammar_rules, nonterminal_symbol_delimited!(graph, list))
@@ -1286,8 +1299,7 @@ function add_value_and_unit_to_graph!(
   kinds[nonempty_dictionary2] = JSONGrammarSymbolKinds.nonempty_dictionary
   kinds[dictionary] = JSONGrammarSymbolKinds.dictionary
   grammar_rules[incomplete_dictionary] = [list_element_separator, nonempty_dictionary1]
-  # invariant: `isempty(ParseTrees.empty_vector)`
-  grammar_rules[optional_incomplete_dictionary1] = ParseTrees.empty_vector
+  grammar_rules[optional_incomplete_dictionary1] = make_node_vec()
   grammar_rules[optional_incomplete_dictionary2] = [incomplete_dictionary]
   grammar_rules[nonempty_dictionary1] = [pair1, optional_incomplete_dictionary1]
   grammar_rules[nonempty_dictionary2] = [pair2, optional_incomplete_dictionary2]
