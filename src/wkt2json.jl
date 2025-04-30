@@ -23,9 +23,10 @@ wktdict_crs_type(wkt::Dict) = get_main_key(wkt)
 function wktdict2jsondict(wkt::Dict)
   type = get_main_key(wkt)
   if type == :GEOGCRS
-    return wktdict2jsondict_geog(wkt)
+    return wktdict2jsondict_geog(wkt, :GEOGCRS)
   elseif type == :GEODCRS
-    error("Unimplemented CRS type: $type")
+    return wktdict2jsondict_geog(wkt, :GEODCRS)
+    # error("Unimplemented CRS type: $type")
   elseif type == :PROJCRS
     error("Unimplemented CRS type: $type")
   else
@@ -33,60 +34,76 @@ function wktdict2jsondict(wkt::Dict)
   end
 end
 
-function wktdict2jsondict_geog(wkt::Dict)
-  @assert wkt |> keys |> collect == [:GEOGCRS]
+function wktdict2jsondict_geog(wkt::Dict, geo_sub_type::Symbol)
+  @assert wkt |> keys |> collect == [geo_sub_type]
   jsondict = Dict{String, Any}()
-  jsondict["type"] = "GeographicCRS"
-  jsondict["name"] = wkt[:GEOGCRS][1]
   
+  # exhastive enums please cryface
+  jsondict["type"] = 
+    if geo_sub_type == :GEOGCRS
+      "GeographicCRS"
+    elseif geo_sub_type == :GEODCRS
+      "GeodeticCRS"
+    else
+      error("Should be unreachable.")
+    end
+  
+  jsondict["name"] = wkt[geo_sub_type][1]
+
   ## DESIGN
   # there are two types of datum entries
-  gen_datum = wktdict2jsondict_gen_datum(wkt[:GEOGCRS][2])
+  gen_datum = wktdict2jsondict_gen_datum(wkt[geo_sub_type][2])
   jsondict[gen_datum[1]] = gen_datum[2]
   # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
 
   # DESIGN: either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
-  jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
-  jsondict["id"] = wktdict2jsondict_id(wkt[:GEOGCRS][end])
+  jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, geo_sub_type)
+  jsondict["id"] = wktdict2jsondict_id(wkt[geo_sub_type][end])
   return jsondict
 end
 
-function wktdict2jsondict_cs(wkt::Dict)
+function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
+  # "required" : [ "subtype", "axis" ],
+
     cs_dict = Dict{String, Any}()
-    
+
     # Get CS type (ellipsoidal, cartesian, etc.)
-    cs_type = wkt[:GEOGCRS][3][:CS][1]
+    cs_type::Symbol = wkt[geo_sub_type][3][:CS][1]
     cs_dict["subtype"] = string(cs_type)
     cs_dict["axis"] = []
-    
-    axis_entries = get_items_with_key(:AXIS, wkt[:GEOGCRS])
-    
+
+    axis_entries = get_items_with_key(:AXIS, wkt[geo_sub_type])
+    length(axis_entries) > 0 || error("Axis entries are required, non are found")
+
     for axis in axis_entries
         axis_dict = Dict{String, Any}()
-        
+
         # Parse axis name and abbreviation
         name_parts = split(axis[:AXIS][1], " (")
         axis_dict["name"] = name_parts[1]
         axis_dict["abbreviation"] = strip(name_parts[2], ')')
-        
-        axis_dict["direction"] = string(lowercase(string(axis[:AXIS][2])))
-        
-        # Get unit from the ANGLEUNIT or LENGTHUNIT entry
-        unit = wktdict2jsondict_get_unit(wkt[:GEOGCRS])
+
+        axis_dict["direction"] = string(axis[:AXIS][2])
+
+        # Get unit from the CS node, then try the AXIS node if not found
+        unit = wktdict2jsondict_get_unit(wkt[geo_sub_type])
         if isnothing(unit)
           unit = wktdict2jsondict_get_unit(axis[:AXIS])
         end
         if isnothing(unit)
-          # TODO: is unit required, enumrate possible types of units
+          # TODO: is unit required? enumrate possible types of units
           error("Could not find a UNIT node")
         end
         axis_dict["unit"] = unit[1]
         push!(cs_dict["axis"], axis_dict)
     end
-    
+
     return cs_dict
 end
 
+# DESIGN: for now, print @error and return nothing, so we get both...
+## DESIGN, maybe its better to always return nothing, and be exhastive at call site, because often things are optional and we don't want to throw from child-functions
+#######
 
 # takes a parent node and returns the ANGLEUNIT or LENGTHUNIT child node
 function wktdict2jsondict_get_unit(axis)
