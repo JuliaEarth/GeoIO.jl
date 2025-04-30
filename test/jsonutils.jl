@@ -43,15 +43,16 @@ function test_diff_json(j1, j2)
 end
 
 # For live development. run debug_json(4275) to see differences between current and expected output
-function debug_json(crs::Int, print=true)
-  wktdict = GeoIO.epsg2wktdict(crs)
-  print && wktdict |> pprint
-  println()
-  jsondict = GeoIO.wktdict2jsondict(wktdict)
+function debug_json(crs::Int; print=true, gdalprint::Bool=false)
   gdaljson = gdalprojjsondict(EPSG{crs})
+  gdalprint && (@info "ArchGDAL JSON"; gdaljson |> pprintln)
+  
+  wktdict = GeoIO.epsg2wktdict(crs)
+  print && (@info "Parsed WKT"; wktdict |> pprintln)
+  
+  jsondict = GeoIO.wktdict2jsondict(wktdict)
   d = diff_json(gdaljson, jsondict)
   print && d |> display
-  # print && jsondict |> display
-  return (wkt = wktdict, jsondict = jsondict, diff = d)
+  return (wkt = wktdict, gdaljson = gdaljson, diff = d)
 end
 
