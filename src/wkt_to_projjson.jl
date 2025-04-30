@@ -268,11 +268,18 @@ end
 module JSONGrammarSymbolKinds
 export JSONGrammarSymbolKind
 using ..KindConstruction, ..QualifiedPrinting
-mutable struct JSONGrammarSymbolKind
+struct JSONGrammarSymbolKind
+  opaque::UInt8
   const global kind_to_name = Dict{JSONGrammarSymbolKind,String}()
   const global name_to_kind = Dict{String,JSONGrammarSymbolKind}()
+  next_opaque::UInt8 = 0x0
+  function constructor_helper()
+    opaque = next_opaque
+    next_opaque = Base.checked_add(opaque, oftype(opaque, 1))
+    new(opaque)
+  end
   function JSONGrammarSymbolKind(name::String)
-    construct_kind((() -> new()), kind_to_name, name_to_kind, name)
+    construct_kind(constructor_helper, kind_to_name, name_to_kind, name)
   end
 end
 function Base.show(io::IO, kind::JSONGrammarSymbolKind)
@@ -346,11 +353,18 @@ end
 module WKTGrammarSymbolKinds
 export WKTGrammarSymbolKind
 using ..KindConstruction, ..QualifiedPrinting
-mutable struct WKTGrammarSymbolKind
+struct WKTGrammarSymbolKind
+  opaque::UInt8
   const global kind_to_name = Dict{WKTGrammarSymbolKind,String}()
   const global name_to_kind = Dict{String,WKTGrammarSymbolKind}()
+  next_opaque::UInt8 = 0x0
+  function constructor_helper()
+    opaque = next_opaque
+    next_opaque = Base.checked_add(opaque, oftype(opaque, 1))
+    new(opaque)
+  end
   function WKTGrammarSymbolKind(name::String)
-    construct_kind((() -> new()), kind_to_name, name_to_kind, name)
+    construct_kind(constructor_helper, kind_to_name, name_to_kind, name)
   end
 end
 function Base.show(io::IO, kind::WKTGrammarSymbolKind)
@@ -411,11 +425,18 @@ end
 module PROJJSONTypeKinds
 export PROJJSONTypeKind
 using ..KindConstruction, ..QualifiedPrinting
-mutable struct PROJJSONTypeKind
+struct PROJJSONTypeKind
+  opaque::UInt8
   const global kind_to_name = Dict{PROJJSONTypeKind,String}()
   const global name_to_kind = Dict{String,PROJJSONTypeKind}()
+  next_opaque::UInt8 = 0x0
+  function constructor_helper()
+    opaque = next_opaque
+    next_opaque = Base.checked_add(opaque, oftype(opaque, 1))
+    new(opaque)
+  end
   function PROJJSONTypeKind(name::String)
-    construct_kind((() -> new()), kind_to_name, name_to_kind, name)
+    construct_kind(constructor_helper, kind_to_name, name_to_kind, name)
   end
 end
 function Base.show(io::IO, kind::PROJJSONTypeKind)
@@ -470,11 +491,18 @@ end
 module WKTKeywordKinds
 export WKTKeywordKind
 using ..QualifiedPrinting
-mutable struct WKTKeywordKind
+struct WKTKeywordKind
+  opaque::UInt8
   const global kind_to_names = Dict{WKTKeywordKind,Set{String}}()
   const global name_to_kind = Dict{String,WKTKeywordKind}()
   const global kind_to_internal_name = Dict{WKTKeywordKind,String}()
   const global internal_name_to_kind = Dict{String,WKTKeywordKind}()
+  next_opaque::UInt8 = 0x0
+  function constructor_helper()
+    opaque = next_opaque
+    next_opaque = Base.checked_add(opaque, oftype(opaque, 1))
+    new(opaque)
+  end
   function WKTKeywordKind(internal_name::String, names_vec::Vector{String})
     if !allunique(names_vec)
       throw(ArgumentError("duplicate names detected"))
@@ -492,7 +520,7 @@ mutable struct WKTKeywordKind
     if any(Base.Fix1(any, !islowercase), names)
       throw(ArgumentError("WKT keyword not normalized to lowercase"))
     end
-    kind = new()
+    kind = constructor_helper()
     kind_to_names[kind] = names
     function f(name::String)
       name_to_kind[name] = kind
