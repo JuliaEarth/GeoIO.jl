@@ -92,6 +92,7 @@ function parse_node_children(tree::ParseTreeRooted)
     ParseTreeRooted(root, graph)
   end
   children = if parse_node_is_childless(tree)
+    # invariant: `isempty(ParseTrees.empty_vector)`
     if !isempty(empty_vector)
       throw(ArgumentError("`empty_vector` not empty"))
     end
@@ -1163,6 +1164,7 @@ function assemble!(
   collection,
   dictionary_instead_of_list::Bool=false
 )
+  # invariant: `isempty(ParseTrees.empty_vector)`
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
@@ -1283,6 +1285,7 @@ function add_value_and_unit_to_graph!(
   kinds[nonempty_dictionary2] = JSONGrammarSymbolKinds.nonempty_dictionary
   kinds[dictionary] = JSONGrammarSymbolKinds.dictionary
   grammar_rules[incomplete_dictionary] = [list_element_separator, nonempty_dictionary1]
+  # invariant: `isempty(ParseTrees.empty_vector)`
   grammar_rules[optional_incomplete_dictionary1] = ParseTrees.empty_vector
   grammar_rules[optional_incomplete_dictionary2] = [incomplete_dictionary]
   grammar_rules[nonempty_dictionary1] = [pair1, optional_incomplete_dictionary1]
