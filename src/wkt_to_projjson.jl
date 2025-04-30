@@ -24,7 +24,7 @@ const empty_vector = Vec(undef, 0)  # used for allocation-free tree traversal an
 function make_node_vec(elements::Vararg{ParseTreeNodeIdentity})
   len = length(elements)
   if iszero(len)
-    # invariant: `isempty(ParseTrees.empty_vector)`
+    # invariant: `isempty(empty_vector)`
     if !isempty(empty_vector)
       throw(ArgumentError("`empty_vector` not empty"))
     end
