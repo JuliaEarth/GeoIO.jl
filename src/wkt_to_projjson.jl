@@ -2,11 +2,11 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-module ParseTrees
-export ParseTreeNodeIdentity,
+module SymbolGraphs
+export SymbolGraphNodeIdentity,
   make_node_vec,
-  ParseTreeRootless,
-  ParseTreeRooted,
+  SymbolGraphRootless,
+  SymbolGraphRooted,
   parse_node_symbol_kind,
   parse_node_is_terminal,
   parse_node_is_childless,
@@ -18,10 +18,10 @@ export ParseTreeNodeIdentity,
   parse_strong_ll_1,
   parse_strong_ll_1_with_appended_eof,
   parse_tree_validate
-mutable struct ParseTreeNodeIdentity end
-const Vec = ((@isdefined Memory) ? Memory : Vector){ParseTreeNodeIdentity}
+mutable struct SymbolGraphNodeIdentity end
+const Vec = ((@isdefined Memory) ? Memory : Vector){SymbolGraphNodeIdentity}
 const empty_vector = Vec(undef, 0)  # used for allocation-free tree traversal and other optimizations
-function make_node_vec(elements::Vararg{ParseTreeNodeIdentity})
+function make_node_vec(elements::Vararg{SymbolGraphNodeIdentity})
   len = length(elements)
   if iszero(len)
     # invariant: `isempty(empty_vector)`
@@ -38,41 +38,41 @@ function make_node_vec(elements::Vararg{ParseTreeNodeIdentity})
     end
   end::Vec
 end
-struct ParseTreeRootless{GrammarSymbolKind,Token}
-  node_to_grammar_symbol_kind::Dict{ParseTreeNodeIdentity,GrammarSymbolKind}
-  nonterminal_node_to_children::Dict{ParseTreeNodeIdentity,Vec}
-  terminal_node_to_token::Dict{ParseTreeNodeIdentity,Token}
-  function ParseTreeRootless{GrammarSymbolKind,Token}() where {GrammarSymbolKind,Token}
-    kinds = Dict{ParseTreeNodeIdentity,GrammarSymbolKind}()
-    rules = Dict{ParseTreeNodeIdentity,Vec}()
-    tokens = Dict{ParseTreeNodeIdentity,Token}()
+struct SymbolGraphRootless{GrammarSymbolKind,Token}
+  node_to_grammar_symbol_kind::Dict{SymbolGraphNodeIdentity,GrammarSymbolKind}
+  nonterminal_node_to_children::Dict{SymbolGraphNodeIdentity,Vec}
+  terminal_node_to_token::Dict{SymbolGraphNodeIdentity,Token}
+  function SymbolGraphRootless{GrammarSymbolKind,Token}() where {GrammarSymbolKind,Token}
+    kinds = Dict{SymbolGraphNodeIdentity,GrammarSymbolKind}()
+    rules = Dict{SymbolGraphNodeIdentity,Vec}()
+    tokens = Dict{SymbolGraphNodeIdentity,Token}()
     new{GrammarSymbolKind,Token}(kinds, rules, tokens)
   end
 end
-struct ParseTreeRooted{GrammarSymbolKind,Token}
-  root::ParseTreeNodeIdentity
-  graph::ParseTreeRootless{GrammarSymbolKind,Token}
-  function ParseTreeRooted(
-    root::ParseTreeNodeIdentity,
-    graph::ParseTreeRootless{GrammarSymbolKind,Token}
+struct SymbolGraphRooted{GrammarSymbolKind,Token}
+  root::SymbolGraphNodeIdentity
+  graph::SymbolGraphRootless{GrammarSymbolKind,Token}
+  function SymbolGraphRooted(
+    root::SymbolGraphNodeIdentity,
+    graph::SymbolGraphRootless{GrammarSymbolKind,Token}
   ) where {GrammarSymbolKind,Token}
     new{GrammarSymbolKind,Token}(root, graph)
   end
 end
 """
-    parse_node_symbol_kind(::ParseTreeRooted)
+    parse_node_symbol_kind(::SymbolGraphRooted)
 
 Returns the kind of the root node as a grammar symbol.
 """
-function parse_node_symbol_kind(tree::ParseTreeRooted)
+function parse_node_symbol_kind(tree::SymbolGraphRooted)
   tree.graph.node_to_grammar_symbol_kind[tree.root]
 end
 """
-    parse_node_is_terminal(::ParseTreeRooted)::Bool
+    parse_node_is_terminal(::SymbolGraphRooted)::Bool
 
 Predicate, tells if the (root) node of the parse tree is a terminal symbol.
 """
-function parse_node_is_terminal(tree::ParseTreeRooted)
+function parse_node_is_terminal(tree::SymbolGraphRooted)
   yes = haskey(tree.graph.terminal_node_to_token, tree.root)::Bool
   no = haskey(tree.graph.nonterminal_node_to_children, tree.root)::Bool
   if yes == no
@@ -81,34 +81,34 @@ function parse_node_is_terminal(tree::ParseTreeRooted)
   yes
 end
 """
-    parse_node_is_childless(::ParseTreeRooted)::Bool
+    parse_node_is_childless(::SymbolGraphRooted)::Bool
 
 Predicate, tells if the (root) node of the parse tree is a leaf node/childless.
 """
-function parse_node_is_childless(tree::ParseTreeRooted)
+function parse_node_is_childless(tree::SymbolGraphRooted)
   parse_node_is_terminal(tree) || isempty(tree.graph.nonterminal_node_to_children[tree.root])
 end
 """
-    parse_node_to_token(::ParseTreeRooted)
+    parse_node_to_token(::SymbolGraphRooted)
 
 Returns the token of a terminal symbol.
 """
-function parse_node_to_token(tree::ParseTreeRooted)
+function parse_node_to_token(tree::SymbolGraphRooted)
   if !parse_node_is_terminal(tree)
     throw(ArgumentError("root node is not a terminal"))
   end
   tree.graph.terminal_node_to_token[tree.root]
 end
 """
-    parse_node_children(::ParseTreeRooted)
+    parse_node_children(::SymbolGraphRooted)
 
-Returns an iterator of `ParseTreeRooted` elements.
+Returns an iterator of `SymbolGraphRooted` elements.
 """
-function parse_node_children(tree::ParseTreeRooted)
+function parse_node_children(tree::SymbolGraphRooted)
   graph = tree.graph
   grammar_rules = graph.nonterminal_node_to_children
-  function f(root::ParseTreeNodeIdentity)
-    ParseTreeRooted(root, graph)
+  function f(root::SymbolGraphNodeIdentity)
+    SymbolGraphRooted(root, graph)
   end
   children = if parse_node_is_childless(tree)
     make_node_vec()
@@ -124,21 +124,21 @@ Return the grammar symbol kind of `token`. Implement for new token types.
 """
 function terminal_symbol_kind_given_token end
 function terminal_symbol_given_token!(
-  kinds::Dict{ParseTreeNodeIdentity},
-  tokens::Dict{ParseTreeNodeIdentity,Token},
+  kinds::Dict{SymbolGraphNodeIdentity},
+  tokens::Dict{SymbolGraphNodeIdentity,Token},
   token::Token
 ) where {Token}
-  terminal_symbol = ParseTreeNodeIdentity()
+  terminal_symbol = SymbolGraphNodeIdentity()
   kinds[terminal_symbol] = terminal_symbol_kind_given_token(valtype(kinds), token)
   tokens[terminal_symbol] = token
   terminal_symbol
 end
 """
-    unparse(print_token, tree::ParseTreeRooted)::Nothing
+    unparse(print_token, tree::SymbolGraphRooted)::Nothing
 
 Unparse `tree`, calling `print_token(token)` for each token.
 """
-function unparse(print_token::PrTok, tree::ParseTreeRooted) where {PrTok}
+function unparse(print_token::PrTok, tree::SymbolGraphRooted) where {PrTok}
   if parse_node_is_terminal(tree)
     print_token(parse_node_to_token(tree))
   else
@@ -147,7 +147,7 @@ function unparse(print_token::PrTok, tree::ParseTreeRooted) where {PrTok}
   nothing
 end
 """
-    parse_strong_ll_1(::Any, ::Any, ::Any, ::Any, ::Any)::ParseTreeRooted
+    parse_strong_ll_1(::Any, ::Any, ::Any, ::Any, ::Any)::SymbolGraphRooted
 """
 function parse_strong_ll_1(
   ::Type{Token},
@@ -155,8 +155,8 @@ function parse_strong_ll_1(
   start_symbol_kind::GrammarSymbolKind,
   tokens
 ) where {GrammarSymbolKind,Token}
-  graph = ParseTreeRootless{GrammarSymbolKind,Token}()
-  start_symbol = ParseTreeNodeIdentity()
+  graph = SymbolGraphRootless{GrammarSymbolKind,Token}()
+  start_symbol = SymbolGraphNodeIdentity()
   parse_tree_kinds = graph.node_to_grammar_symbol_kind
   parse_tree_tokens = graph.terminal_node_to_token
   parse_tree_grammar_rules = graph.nonterminal_node_to_children
@@ -182,7 +182,7 @@ function parse_strong_ll_1(
         rule = parsing_table[parsing_table_key]
         child_count = length(rule)
         for nt in Iterators.reverse(rule)
-          id = ParseTreeNodeIdentity()
+          id = SymbolGraphNodeIdentity()
           parse_tree_kinds[id] = nt
           push!(stack, id)
         end
@@ -191,7 +191,7 @@ function parse_strong_ll_1(
           error("unexpected: debug")
         end
         vec_rever = Iterators.reverse(@view stack[(end - child_count + 1):end])
-        vec = collect(ParseTreeNodeIdentity, vec_rever)
+        vec = collect(SymbolGraphNodeIdentity, vec_rever)
         # invariant: `length(vec) == child_count`
         if length(vec) != child_count
           error("unexpected: debug")
@@ -201,13 +201,13 @@ function parse_strong_ll_1(
     end
   end
   # TODO: add another error check here?
-  ParseTreeRooted(start_symbol, graph)
+  SymbolGraphRooted(start_symbol, graph)
 end
 function parse_strong_ll_1_with_appended_eof(eof_token, parsing_table, start_symbol_kind, tokens)
   tokens_with_appended_eof = Iterators.flatten((tokens, (eof_token,)))
   parse_strong_ll_1(typeof(eof_token), parsing_table, start_symbol_kind, tokens_with_appended_eof)
 end
-function parse_tree_validate(tree::ParseTreeRootless)
+function parse_tree_validate(tree::SymbolGraphRootless)
   kinds = tree.node_to_grammar_symbol_kind
   grammar_rules = tree.nonterminal_node_to_children
   tokens = tree.terminal_node_to_token
@@ -228,7 +228,7 @@ function parse_tree_validate(tree::ParseTreeRootless)
   # TODO: check that the symbol graph is a tree, or at least acyclic
   tree
 end
-function parse_tree_validate(tree::ParseTreeRooted)
+function parse_tree_validate(tree::SymbolGraphRooted)
   parse_tree_validate(tree.graph)
   # TODO: check that each symbol graph node (symbol) is reachable from the root
   tree
@@ -306,7 +306,7 @@ end
 
 module JSONTokens
 export JSONToken
-using ..JSONGrammarSymbolKinds, ..ParseTrees
+using ..JSONGrammarSymbolKinds, ..SymbolGraphs
 struct JSONToken
   kind::JSONGrammarSymbolKind
   payload::String
@@ -338,7 +338,7 @@ struct JSONToken
     new(JSONGrammarSymbolKinds.pair_element_separator)
   end
 end
-function ParseTrees.terminal_symbol_kind_given_token(::Type{JSONGrammarSymbolKind}, token::JSONToken)
+function SymbolGraphs.terminal_symbol_kind_given_token(::Type{JSONGrammarSymbolKind}, token::JSONToken)
   token.kind
 end
 end
@@ -377,7 +377,7 @@ end
 
 module WKTTokens
 export WKTToken
-using ..WKTGrammarSymbolKinds, ..ParseTrees
+using ..WKTGrammarSymbolKinds, ..SymbolGraphs
 struct WKTToken
   kind::WKTGrammarSymbolKind
   payload::String
@@ -403,7 +403,7 @@ struct WKTToken
     new(WKTGrammarSymbolKinds.list_element_separator)
   end
 end
-function ParseTrees.terminal_symbol_kind_given_token(::Type{WKTGrammarSymbolKind}, token::WKTToken)
+function SymbolGraphs.terminal_symbol_kind_given_token(::Type{WKTGrammarSymbolKind}, token::WKTToken)
   token.kind
 end
 end
@@ -594,16 +594,16 @@ const vertical_crs = WKTKeywordKind("vertical_crs", ["verticalcrs", "vertcrs", "
 const vertical_extent = WKTKeywordKind("vertical_extent", ["verticalextent"])
 end
 
-module WKTParseTreeRootedListIterators
-export WKTParseTreeRootedListIterator
-using ..ParseTrees, ..WKTGrammarSymbolKinds, ..WKTTokens
-struct WKTParseTreeRootedListIterator <: AbstractVector{ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}}
-  tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
-  function WKTParseTreeRootedListIterator(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+module WKTSymbolGraphRootedListIterators
+export WKTSymbolGraphRootedListIterator
+using ..SymbolGraphs, ..WKTGrammarSymbolKinds, ..WKTTokens
+struct WKTSymbolGraphRootedListIterator <: AbstractVector{SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}}
+  tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
+  function WKTSymbolGraphRootedListIterator(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
     new(check_nonempty_list(tree))
   end
 end
-function check_nonempty_list(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function check_nonempty_list(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if parse_node_is_childless(tree)
     throw(ArgumentError("leaf node"))
   end
@@ -612,17 +612,17 @@ function check_nonempty_list(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken
   end
   tree
 end
-function nonempty_list_first_element(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function nonempty_list_first_element(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   tree = check_nonempty_list(tree)
   (list_element, _) = parse_node_children(tree)
-  only(parse_node_children(list_element))::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  only(parse_node_children(list_element))::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 end
-function nonempty_list_has_just_one_element(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function nonempty_list_has_just_one_element(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   tree = check_nonempty_list(tree)
   (_, optional_incomplete_list) = parse_node_children(tree)
   parse_node_is_childless(optional_incomplete_list)
 end
-function nonempty_list_tail(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function nonempty_list_tail(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if nonempty_list_has_just_one_element(tree)
     throw(ArgumentError("the list has just one element, no tail"))
   end
@@ -631,7 +631,7 @@ function nonempty_list_tail(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
   (_, ret) = parse_node_children(incomplete_list)
   check_nonempty_list(ret)
 end
-function nonempty_list_length(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function nonempty_list_length(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   tree = check_nonempty_list(tree)
   ret = 1
   while !nonempty_list_has_just_one_element(tree)
@@ -640,17 +640,17 @@ function nonempty_list_length(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToke
   end
   ret
 end
-function Base.length(list_iterator::WKTParseTreeRootedListIterator)
+function Base.length(list_iterator::WKTSymbolGraphRootedListIterator)
   nonempty_list_length(list_iterator.tree)
 end
-function Base.size(list_iterator::WKTParseTreeRootedListIterator)
+function Base.size(list_iterator::WKTSymbolGraphRootedListIterator)
   len = length(list_iterator)
   (len,)
 end
-function Base.IndexStyle(::Type{WKTParseTreeRootedListIterator})
+function Base.IndexStyle(::Type{WKTSymbolGraphRootedListIterator})
   IndexLinear()
 end
-function Base.getindex(list_iterator::WKTParseTreeRootedListIterator, i::Int)
+function Base.getindex(list_iterator::WKTSymbolGraphRootedListIterator, i::Int)
   checkbounds(list_iterator, i)
   tree = list_iterator.tree
   while !isone(i)
@@ -662,11 +662,11 @@ end
 # TODO: implement `Base.iterate` as a performance optimization
 end
 
-module WKTParseTreeUtil
+module WKTSymbolGraphUtil
 export get_wkt_keyword,
   get_wkt_number, get_wkt_quoted_text, destructure_wkt_parse_tree, parse_tree_is_wkt_keyword_with_delimited_list
-using ..ParseTrees, ..WKTGrammarSymbolKinds, ..WKTKeywordKinds, ..WKTTokens, ..WKTParseTreeRootedListIterators
-function get_wkt_keyword(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+using ..SymbolGraphs, ..WKTGrammarSymbolKinds, ..WKTKeywordKinds, ..WKTTokens, ..WKTSymbolGraphRootedListIterators
+function get_wkt_keyword(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if parse_node_is_childless(tree)
     throw(ArgumentError("the WKT tree is childless"))
   end
@@ -682,7 +682,7 @@ function get_wkt_keyword(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
   end
   parse_node_to_token(terminal).payload
 end
-function get_wkt_number(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function get_wkt_number(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if !parse_node_is_terminal(tree)
     throw(ArgumentError("expected a terminal symbol"))
   end
@@ -691,7 +691,7 @@ function get_wkt_number(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
   end
   parse_node_to_token(tree).payload
 end
-function get_wkt_quoted_text(terminal::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function get_wkt_quoted_text(terminal::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if !parse_node_is_terminal(terminal)
     throw(ArgumentError("expected a terminal symbol"))
   end
@@ -700,7 +700,7 @@ function get_wkt_quoted_text(terminal::ParseTreeRooted{WKTGrammarSymbolKind,WKTT
   end
   parse_node_to_token(terminal).payload
 end
-function destructure_wkt_parse_tree(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function destructure_wkt_parse_tree(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if parse_node_is_childless(tree)
     throw(ArgumentError("the WKT tree is childless"))
   end
@@ -714,10 +714,10 @@ function destructure_wkt_parse_tree(tree::ParseTreeRooted{WKTGrammarSymbolKind,W
   tree_delimited_list = only(parse_node_children(tree_optional_delimited_list))
   (_, tree_list, _) = parse_node_children(tree_delimited_list)
   name = WKTKeywordKinds.name_to_kind[get_wkt_keyword(tree)]
-  list_iterator = WKTParseTreeRootedListIterator(tree_list)
+  list_iterator = WKTSymbolGraphRootedListIterator(tree_list)
   (name, list_iterator)
 end
-function parse_tree_is_wkt_keyword_with_delimited_list(tree::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function parse_tree_is_wkt_keyword_with_delimited_list(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   (!parse_node_is_childless(tree)) &&
     (
       parse_node_symbol_kind(tree)::WKTGrammarSymbolKind == WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
@@ -970,7 +970,7 @@ end
 end
 
 module WKTParsing
-using ..ParseTrees, ..WKTGrammarSymbolKinds, ..WKTTokens
+using ..SymbolGraphs, ..WKTGrammarSymbolKinds, ..WKTTokens
 export parse_wkt
 const wkt_parsing_table = Dict{Tuple{WKTGrammarSymbolKind,WKTGrammarSymbolKind},Vector{WKTGrammarSymbolKind}}(
   (
@@ -1035,20 +1035,20 @@ function parse_wkt(tokens)
     wkt_parsing_table,
     WKTGrammarSymbolKinds.keyword_with_optional_delimited_list,
     tokens
-  )::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  )::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 end
 end
 
 module WKTTreeToPROJJSONTree
 export wkt_tree_to_projjson_tree
-using ..ParseTrees,
+using ..SymbolGraphs,
   ..JSONGrammarSymbolKinds,
   ..JSONTokens,
   ..PROJJSONTypeKinds,
   ..WKTGrammarSymbolKinds,
   ..WKTTokens,
   ..WKTKeywordKinds,
-  ..WKTParseTreeUtil
+  ..WKTSymbolGraphUtil
 const json_terminal_symbols = (
   JSONGrammarSymbolKinds.number,
   JSONGrammarSymbolKinds.keyword,
@@ -1076,19 +1076,19 @@ const json_nonterminal_symbols = (
 )
 const projjson_schema_keyword = raw"$schema"
 const projjson_schema_url = "https://proj.org/en/latest/schemas/v0.7/projjson.schema.json"
-function named_list_has_keyword_kind(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}, kind::WKTKeywordKind)
+function named_list_has_keyword_kind(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}, kind::WKTKeywordKind)
   (kw, _) = destructure_wkt_parse_tree(tree_wkt)
   kw::WKTKeywordKind == kind
 end
-function named_list_has_keyword_kind_geod_or_geog(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function named_list_has_keyword_kind_geod_or_geog(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.geographic_crs) ||
     named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.geodetic_crs)
 end
-function named_list_has_keyword_kind_map_projection_method(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function named_list_has_keyword_kind_map_projection_method(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.method) ||
     named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.map_projection_method)
 end
-function named_list_has_keyword_kind_unit(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+function named_list_has_keyword_kind_unit(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.angle_unit) ||
     named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.length_unit) ||
     named_list_has_keyword_kind(tree_wkt, WKTKeywordKinds.parametric_unit) ||
@@ -1106,9 +1106,9 @@ function partition(list)
   (simple_nodes, kw_with_list_nodes)
 end
 function nonterminal_symbol_value!(
-  kinds::Dict{ParseTreeNodeIdentity,JSONGrammarSymbolKind},
-  grammar_rules::Dict{ParseTreeNodeIdentity,<:AbstractVector{ParseTreeNodeIdentity}},
-  child::ParseTreeNodeIdentity
+  kinds::Dict{SymbolGraphNodeIdentity,JSONGrammarSymbolKind},
+  grammar_rules::Dict{SymbolGraphNodeIdentity,<:AbstractVector{SymbolGraphNodeIdentity}},
+  child::SymbolGraphNodeIdentity
 )
   if kinds[child] ∉ (
     JSONGrammarSymbolKinds.number,
@@ -1118,14 +1118,14 @@ function nonterminal_symbol_value!(
   )
     throw(ArgumentError("expected child kind to be among (number, quoted_text, delimited_list, delimited_dictionary)"))
   end
-  value = ParseTreeNodeIdentity()
+  value = SymbolGraphNodeIdentity()
   kinds[value] = JSONGrammarSymbolKinds.value
   grammar_rules[value] = make_node_vec(child)
   value
 end
 function nonterminal_symbol_delimited!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  child::ParseTreeNodeIdentity
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  child::SymbolGraphNodeIdentity
 )
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
@@ -1143,14 +1143,14 @@ function nonterminal_symbol_delimited!(
   end
   left_delimiter = terminal_symbol_given_token!(kinds, tokens, left_delimiter_token)
   right_delimiter = terminal_symbol_given_token!(kinds, tokens, right_delimiter_token)
-  parent = ParseTreeNodeIdentity()
+  parent = SymbolGraphNodeIdentity()
   kinds[parent] = parent_kind
   grammar_rules[parent] = make_node_vec(left_delimiter, child, right_delimiter)
   parent
 end
 function nonterminal_symbol_pair!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  (quoted_text, value)::Pair{ParseTreeNodeIdentity,ParseTreeNodeIdentity}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  (quoted_text, value)::Pair{SymbolGraphNodeIdentity,SymbolGraphNodeIdentity}
 )
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
@@ -1159,14 +1159,14 @@ function nonterminal_symbol_pair!(
     throw(ArgumentError("expected terminal symbol of quoted_text kind"))
   end
   pair_element_separator = terminal_symbol_given_token!(kinds, tokens, JSONTokens.new_pair_element_separator())
-  pair = ParseTreeNodeIdentity()
+  pair = SymbolGraphNodeIdentity()
   kinds[pair] = JSONGrammarSymbolKinds.pair
   grammar_rules[pair] = make_node_vec(quoted_text, pair_element_separator, value)
   pair
 end
 function nonterminal_symbol_pair!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  (quoted_text_token_payload, value)::Pair{String,ParseTreeNodeIdentity}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  (quoted_text_token_payload, value)::Pair{String,SymbolGraphNodeIdentity}
 )
   kinds = graph.node_to_grammar_symbol_kind
   tokens = graph.terminal_node_to_token
@@ -1175,31 +1175,31 @@ function nonterminal_symbol_pair!(
   nonterminal_symbol_pair!(graph, (quoted_text => value))
 end
 function assemble!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
   collection,
   dictionary_instead_of_list::Bool=false
 )
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
-  list = ParseTreeNodeIdentity()
+  list = SymbolGraphNodeIdentity()
   kinds[list] = if dictionary_instead_of_list
     JSONGrammarSymbolKinds.dictionary
   else
     JSONGrammarSymbolKinds.list
   end
   grammar_rules[list] = let nonempty_list, once = false
-    for value in Iterators.reverse(collect(ParseTreeNodeIdentity, collection))
-      value = value::ParseTreeNodeIdentity
-      optional_incomplete_list = ParseTreeNodeIdentity()
+    for value in Iterators.reverse(collect(SymbolGraphNodeIdentity, collection))
+      value = value::SymbolGraphNodeIdentity
+      optional_incomplete_list = SymbolGraphNodeIdentity()
       kinds[optional_incomplete_list] = if dictionary_instead_of_list
         JSONGrammarSymbolKinds.optional_incomplete_dictionary
       else
         JSONGrammarSymbolKinds.optional_incomplete_list
       end
       grammar_rules[optional_incomplete_list] = if once
-        nonempty_list = nonempty_list::ParseTreeNodeIdentity
-        let incomplete_list = ParseTreeNodeIdentity()
+        nonempty_list = nonempty_list::SymbolGraphNodeIdentity
+        let incomplete_list = SymbolGraphNodeIdentity()
           kinds[incomplete_list] = if dictionary_instead_of_list
             JSONGrammarSymbolKinds.incomplete_dictionary
           else
@@ -1214,7 +1214,7 @@ function assemble!(
         make_node_vec()
       end
       once = true
-      nonempty_list = ParseTreeNodeIdentity()
+      nonempty_list = SymbolGraphNodeIdentity()
       kinds[nonempty_list] = if dictionary_instead_of_list
         JSONGrammarSymbolKinds.nonempty_dictionary
       else
@@ -1231,15 +1231,15 @@ function assemble!(
   nonterminal_symbol_value!(kinds, grammar_rules, nonterminal_symbol_delimited!(graph, list))
 end
 function assemble!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  dic::AbstractDict{String,ParseTreeNodeIdentity}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  dic::AbstractDict{String,SymbolGraphNodeIdentity}
 )
-  function f(pair::Pair{String,ParseTreeNodeIdentity})
+  function f(pair::Pair{String,SymbolGraphNodeIdentity})
     nonterminal_symbol_pair!(graph, pair)
   end
   assemble!(graph, Iterators.map(f, dic), true)
 end
-function assemble!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, wkt_token::WKTToken)
+function assemble!(graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}, wkt_token::WKTToken)
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
@@ -1255,24 +1255,24 @@ function assemble!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, wk
   terminal_symbol = terminal_symbol_given_token!(kinds, tokens, json_token)
   nonterminal_symbol_value!(kinds, grammar_rules, terminal_symbol)
 end
-function add_token_to_graph!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, val::JSONToken)
+function add_token_to_graph!(graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}, val::JSONToken)
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
   value_child = terminal_symbol_given_token!(kinds, tokens, val)
   nonterminal_symbol_value!(kinds, grammar_rules, value_child)
 end
-function add_number_to_graph!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, val::String)
+function add_number_to_graph!(graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}, val::String)
   parse(Float64, val)  # throw if not parsable as number
   add_token_to_graph!(graph, JSONTokens.new_number(val))
 end
-function add_quoted_text_to_graph!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, val::String)
+function add_quoted_text_to_graph!(graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}, val::String)
   add_token_to_graph!(graph, JSONTokens.new_quoted_text(val))
 end
 function add_value_and_unit_to_graph!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
   number_value::String,
-  unit::ParseTreeNodeIdentity
+  unit::SymbolGraphNodeIdentity
 )
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
@@ -1286,12 +1286,12 @@ function add_value_and_unit_to_graph!(
     ("value" => terminal_symbol_given_token!(kinds, tokens, JSONTokens.new_number(number_value)))
   )
   pair2 = nonterminal_symbol_pair!(graph, ("unit" => unit))
-  incomplete_dictionary = ParseTreeNodeIdentity()
-  optional_incomplete_dictionary1 = ParseTreeNodeIdentity()
-  optional_incomplete_dictionary2 = ParseTreeNodeIdentity()
-  nonempty_dictionary1 = ParseTreeNodeIdentity()
-  nonempty_dictionary2 = ParseTreeNodeIdentity()
-  dictionary = ParseTreeNodeIdentity()
+  incomplete_dictionary = SymbolGraphNodeIdentity()
+  optional_incomplete_dictionary1 = SymbolGraphNodeIdentity()
+  optional_incomplete_dictionary2 = SymbolGraphNodeIdentity()
+  nonempty_dictionary1 = SymbolGraphNodeIdentity()
+  nonempty_dictionary2 = SymbolGraphNodeIdentity()
+  dictionary = SymbolGraphNodeIdentity()
   kinds[incomplete_dictionary] = JSONGrammarSymbolKinds.incomplete_dictionary
   kinds[optional_incomplete_dictionary1] = JSONGrammarSymbolKinds.optional_incomplete_dictionary
   kinds[optional_incomplete_dictionary2] = JSONGrammarSymbolKinds.optional_incomplete_dictionary
@@ -1306,7 +1306,7 @@ function add_value_and_unit_to_graph!(
   grammar_rules[dictionary] = make_node_vec(nonempty_dictionary2)
   nonterminal_symbol_value!(kinds, grammar_rules, nonterminal_symbol_delimited!(graph, dictionary))
 end
-function add_string_value_to_graph!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, string::String)
+function add_string_value_to_graph!(graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}, string::String)
   kinds = graph.node_to_grammar_symbol_kind
   grammar_rules = graph.nonterminal_node_to_children
   tokens = graph.terminal_node_to_token
@@ -1357,8 +1357,8 @@ function wkt_to_projjson_unit_type(t::WKTKeywordKind)
   end::String
 end
 function wkt_tree_to_projjson_tree_unit!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if !named_list_has_keyword_kind_unit(tree_wkt)
@@ -1370,7 +1370,7 @@ function wkt_tree_to_projjson_tree_unit!(
   simple_nodes_rest = Iterators.peel(simple_nodes_1)
   projjson_unit_type = wkt_to_projjson_unit_type(kw)
   if simple_nodes_rest === nothing
-    let dictionary = Dict{String,ParseTreeNodeIdentity}()
+    let dictionary = Dict{String,SymbolGraphNodeIdentity}()
       dictionary["type"] = add_quoted_text_to_graph!(graph, projjson_unit_type)
       dictionary["name"] = add_quoted_text_to_graph!(graph, unit_name)
       assemble!(graph, dictionary)
@@ -1391,7 +1391,7 @@ function wkt_tree_to_projjson_tree_unit!(
       if is_special_case
         ret
       else
-        let dictionary = Dict{String,ParseTreeNodeIdentity}()
+        let dictionary = Dict{String,SymbolGraphNodeIdentity}()
           dictionary["type"] = add_quoted_text_to_graph!(graph, projjson_unit_type)
           dictionary["name"] = add_quoted_text_to_graph!(graph, unit_name)
           dictionary["conversion_factor"] = add_number_to_graph!(graph, unit_conversion_factor)
@@ -1399,17 +1399,17 @@ function wkt_tree_to_projjson_tree_unit!(
         end
       end
     end
-  end::ParseTreeNodeIdentity
+  end::SymbolGraphNodeIdentity
 end
 function wkt_tree_to_projjson_tree_id!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.identifier
     throw(ArgumentError("expected identifier"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   (simple_nodes, _) = partition(list)
   (tree_wkt_name, simple_nodes_1) = Iterators.peel(simple_nodes)
   dictionary["authority"] = add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_name))
@@ -1425,8 +1425,8 @@ function wkt_tree_to_projjson_tree_id!(
   assemble!(graph, dictionary)
 end
 function add_ids_filtered_to_dictionary!(
-  dictionary::AbstractDict{String,ParseTreeNodeIdentity},
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  dictionary::AbstractDict{String,SymbolGraphNodeIdentity},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
   trees_wkt
 )
   trees_wkt_iter = Iterators.peel(trees_wkt)
@@ -1443,22 +1443,22 @@ function add_ids_filtered_to_dictionary!(
   nothing
 end
 function add_ids_to_dictionary!(
-  dictionary::AbstractDict{String,ParseTreeNodeIdentity},
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  dictionary::AbstractDict{String,SymbolGraphNodeIdentity},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
   list
 )
   trees = Iterators.filter(Base.Fix2(named_list_has_keyword_kind, WKTKeywordKinds.identifier), list)
   add_ids_filtered_to_dictionary!(dictionary, graph, trees)
 end
 function wkt_tree_to_projjson_tree_map_projection_method!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (_, list) = destructure_wkt_parse_tree(tree_wkt)
   if !named_list_has_keyword_kind_map_projection_method(tree_wkt)
     throw(ArgumentError("expected method"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.OperationMethod
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, _) = partition(list)
@@ -1467,14 +1467,14 @@ function wkt_tree_to_projjson_tree_map_projection_method!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_parameter!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.parameter
     throw(ArgumentError("expected parameter"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.ParameterValue
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1492,14 +1492,14 @@ function wkt_tree_to_projjson_tree_parameter!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_datum_ensemble_member!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.datum_ensemble_member
     throw(ArgumentError("expected datum ensemble member"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   (simple_nodes, _) = partition(list)
   (tree_wkt_name, _) = Iterators.peel(simple_nodes)
   dictionary["name"] = add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_name))
@@ -1507,23 +1507,23 @@ function wkt_tree_to_projjson_tree_datum_ensemble_member!(
 end
 function wkt_trees_to_projjson_tree!(
   func!::Func,
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
   trees_wkt
 ) where {Func}
-  function f(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
+  function f(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
     func!(graph, tree_wkt)
   end
   assemble!(graph, Iterators.map(f, trees_wkt))
 end
 function wkt_tree_to_projjson_tree_conversion!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.map_projection
     throw(ArgumentError("expected conversion"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.Conversion
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1609,14 +1609,14 @@ function axis_direction_casing(direc::String)
   direc
 end
 function wkt_tree_to_projjson_tree_axis!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.axis
     throw(ArgumentError("expected axis"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.Axis
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1637,15 +1637,15 @@ function wkt_tree_to_projjson_tree_axis!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_coordinate_system!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken},
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken},
   trees_wkt_axis
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.coordinate_system
     throw(ArgumentError("expected coordinate system"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.CoordinateSystem
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1659,14 +1659,14 @@ function wkt_tree_to_projjson_tree_coordinate_system!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_ellipsoid!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.ellipsoid
     throw(ArgumentError("expected ellipsoid"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.Ellipsoid
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1682,14 +1682,14 @@ function wkt_tree_to_projjson_tree_ellipsoid!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_datum!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.geodetic_reference_frame
     throw(ArgumentError("expected datum"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   (simple_nodes, kw_with_list_nodes) = partition(list)
   (tree_wkt_name, _) = Iterators.peel(simple_nodes)
   dictionary["name"] = add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_name))
@@ -1699,14 +1699,14 @@ function wkt_tree_to_projjson_tree_datum!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_datum_ensemble!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.datum_ensemble
     throw(ArgumentError("expected datum ensemble"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   projjson_type_kind = PROJJSONTypeKinds.DatumEnsemble
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1734,8 +1734,8 @@ function wkt_tree_to_projjson_tree_datum_ensemble!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_crs_geodetic!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   projjson_type_kind = if kw == WKTKeywordKinds.geodetic_crs
@@ -1745,7 +1745,7 @@ function wkt_tree_to_projjson_tree_crs_geodetic!(
   else
     throw(ArgumentError("expected geodetic or geographic CRS"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   dictionary[projjson_schema_keyword] = add_quoted_text_to_graph!(graph, projjson_schema_url)
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
   (simple_nodes, kw_with_list_nodes) = partition(list)
@@ -1778,14 +1778,14 @@ function wkt_tree_to_projjson_tree_crs_geodetic!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_crs_projected!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, list) = destructure_wkt_parse_tree(tree_wkt)
   if kw != WKTKeywordKinds.projected_crs
     throw(ArgumentError("expected projected CRS"))
   end
-  dictionary = Dict{String,ParseTreeNodeIdentity}()
+  dictionary = Dict{String,SymbolGraphNodeIdentity}()
   dictionary[projjson_schema_keyword] = add_quoted_text_to_graph!(graph, projjson_schema_url)
   projjson_type_kind = PROJJSONTypeKinds.ProjectedCRS
   dictionary["type"] = add_quoted_text_to_graph!(graph, sprint(print, projjson_type_kind))
@@ -1806,8 +1806,8 @@ function wkt_tree_to_projjson_tree_crs_projected!(
   assemble!(graph, dictionary)
 end
 function wkt_tree_to_projjson_tree_crs!(
-  graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken},
-  tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken}
+  graph::SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken},
+  tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 )
   (kw, _) = destructure_wkt_parse_tree(tree_wkt)
   if kw ∈ (WKTKeywordKinds.geodetic_crs, WKTKeywordKinds.geographic_crs)
@@ -1818,16 +1818,16 @@ function wkt_tree_to_projjson_tree_crs!(
     throw(ArgumentError("not supported"))
   end
 end
-function wkt_tree_to_projjson_tree(tree_wkt::ParseTreeRooted{WKTGrammarSymbolKind,WKTToken})
-  graph = ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}()
+function wkt_tree_to_projjson_tree(tree_wkt::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
+  graph = SymbolGraphRootless{JSONGrammarSymbolKind,JSONToken}()
   root = wkt_tree_to_projjson_tree_crs!(graph, tree_wkt)
-  ParseTreeRooted(root, graph)
+  SymbolGraphRooted(root, graph)
 end
 end
 
 module WKTStringToPROJJSONString
 export wkt_string_to_projjson_string
-using ..ParseTrees, ..JSONGrammarSymbolKinds, ..JSONTokens, ..WKTLexing, ..WKTParsing, ..WKTTreeToPROJJSONTree
+using ..SymbolGraphs, ..JSONGrammarSymbolKinds, ..JSONTokens, ..WKTLexing, ..WKTParsing, ..WKTTreeToPROJJSONTree
 function print_json_token(io::IO, token::JSONToken)
   k = terminal_symbol_kind_given_token(JSONGrammarSymbolKind, token)
   if k == JSONGrammarSymbolKinds.quoted_text
@@ -1857,7 +1857,7 @@ function print_json_token(io::IO, token::JSONToken)
     end
   end
 end
-function unparse_json(io::IO, tree::ParseTreeRooted{JSONGrammarSymbolKind,JSONToken})
+function unparse_json(io::IO, tree::SymbolGraphRooted{JSONGrammarSymbolKind,JSONToken})
   unparse(Base.Fix1(print_json_token, io), tree)
 end
 function wkt_string_to_projjson_string(wkt::String)
