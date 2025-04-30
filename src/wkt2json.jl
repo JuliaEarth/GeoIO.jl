@@ -68,7 +68,7 @@ function wktdict2jsondict_geog(wkt::Dict, geo_sub_type::Symbol)
 
   ## DESIGN
   # there are two types of datum entries
-  gen_datum = wktdict2jsondict_gen_datum(wkt[geo_sub_type][2])
+  gen_datum = wktdict2jsondict_gen_datum(wkt)
   jsondict[gen_datum[1]] = gen_datum[2]
   # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
 
@@ -133,19 +133,19 @@ function wktdict2jsondict_get_unit(axis)
   return nothing
 end
 
-function wktdict2jsondict_gen_datum(datum_wkt::Dict)#::(String, Dict)
+function wktdict2jsondict_gen_datum(datum::Dict)#::(String, Dict)
   name = ""
   jsondict = Dict{String,Any}()
   
-  dynamic = get_item_with_key(:DYNAMIC, datum_wkt[get_main_key(datum_wkt)])
-  datum_wkt = get_item_with_keys([:ENSEMBLE, :DATUM], datum_wkt[get_main_key(datum_wkt)])[1]
+  dynamic = get_item_with_key(:DYNAMIC, datum[get_main_key(datum)])
+  datum = get_item_with_keys([:ENSEMBLE, :DATUM], datum[get_main_key(datum)])[1]
   
-  if get_main_key(datum_wkt) == :ENSEMBLE
+  if get_main_key(datum) == :ENSEMBLE
     name = "datum_ensemble"
-    jsondict = wktdict2jsondict_long_datum(datum_wkt)
-  elseif get_main_key(datum_wkt) == :DATUM
+    jsondict = wktdict2jsondict_long_datum(datum)
+  elseif get_main_key(datum) == :DATUM
     name = "datum"
-    jsondict = wktdict2jsondict_short_datum(datum_wkt)
+    jsondict = wktdict2jsondict_short_datum(datum)
 
     # this is here as not to ruin the encapsulation of _short_datum
     if !isnothing(dynamic)
