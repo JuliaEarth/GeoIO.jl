@@ -18,14 +18,15 @@ export ParseTreeNodeIdentity,
   parse_strong_ll_1_with_appended_eof,
   parse_tree_validate
 mutable struct ParseTreeNodeIdentity end
-const empty_vector = ParseTreeNodeIdentity[]  # used for allocation-free tree traversal and other optimizations
+const Vec = ((@isdefined Memory) ? Memory : Vector){ParseTreeNodeIdentity}
+const empty_vector = Vec(undef, 0)  # used for allocation-free tree traversal and other optimizations
 struct ParseTreeRootless{GrammarSymbolKind,Token}
   node_to_grammar_symbol_kind::Dict{ParseTreeNodeIdentity,GrammarSymbolKind}
-  nonterminal_node_to_children::Dict{ParseTreeNodeIdentity,Vector{ParseTreeNodeIdentity}}
+  nonterminal_node_to_children::Dict{ParseTreeNodeIdentity,Vec}
   terminal_node_to_token::Dict{ParseTreeNodeIdentity,Token}
   function ParseTreeRootless{GrammarSymbolKind,Token}() where {GrammarSymbolKind,Token}
     kinds = Dict{ParseTreeNodeIdentity,GrammarSymbolKind}()
-    rules = Dict{ParseTreeNodeIdentity,Vector{ParseTreeNodeIdentity}}()
+    rules = Dict{ParseTreeNodeIdentity,Vec}()
     tokens = Dict{ParseTreeNodeIdentity,Token}()
     new{GrammarSymbolKind,Token}(kinds, rules, tokens)
   end
@@ -1092,7 +1093,7 @@ function partition(list)
 end
 function nonterminal_symbol_value!(
   kinds::Dict{ParseTreeNodeIdentity,JSONGrammarSymbolKind},
-  grammar_rules::Dict{ParseTreeNodeIdentity,Vector{ParseTreeNodeIdentity}},
+  grammar_rules::Dict{ParseTreeNodeIdentity,<:AbstractVector{ParseTreeNodeIdentity}},
   child::ParseTreeNodeIdentity
 )
   if kinds[child] ∉ (
