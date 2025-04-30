@@ -9,6 +9,11 @@ function get_items_with_key(key::Symbol, list::Vector)
   filter(x->get_main_key(x)==key, list)
 end
 
+function get_item_with_key(key::Symbol, list::Vector)
+  found = filter(x->get_main_key(x)==key, list)
+  return isempty(found) ? nothing : found
+end
+
 wktdict_crs_type(wkt::Dict) = get_main_key(wkt)
 
 ###
@@ -88,7 +93,36 @@ function wktdict2jsondict_gen_datum(wkt::Dict)#::(String, Dict)
     return ("datum_ensemble", wktdict2jsondict_long_datum(wkt))
   elseif wkt |> get_main_key == :DATUM
     return ("datum", wktdict2jsondict_short_datum(wkt))
+  # was indeed needed for few niche entries, should be exhastive
+  #... its ENSEMBLE location, not [1] as expected
+  else
+    error("Didn't find a datum node that is either ENSEMBLE or DATUM.")
+    @show wkt
   end
+end
+
+function wktdict2jsondict_short_datum(wkt::Dict)
+  @assert wkt |> keys |> collect == [:DATUM]
+  #TODO: this is "geodetic_reference_frame" (might potentially be other alternatives)
+  ### "required":["name", "ellipsoid"], but could also optionally have "type", "anchor_epoch", "prime_meridian" 
+  
+  jsondict = Dict{String, Any}()
+  jsondict["name"] = wkt[:DATUM][1]
+
+  ell_elems = get_items_with_key(:ELLIPSOID, wkt[:DATUM])
+  jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])["ellipsoid"] 
+
+  # Optionals
+  jsondict["type"] = "GeodeticReferenceFrame"
+  # Optionals, not always present
+  anchor_epoch = get_items_with_key(:ANCHOREPOCH, wkt[:DATUM])
+  if !isempty(anchor_epoch) 
+    ## TODO: get_items_with_key single usage if we ever refactor
+    jsondict["anchor_epoch"] = anchor_epoch[1][:ANCHOREPOCH][1]
+  end
+  
+  
+  return jsondict
 end
 
 function wktdict2jsondict_long_datum(wkt::Dict)
