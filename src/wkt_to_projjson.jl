@@ -1120,7 +1120,7 @@ function nonterminal_symbol_value!(
   end
   value = ParseTreeNodeIdentity()
   kinds[value] = JSONGrammarSymbolKinds.value
-  grammar_rules[value] = [child]
+  grammar_rules[value] = make_node_vec(child)
   value
 end
 function nonterminal_symbol_delimited!(
@@ -1145,7 +1145,7 @@ function nonterminal_symbol_delimited!(
   right_delimiter = terminal_symbol_given_token!(kinds, tokens, right_delimiter_token)
   parent = ParseTreeNodeIdentity()
   kinds[parent] = parent_kind
-  grammar_rules[parent] = [left_delimiter, child, right_delimiter]
+  grammar_rules[parent] = make_node_vec(left_delimiter, child, right_delimiter)
   parent
 end
 function nonterminal_symbol_pair!(
@@ -1161,7 +1161,7 @@ function nonterminal_symbol_pair!(
   pair_element_separator = terminal_symbol_given_token!(kinds, tokens, JSONTokens.new_pair_element_separator())
   pair = ParseTreeNodeIdentity()
   kinds[pair] = JSONGrammarSymbolKinds.pair
-  grammar_rules[pair] = [quoted_text, pair_element_separator, value]
+  grammar_rules[pair] = make_node_vec(quoted_text, pair_element_separator, value)
   pair
 end
 function nonterminal_symbol_pair!(
@@ -1207,8 +1207,8 @@ function assemble!(
           end
           list_element_separator_token = JSONTokens.new_list_element_separator()
           list_element_separator = terminal_symbol_given_token!(kinds, tokens, list_element_separator_token)
-          grammar_rules[incomplete_list] = [list_element_separator, nonempty_list]
-          [incomplete_list]
+          grammar_rules[incomplete_list] = make_node_vec(list_element_separator, nonempty_list)
+          make_node_vec(incomplete_list)
         end
       else
         make_node_vec()
@@ -1220,10 +1220,10 @@ function assemble!(
       else
         JSONGrammarSymbolKinds.nonempty_list
       end
-      grammar_rules[nonempty_list] = [value, optional_incomplete_list]
+      grammar_rules[nonempty_list] = make_node_vec(value, optional_incomplete_list)
     end
     if once
-      [nonempty_list::ParseTreeNodeIdentity]
+      make_node_vec(nonempty_list)
     else
       make_node_vec()
     end
@@ -1298,12 +1298,12 @@ function add_value_and_unit_to_graph!(
   kinds[nonempty_dictionary1] = JSONGrammarSymbolKinds.nonempty_dictionary
   kinds[nonempty_dictionary2] = JSONGrammarSymbolKinds.nonempty_dictionary
   kinds[dictionary] = JSONGrammarSymbolKinds.dictionary
-  grammar_rules[incomplete_dictionary] = [list_element_separator, nonempty_dictionary1]
+  grammar_rules[incomplete_dictionary] = make_node_vec(list_element_separator, nonempty_dictionary1)
   grammar_rules[optional_incomplete_dictionary1] = make_node_vec()
-  grammar_rules[optional_incomplete_dictionary2] = [incomplete_dictionary]
-  grammar_rules[nonempty_dictionary1] = [pair1, optional_incomplete_dictionary1]
-  grammar_rules[nonempty_dictionary2] = [pair2, optional_incomplete_dictionary2]
-  grammar_rules[dictionary] = [nonempty_dictionary2]
+  grammar_rules[optional_incomplete_dictionary2] = make_node_vec(incomplete_dictionary)
+  grammar_rules[nonempty_dictionary1] = make_node_vec(pair1, optional_incomplete_dictionary1)
+  grammar_rules[nonempty_dictionary2] = make_node_vec(pair2, optional_incomplete_dictionary2)
+  grammar_rules[dictionary] = make_node_vec(nonempty_dictionary2)
   nonterminal_symbol_value!(kinds, grammar_rules, nonterminal_symbol_delimited!(graph, dictionary))
 end
 function add_string_value_to_graph!(graph::ParseTreeRootless{JSONGrammarSymbolKind,JSONToken}, string::String)
