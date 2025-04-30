@@ -164,6 +164,7 @@ function parse_strong_ll_1(
           throw(ArgumentError("parsing error"))
         end
         rule = parsing_table[parsing_table_key]
+        child_count = length(rule)
         for nt in Iterators.reverse(rule)
           id = ParseTreeNodeIdentity()
           parse_tree_kinds[id] = nt
@@ -173,8 +174,12 @@ function parse_strong_ll_1(
         if haskey(parse_tree_grammar_rules, stack_top_symbol)
           error("unexpected: debug")
         end
-        vec_rever = Iterators.reverse(@view stack[(end - length(rule) + 1):end])
+        vec_rever = Iterators.reverse(@view stack[(end - child_count + 1):end])
         vec = collect(ParseTreeNodeIdentity, vec_rever)
+        # invariant: `length(vec) == child_count`
+        if length(vec) != child_count
+          error("unexpected: debug")
+        end
         parse_tree_grammar_rules[stack_top_symbol] = vec
       end
     end
