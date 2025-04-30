@@ -1283,7 +1283,7 @@ function add_value_and_unit_to_graph!(
   kinds[nonempty_dictionary2] = JSONGrammarSymbolKinds.nonempty_dictionary
   kinds[dictionary] = JSONGrammarSymbolKinds.dictionary
   grammar_rules[incomplete_dictionary] = [list_element_separator, nonempty_dictionary1]
-  grammar_rules[optional_incomplete_dictionary1] = []
+  grammar_rules[optional_incomplete_dictionary1] = ParseTrees.empty_vector
   grammar_rules[optional_incomplete_dictionary2] = [incomplete_dictionary]
   grammar_rules[nonempty_dictionary1] = [pair1, optional_incomplete_dictionary1]
   grammar_rules[nonempty_dictionary2] = [pair2, optional_incomplete_dictionary2]
