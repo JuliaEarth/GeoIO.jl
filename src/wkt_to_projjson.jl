@@ -7,11 +7,11 @@ export SymbolGraphNodeIdentity,
   make_node_vec,
   SymbolGraphRootless,
   SymbolGraphRooted,
-  parse_node_symbol_kind,
-  parse_node_is_terminal,
-  parse_node_is_childless,
-  parse_node_to_token,
-  parse_node_children,
+  root_symbol_kind,
+  root_is_terminal,
+  root_is_childless,
+  root_to_token,
+  root_children,
   terminal_symbol_kind_given_token,
   terminal_symbol_given_token!,
   unparse,
@@ -60,19 +60,19 @@ struct SymbolGraphRooted{GrammarSymbolKind,Token}
   end
 end
 """
-    parse_node_symbol_kind(::SymbolGraphRooted)
+    root_symbol_kind(::SymbolGraphRooted)
 
 Returns the kind of the root node as a grammar symbol.
 """
-function parse_node_symbol_kind(tree::SymbolGraphRooted)
+function root_symbol_kind(tree::SymbolGraphRooted)
   tree.graph.node_to_grammar_symbol_kind[tree.root]
 end
 """
-    parse_node_is_terminal(::SymbolGraphRooted)::Bool
+    root_is_terminal(::SymbolGraphRooted)::Bool
 
 Predicate, tells if the (root) node of the parse tree is a terminal symbol.
 """
-function parse_node_is_terminal(tree::SymbolGraphRooted)
+function root_is_terminal(tree::SymbolGraphRooted)
   yes = haskey(tree.graph.terminal_node_to_token, tree.root)::Bool
   no = haskey(tree.graph.nonterminal_node_to_children, tree.root)::Bool
   if yes == no
@@ -81,36 +81,36 @@ function parse_node_is_terminal(tree::SymbolGraphRooted)
   yes
 end
 """
-    parse_node_is_childless(::SymbolGraphRooted)::Bool
+    root_is_childless(::SymbolGraphRooted)::Bool
 
 Predicate, tells if the (root) node of the parse tree is a leaf node/childless.
 """
-function parse_node_is_childless(tree::SymbolGraphRooted)
-  parse_node_is_terminal(tree) || isempty(tree.graph.nonterminal_node_to_children[tree.root])
+function root_is_childless(tree::SymbolGraphRooted)
+  root_is_terminal(tree) || isempty(tree.graph.nonterminal_node_to_children[tree.root])
 end
 """
-    parse_node_to_token(::SymbolGraphRooted)
+    root_to_token(::SymbolGraphRooted)
 
 Returns the token of a terminal symbol.
 """
-function parse_node_to_token(tree::SymbolGraphRooted)
-  if !parse_node_is_terminal(tree)
+function root_to_token(tree::SymbolGraphRooted)
+  if !root_is_terminal(tree)
     throw(ArgumentError("root node is not a terminal"))
   end
   tree.graph.terminal_node_to_token[tree.root]
 end
 """
-    parse_node_children(::SymbolGraphRooted)
+    root_children(::SymbolGraphRooted)
 
 Returns an iterator of `SymbolGraphRooted` elements.
 """
-function parse_node_children(tree::SymbolGraphRooted)
+function root_children(tree::SymbolGraphRooted)
   graph = tree.graph
   grammar_rules = graph.nonterminal_node_to_children
   function f(root::SymbolGraphNodeIdentity)
     SymbolGraphRooted(root, graph)
   end
-  children = if parse_node_is_childless(tree)
+  children = if root_is_childless(tree)
     make_node_vec()
   else
     grammar_rules[tree.root]
@@ -139,10 +139,10 @@ end
 Unparse `tree`, calling `print_token(token)` for each token.
 """
 function unparse(print_token::PrTok, tree::SymbolGraphRooted) where {PrTok}
-  if parse_node_is_terminal(tree)
-    print_token(parse_node_to_token(tree))
+  if root_is_terminal(tree)
+    print_token(root_to_token(tree))
   else
-    foreach(Base.Fix1(unparse, print_token), parse_node_children(tree))
+    foreach(Base.Fix1(unparse, print_token), root_children(tree))
   end
   nothing
 end
@@ -604,31 +604,31 @@ struct WKTSymbolGraphRootedListIterator <: AbstractVector{SymbolGraphRooted{WKTG
   end
 end
 function check_nonempty_list(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  if parse_node_is_childless(tree)
+  if root_is_childless(tree)
     throw(ArgumentError("leaf node"))
   end
-  if parse_node_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.nonempty_list
+  if root_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.nonempty_list
     throw(ArgumentError("expected nonempty_list, got other nonterminal"))
   end
   tree
 end
 function nonempty_list_first_element(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   tree = check_nonempty_list(tree)
-  (list_element, _) = parse_node_children(tree)
-  only(parse_node_children(list_element))::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
+  (list_element, _) = root_children(tree)
+  only(root_children(list_element))::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken}
 end
 function nonempty_list_has_just_one_element(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   tree = check_nonempty_list(tree)
-  (_, optional_incomplete_list) = parse_node_children(tree)
-  parse_node_is_childless(optional_incomplete_list)
+  (_, optional_incomplete_list) = root_children(tree)
+  root_is_childless(optional_incomplete_list)
 end
 function nonempty_list_tail(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
   if nonempty_list_has_just_one_element(tree)
     throw(ArgumentError("the list has just one element, no tail"))
   end
-  (_, optional_incomplete_list) = parse_node_children(tree)
-  incomplete_list = only(parse_node_children(optional_incomplete_list))
-  (_, ret) = parse_node_children(incomplete_list)
+  (_, optional_incomplete_list) = root_children(tree)
+  incomplete_list = only(root_children(optional_incomplete_list))
+  (_, ret) = root_children(incomplete_list)
   check_nonempty_list(ret)
 end
 function nonempty_list_length(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
@@ -667,63 +667,63 @@ export get_wkt_keyword,
   get_wkt_number, get_wkt_quoted_text, destructure_wkt_parse_tree, parse_tree_is_wkt_keyword_with_delimited_list
 using ..SymbolGraphs, ..WKTGrammarSymbolKinds, ..WKTKeywordKinds, ..WKTTokens, ..WKTSymbolGraphRootedListIterators
 function get_wkt_keyword(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  if parse_node_is_childless(tree)
+  if root_is_childless(tree)
     throw(ArgumentError("the WKT tree is childless"))
   end
-  if parse_node_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
+  if root_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
     throw(ArgumentError("expected a symbol of keyword_with_optional_delimited_list kind"))
   end
-  (terminal, _) = parse_node_children(tree)
-  if !parse_node_is_terminal(terminal)
+  (terminal, _) = root_children(tree)
+  if !root_is_terminal(terminal)
     throw(ArgumentError("expected a terminal symbol"))
   end
-  if parse_node_symbol_kind(terminal)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword
+  if root_symbol_kind(terminal)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword
     throw(ArgumentError("expected a symbol of keyword kind"))
   end
-  parse_node_to_token(terminal).payload
+  root_to_token(terminal).payload
 end
 function get_wkt_number(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  if !parse_node_is_terminal(tree)
+  if !root_is_terminal(tree)
     throw(ArgumentError("expected a terminal symbol"))
   end
-  if parse_node_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.number
+  if root_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.number
     throw(ArgumentError("expected symbol of number kind"))
   end
-  parse_node_to_token(tree).payload
+  root_to_token(tree).payload
 end
 function get_wkt_quoted_text(terminal::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  if !parse_node_is_terminal(terminal)
+  if !root_is_terminal(terminal)
     throw(ArgumentError("expected a terminal symbol"))
   end
-  if parse_node_symbol_kind(terminal)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.quoted_text
+  if root_symbol_kind(terminal)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.quoted_text
     throw(ArgumentError("expected a symbol of quoted text kind"))
   end
-  parse_node_to_token(terminal).payload
+  root_to_token(terminal).payload
 end
 function destructure_wkt_parse_tree(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  if parse_node_is_childless(tree)
+  if root_is_childless(tree)
     throw(ArgumentError("the WKT tree is childless"))
   end
-  if parse_node_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
+  if root_symbol_kind(tree)::WKTGrammarSymbolKind != WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
     throw(ArgumentError("expected a symbol of keyword_with_optional_delimited_list kind"))
   end
-  (_, tree_optional_delimited_list) = parse_node_children(tree)
-  if parse_node_is_childless(tree_optional_delimited_list)
+  (_, tree_optional_delimited_list) = root_children(tree)
+  if root_is_childless(tree_optional_delimited_list)
     throw(ArgumentError("no list"))
   end
-  tree_delimited_list = only(parse_node_children(tree_optional_delimited_list))
-  (_, tree_list, _) = parse_node_children(tree_delimited_list)
+  tree_delimited_list = only(root_children(tree_optional_delimited_list))
+  (_, tree_list, _) = root_children(tree_delimited_list)
   name = WKTKeywordKinds.name_to_kind[get_wkt_keyword(tree)]
   list_iterator = WKTSymbolGraphRootedListIterator(tree_list)
   (name, list_iterator)
 end
 function parse_tree_is_wkt_keyword_with_delimited_list(tree::SymbolGraphRooted{WKTGrammarSymbolKind,WKTToken})
-  (!parse_node_is_childless(tree)) &&
+  (!root_is_childless(tree)) &&
     (
-      parse_node_symbol_kind(tree)::WKTGrammarSymbolKind == WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
+      root_symbol_kind(tree)::WKTGrammarSymbolKind == WKTGrammarSymbolKinds.keyword_with_optional_delimited_list
     ) &&
-    let (_, tree_optional_delimited_list) = parse_node_children(tree)
-      !parse_node_is_childless(tree_optional_delimited_list)
+    let (_, tree_optional_delimited_list) = root_children(tree)
+      !root_is_childless(tree_optional_delimited_list)
     end
 end
 end
@@ -1414,7 +1414,7 @@ function wkt_tree_to_projjson_tree_id!(
   (tree_wkt_name, simple_nodes_1) = Iterators.peel(simple_nodes)
   dictionary["authority"] = add_quoted_text_to_graph!(graph, get_wkt_quoted_text(tree_wkt_name))
   (tree_wkt_code, _) = Iterators.peel(simple_nodes_1)
-  tree_wkt_code_kind = parse_node_symbol_kind(tree_wkt_code)
+  tree_wkt_code_kind = root_symbol_kind(tree_wkt_code)
   dictionary["code"] = if tree_wkt_code_kind == WKTGrammarSymbolKinds.number
     add_number_to_graph!(graph, get_wkt_number(tree_wkt_code))
   elseif tree_wkt_code_kind == WKTGrammarSymbolKinds.quoted_text
