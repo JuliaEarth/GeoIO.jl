@@ -42,12 +42,76 @@ function wktdict2jsondict(wkt::Dict)
     return wktdict2jsondict_geog(wkt, :GEOGCRS)
   elseif type == :GEODCRS
     return wktdict2jsondict_geog(wkt, :GEODCRS)
-    # error("Unimplemented CRS type: $type")
   elseif type == :PROJCRS
-    error("Unimplemented CRS type: $type")
+    return wktdict2jsondict_proj(wkt)
   else
     error("Unimplemented CRS type: $type")
   end
+end
+
+function wktdict2jsondict_proj(wkt::Dict)
+    @assert wkt |> keys |> collect == [:PROJCRS]
+    jsondict = Dict{String, Any}()
+    jsondict["type"] = "ProjectedCRS"
+    jsondict["name"] = wkt[:PROJCRS][1]
+    
+    base_crs_dict = Dict(:GEOGCRS => wkt[:PROJCRS][2][:BASEGEOGCRS])
+    base_crs_type = get_main_key(base_crs_dict)
+    jsondict["base_crs"] = wktdict2jsondict_geog(base_crs_dict, base_crs_type)
+    
+    jsondict["conversion"] = wktdict2jsondict_conversion(wkt[:PROJCRS][3])
+    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, :PROJCRS)
+    
+    jsondict["id"] = wktdict2jsondict_id(wkt[:PROJCRS][end])
+    
+    return jsondict
+end
+
+const GDALcompat = true
+
+function wktdict2jsondict_conversion(wkt::Dict)
+  @assert wkt |> keys |> collect == [:CONVERSION]
+  jsondict = Dict{String, Any}()
+  
+  jsondict["name"] = wkt[:CONVERSION][1]
+  
+  method_dict = Dict{String, Any}()
+  method_dict["name"] = wkt[:CONVERSION][2][:METHOD][1]
+  if length(wkt[:CONVERSION][2][:METHOD]) > 1 
+      method_dict["id"] = wktdict2jsondict_id(wkt[:CONVERSION][2][:METHOD][end])
+  end
+  jsondict["method"] = method_dict
+  
+  jsondict["parameters"] = []
+  param_entries = get_items_with_key(:PARAMETER, wkt[:CONVERSION])
+  for param in param_entries
+    param_dict = Dict{String, Any}()
+    param_dict["name"] = param[:PARAMETER][1]
+    # GDALcompat
+    param_dict["value"] = round(param[:PARAMETER][2], digits=9)
+    
+    # Handle units if present
+    if length(param[:PARAMETER]) > 2
+      unit_entry = param[:PARAMETER][3]
+      if get_main_key(unit_entry) in [:ANGLEUNIT, :LENGTHUNIT, :SCALEUNIT]
+        unit_type = get_main_key(unit_entry)
+        # makes 2/700 error, UNIT direct string shouldn't be other than ["metre", "degree", "unity"] 
+        param_dict["unit"] = unit_entry[unit_type][1]
+      end
+      if get_main_key(param[:PARAMETER][4]) == :ID
+        param_dict["id"] = wktdict2jsondict_id(param[:PARAMETER][4])
+      end
+    end
+      
+    push!(jsondict["parameters"], param_dict)
+  end
+  
+  # ID if present, NOT IN ARCH GDAL
+  if !GDALcompat && get_main_key(wkt[:CONVERSION][end]) == :ID
+    jsondict["id"] = wktdict2jsondict_id(wkt[:CONVERSION][end])
+  end
+  
+  return jsondict
 end
 
 function wktdict2jsondict_geog(wkt::Dict, geo_sub_type::Symbol)
@@ -73,14 +137,18 @@ function wktdict2jsondict_geog(wkt::Dict, geo_sub_type::Symbol)
   # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
 
   # DESIGN: either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
-  jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, geo_sub_type)
-  jsondict["id"] = wktdict2jsondict_id(wkt[geo_sub_type][end])
-  return jsondict
+  # coordinate_system is optional, and not found when processing base_crs inside a projected CRS
+  if !isnothing(get_item_with_key(:CS, wkt[geo_sub_type]))
+    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, geo_sub_type)
+  end
+  
+  jsondict["id"] = wktdict2jsondict_id(wkt[geo_sub_type][end])  
+  return jsondict 
 end
 
 function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
   # "required" : [ "subtype", "axis" ],
-
+  # pass base_crs because for coordinate_system: AXIS and potentially UNIT are both on base_crs level
     cs_dict = Dict{String, Any}()
 
     # Get CS type (ellipsoidal, cartesian, etc.)

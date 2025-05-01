@@ -23,7 +23,7 @@ crs_structs = [(code = c, wktdict = w, type = t) for (c, w, t) in zip(epsgcodes,
 # TODO: remove failfast, for debugging
 @testset "WKT2 -> PROJJSON" failfast=false begin
 
-@testset for type in [:GEOGCRS, :GEODCRS]#, :PROJCRS]
+@testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
   filterd_crs =  filter(crs -> crs.type == type, crs_structs)
   
   @testset "code = $(crs.code)" for crs in filterd_crs
