@@ -64,8 +64,8 @@
     @test GeoIO.load(joinpath(datadir, "lines.shp")) isa AbstractGeoTable
 
     # https://github.com/JuliaEarth/GeoIO.jl/issues/158
-    issue158table = @test_logs (:warn, r"1 rows dropped") GeoIO.load(joinpath(datadir, "issue158.shp"))
-    @test issue158table isa AbstractGeoTable
+    gtb = @test_warn, r"1 rows dropped" GeoIO.load(joinpath(datadir, "issue158.shp"))
+    @test gtb isa AbstractGeoTable
   end
 
   @testset "save" begin
