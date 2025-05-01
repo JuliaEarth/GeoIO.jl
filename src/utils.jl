@@ -14,32 +14,18 @@ function asgeotable(table)
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
-  geoms = Tables.getcolumn(cols, gcol)
-
-  #Convert geoms one at a time, catching errors
-  rows = length(geoms)
-  domain = Vector{Geometry}(undef, rows)
-  valid_mask = trues(rows)
-
-  for i in 1:rows
-    try 
-      domain[i] = geom2meshes(geoms[i], crs)
-    catch e
-      valid_mask[i] = false
-    end
-  end
-
-  #Get etable, dropping rows where geom threw an error
   vars = setdiff(names, [gcol])
-  etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v)[valid_mask] for v in vars)...)
-
-  #Provide missing row warning
-  missing_count = rows - sum(valid_mask)
-  if missing_count > 0
-    @warn "$missing_count rows dropped from GeoTable because of empty or otherwise unsupported geometries."
+  etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+  geoms = Tables.getcolumn(cols, gcol)
+  # subset for missing geoms
+  miss = findall(g -> ismissing(g) || isnothing(g), geoms)
+  if !isempty(miss)
+    @warn "$(length(miss)) rows dropped from GeoTable because of empty or missing geometries."
   end
-
-  georef(etable, domain[valid_mask])
+  valid = setdiff(1:length(geoms), miss)
+  domain = geom2meshes.(geoms[valid], Ref(crs))
+  etable = isnothing(etable) || isempty(miss) ? etable : Tables.subset(etable, valid)
+  georef(etable, domain)
 end
 
 # helper function to find the
