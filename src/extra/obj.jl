@@ -2,8 +2,8 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function objread(fname; lenunit)
-  vertices = NTuple{3,Float64}[]
+function objread(fname; lenunit, numbertype)
+  vertices = NTuple{3,numbertype}[]
   faceinds = Vector{Int}[]
 
   open(fname) do io
@@ -11,7 +11,7 @@ function objread(fname; lenunit)
       line = split(readline(io))
       if !isempty(line)
         if line[1] == "v"
-          point = ntuple(i -> parse(Float64, line[i + 1]), 3)
+          point = ntuple(i -> parse(numbertype, line[i + 1]), 3)
           push!(vertices, point)
         end
 
