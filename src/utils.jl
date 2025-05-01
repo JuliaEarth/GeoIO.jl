@@ -17,7 +17,14 @@ function asgeotable(table)
   vars = setdiff(names, [gcol])
   etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
   geoms = Tables.getcolumn(cols, gcol)
-  domain = geom2meshes.(geoms, Ref(crs))
+  # subset for missing geoms
+  miss = findall(g -> ismissing(g) || isnothing(g), geoms)
+  if !isempty(miss)
+    @warn "$(length(miss)) rows dropped from GeoTable because of empty or missing geometries."
+  end
+  valid = setdiff(1:length(geoms), miss)
+  domain = geom2meshes.(geoms[valid], Ref(crs))
+  etable = isnothing(etable) || isempty(miss) ? etable : Tables.subset(etable, valid)
   georef(etable, domain)
 end
 
