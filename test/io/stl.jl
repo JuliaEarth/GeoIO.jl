@@ -4,7 +4,7 @@
     @test eltype(gtb.normal) <: Vec{3}
     @test gtb.geometry isa SimpleMesh
     @test embeddim(gtb.geometry) == 3
-    @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
+    @test Meshes.lentype(gtb.geometry) <: Meshes.Met
     @test eltype(gtb.geometry) <: Triangle
     @test length(gtb.geometry) == 4
 
