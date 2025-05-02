@@ -86,7 +86,7 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
 
   # STL format
   if endswith(fname, ".stl")
-    return stlraed(fname; lenunit, kwargs...)
+    return stlraed(fname; lenunit,numbertype, kwargs...)
   end
 
   # OBJ format
