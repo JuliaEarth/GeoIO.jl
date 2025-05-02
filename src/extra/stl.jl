@@ -6,11 +6,11 @@
 # STL READ
 # ---------
 
-function stlraed(fname; lenunit)
+function stlraed(fname; lenunit,numbertype)
   normals, vertices = if _isstlbin(fname)
     stlbinread(fname)
   else
-    stlasciiread(fname)
+    stlasciiread(fname;numbertype)
   end
 
   uverts = unique(Iterators.flatten(vertices))
@@ -31,9 +31,9 @@ function stlraed(fname; lenunit)
   georef(table, mesh)
 end
 
-function stlasciiread(fname)
-  normals = NTuple{3,Float64}[]
-  vertices = NTuple{3,NTuple{3,Float64}}[]
+function stlasciiread(fname;numbertype)
+  normals = NTuple{3,numbertype}[]
+  vertices = NTuple{3,NTuple{3,numbertype}}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -41,11 +41,11 @@ function stlasciiread(fname)
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = _parsecoords(line[3:end])
+        normal = _parsecoords(line[3:end];numbertype)
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end]), 3)
+        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end];numbertype), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -182,4 +182,4 @@ end
 
 _splitline(io) = split(lowercase(readline(io)))
 
-_parsecoords(coords) = ntuple(i -> parse(Float64, coords[i]), 3)
+_parsecoords(coords;numbertype) = ntuple(i -> parse(numbertype, coords[i]), 3)
