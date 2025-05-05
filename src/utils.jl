@@ -57,11 +57,6 @@ function projjsonstring(code)
   JSON3.write(jsondict)
 end
 
-spatialref(code) = AG.importUserInput(codestring(code))
-
-codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
-codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
-
 function projjsoncode(json)
   id = json["id"]
   code = Int(id["code"])
