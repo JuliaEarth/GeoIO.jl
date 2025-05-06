@@ -16,8 +16,20 @@ epsgcodes = [
   3035   # ETRS89 / LAEA Europe
 ]
 
+@testset "projjsonstring used codes" failfast=false begin
+  epsgcodes = Int[  # https://github.com/JuliaEarth/CoordRefSystems.jl/blob/10b3f944ece7d5c4669eed6dc163ae8d9761afcd/src/get.jl#L42-L107
+      2157, 2193, 3035,3310,
+      3395, 3857, 4171, 4207, 4208, 4230, 4231, 4267, 4269, 4274, 4275, 4277, 4314, 4326, 4618, 4659, 4666, 4668, 4674, 4745, 4746, 4988, 4989, 5070, 5324, 5527, 8086, 8232, 8237, 8240, 8246, 8249, 8252, 8255, 9777, 9782, 9988, 10176, 10414, 25832, 27700, 28355, 29903,       
+      # 32662,  # deprecated in 2008, https://github.com/JuliaEarth/CoordRefSystems.jl/issues/262
+      2180,       (32600 .+ (1:60))...,
+      (32700 .+ (1:60))...
+    ]
+  @test GeoIO.projjsonstring.(epsgcodes) isa Vector{String}
   
-wktdicts = GeoIO.epsg2wktdict.(epsgcodes); crstypes = GeoIO.get_main_key.(wktdicts)
+end
+# This is only to organize the tests by CRS type for ease of debugging
+wktdicts = GeoIO.epsg2wktdict.(epsgcodes)
+crstypes = GeoIO.get_main_key.(wktdicts)
 crs_structs = [(code = c, wktdict = w, type = t) for (c, w, t) in zip(epsgcodes, wktdicts, crstypes)]
 
 # TODO: remove failfast, for debugging
@@ -33,11 +45,11 @@ crs_structs = [(code = c, wktdict = w, type = t) for (c, w, t) in zip(epsgcodes,
     @test isvalidprojjson(ourjson)
     
     gdaljson = gdalprojjsondict(EPSG{crs.code})
-    diff = test_diff_json(gdaljson, ourjson)
-    res = @test isempty(diff)
-    if res isa Test.Fail 
-      diff_json(gdaljson, ourjson) |> show
-    end
+    res = @test isempty(delta_keys(gdaljson, ourjson))
+    # res = @test isempty(delta_paths(gdaljson, ourjson))
+    # if res isa Test.Fail 
+      # projjson_diff(gdaljson, ourjson) |> show
+    # end
   end
   
 end
