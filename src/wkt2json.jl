@@ -254,7 +254,7 @@ function wktdict2jsondict_general_datum(wkt::Dict)#::(String, Dict)
       jsondict["type"] = "GeodeticReferenceFrame"
     end
     
-    meridian = get_item_with_key(:PRIMEM, datum[get_main_key(datum)])
+    meridian = get_item_with_key(:PRIMEM, wkt[geo_sub_type])
     if !isnothing(meridian)
       jsondict["prime_meridian"] = Dict{String, Any}()
       jsondict["prime_meridian"]["name"] = meridian[1][:PRIMEM][1]
