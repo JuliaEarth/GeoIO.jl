@@ -174,6 +174,13 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
           error("Could not find a UNIT node")
         end
         axis_dict["unit"] = unit[1]
+        
+        meridian = get_item_with_key(:MERIDIAN, axis[:AXIS])
+        if !isnothing(meridian)
+          axis_dict["meridian"] = Dict{String, Any}()
+          axis_dict["meridian"]["longitude"] = meridian[1][:MERIDIAN][1]
+        end
+        
         push!(cs_dict["axis"], axis_dict)
     end
 
@@ -217,6 +224,15 @@ function wktdict2jsondict_general_datum(datum::Dict)#::(String, Dict)
     else
       jsondict["type"] = "GeodeticReferenceFrame"
     end
+    
+    meridian = get_item_with_key(:PRIMEM, wkt[geo_sub_type])
+    if !isnothing(meridian)
+      jsondict["prime_meridian"] = Dict{String, Any}()
+      jsondict["prime_meridian"]["name"] = meridian[1][:PRIMEM][1]
+      longitude = value_or_unit_value(meridian[1][:PRIMEM][2], meridian[1][:PRIMEM])
+      jsondict["prime_meridian"]["longitude"] = longitude
+    end
+    
   # was indeed needed for few niche entries, should be exhastive
   #... its ENSEMBLE location, not [1] as expected
   else
