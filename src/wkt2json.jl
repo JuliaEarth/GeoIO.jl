@@ -21,7 +21,7 @@ function get_item_with_keys(keys::Vector{Symbol}, list::Vector)
   found = []
   for key in keys
     f = get_item_with_key(key, list)
-    !isnothing(f) && push!(found, f)
+    !isnothing(f) && append!(found, f)
   end
 
   if length(found) == 1
@@ -222,13 +222,23 @@ function wktdict2jsondict_get_unit(axis)
   return nothing
 end
 
-function wktdict2jsondict_general_datum(datum::Dict)#::(String, Dict)
+function value_or_unit_value(value::Number, context::Vector)
+  unit_entry = wktdict2jsondict_get_unit(context)
+  if unit_entry isa String
+    return value
+  end
+  unit_value = Dict("unit" => unit_entry, "value" => value)
+  return unit_value
+end
+
+function wktdict2jsondict_general_datum(wkt::Dict)#::(String, Dict)
   name = ""
   jsondict = Dict{String,Any}()
-  
-  dynamic = get_item_with_key(:DYNAMIC, datum[get_main_key(datum)])
-  datum = get_item_with_keys([:ENSEMBLE, :DATUM], datum[get_main_key(datum)])[1]
-  
+  geo_sub_type = get_main_key(wkt)
+
+  dynamic = get_item_with_key(:DYNAMIC, wkt[get_main_key(wkt)])
+  datum = get_item_with_keys([:ENSEMBLE, :DATUM], wkt[get_main_key(wkt)])
+
   if get_main_key(datum) == :ENSEMBLE
     name = "datum_ensemble"
     jsondict = wktdict2jsondict_long_datum(datum)
@@ -244,7 +254,7 @@ function wktdict2jsondict_general_datum(datum::Dict)#::(String, Dict)
       jsondict["type"] = "GeodeticReferenceFrame"
     end
     
-    meridian = get_item_with_key(:PRIMEM, wkt[geo_sub_type])
+    meridian = get_item_with_key(:PRIMEM, datum[get_main_key(datum)])
     if !isnothing(meridian)
       jsondict["prime_meridian"] = Dict{String, Any}()
       jsondict["prime_meridian"]["name"] = meridian[1][:PRIMEM][1]
