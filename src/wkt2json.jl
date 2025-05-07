@@ -156,9 +156,13 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
         # Parse axis name and abbreviation
         name_parts = split(axis[:AXIS][1], " (")
         axis_dict["name"] = name_parts[1]
-        axis_dict["abbreviation"] = strip(name_parts[2], ')')
-
-        axis_dict["direction"] = string(axis[:AXIS][2])
+        axis_dict["abbreviation"] = name_parts[2][1:end-1]
+        
+        dir = string(axis[:AXIS][2])
+        if dir in ("North", "South", "East", "West")
+          dir = lowercase(dir)
+        end
+        axis_dict["direction"] = dir
 
         # Get unit from the CS node, then try the AXIS node if not found
         unit = wktdict2jsondict_get_unit(wkt[geo_sub_type])
