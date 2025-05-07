@@ -22,7 +22,7 @@
     filterd_crs = filter(crs -> crs.type == type, crs_structs)
 
     @testset "code = $(crs.code)" for crs in filterd_crs
-      ourjson = GeoIO.wktdict2jsondict(crs.wkt) |> json_round_trip
+      ourjson = GeoIO.wkt2json(crs.wkt) |> json_round_trip
       @test isvalidprojjson(ourjson)
 
       gdaljson = gdalprojjsondict(EPSG{crs.code})
