@@ -279,7 +279,7 @@ function wktdict2jsondict_short_datum(wkt::Dict)
   jsondict["name"] = wkt[:DATUM][1]
 
   ell_elems = get_items_with_key(:ELLIPSOID, wkt[:DATUM])
-  jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])["ellipsoid"] 
+  jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])
   
   # Optional, not always present
   anchor_epoch = get_items_with_key(:ANCHOREPOCH, wkt[:DATUM])
@@ -312,7 +312,7 @@ function wktdict2jsondict_long_datum(wkt::Dict)
   
   ell_elems = get_items_with_key(:ELLIPSOID, wkt[:ENSEMBLE])
   if !isempty(ell_elems) 
-    jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])["ellipsoid"]
+    jsondict["ellipsoid"] = wktdict2jsondict_ellipsoid(ell_elems[1])
   end
   jsondict["id"] = wktdict2jsondict_id(wkt[:ENSEMBLE][end])
   
@@ -321,11 +321,11 @@ end
 
 function wktdict2jsondict_ellipsoid(wkt::Dict)
   @assert wkt |> keys |> collect == [:ELLIPSOID]
-  jsondict = Dict()
-  jsondict["ellipsoid"] = Dict()
-  jsondict["ellipsoid"]["name"] = wkt[:ELLIPSOID][1]
-  jsondict["ellipsoid"]["semi_major_axis"] = wkt[:ELLIPSOID][2]
-  jsondict["ellipsoid"]["inverse_flattening"] = wkt[:ELLIPSOID][3]
+  jsondict = Dict{String, Any}()
+  jsondict["name"] = wkt[:ELLIPSOID][1]
+  semi_major_axis = value_or_unit_value(wkt[:ELLIPSOID][2], wkt[:ELLIPSOID])
+  jsondict["semi_major_axis"] = semi_major_axis
+  jsondict["inverse_flattening"] = wkt[:ELLIPSOID][3]
   return jsondict
 end
 
