@@ -94,7 +94,7 @@ function wktdict2jsondict_conversion(wkt::Dict)
     if !isnothing(unit)
       # TODO: process full UNIT nodes, in addition to simple UNIT=>string ones
       # makes 2/700 error, UNIT direct string shouldn't be other than ["metre", "degree", "unity"] 
-      param_dict["unit"] = unit[1]
+      param_dict["unit"] = unit
     end
     param_dict["id"] = wktdict2jsondict_id(param[:PARAMETER][4])
     push!(jsondict["parameters"], param_dict)
@@ -173,7 +173,7 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
           # TODO: is unit required? enumrate possible types of units
           error("Could not find a UNIT node")
         end
-        axis_dict["unit"] = unit[1]
+        axis_dict["unit"] = unit
         
         meridian = get_item_with_key(:MERIDIAN, axis[:AXIS])
         if !isnothing(meridian)
@@ -191,15 +191,34 @@ end
 ## DESIGN, maybe its better to always return nothing, and be exhastive at call site, because often things are optional and we don't want to throw from child-functions
 #######
 
-# takes a parent node and returns the ANGLEUNIT or LENGTHUNIT child node
 function wktdict2jsondict_get_unit(axis)
-  # One-and-only-one
-  unit_entry = get_item_with_key(:ANGLEUNIT, axis)
-  !isnothing(unit_entry) && return unit_entry[1][:ANGLEUNIT]
-  unit_entry = get_item_with_key(:LENGTHUNIT, axis)
-  !isnothing(unit_entry) && return unit_entry[1][:LENGTHUNIT]
-  unit_entry = get_item_with_key(:SCALEUNIT, axis)
-  !isnothing(unit_entry) && return unit_entry[1][:SCALEUNIT]
+  unit_entry = get_item_with_keys([:ANGLEUNIT, :LENGTHUNIT, :SCALEUNIT], axis)
+  isnothing(unit_entry) && return nothing
+  unit_type = get_main_key(unit_entry)
+  name = unit_entry[unit_type][1]
+  
+  # if standard unit, simply return the string
+  if name in ("metre", "degree", "unity")
+    return name
+  # else construct "unit" json object
+  else
+    unitdict = Dict()
+    unitdict["name"] = name
+    unitdict["conversion_factor"] = unit_entry[unit_type][2]
+    unitdict["type"] =
+      if unit_type == :LENGTHUNIT
+        "LinearUnit"
+      elseif unit_type == :ANGLEUNIT
+        "AngularUnit"
+      elseif unit_type == :SCALEUNIT
+        "ScaleUnit"
+      else
+        # TODO rest of units don't seem to be needed in the CRS types we support for now
+        error("Unit type $unit_type is not yet supported")
+      end
+
+    return unitdict
+  end
   return nothing
 end
 
