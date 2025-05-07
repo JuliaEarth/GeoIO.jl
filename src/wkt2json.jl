@@ -290,15 +290,20 @@ end
 
 
 ###
-# From WKT2 string to Julia Dict conversion 
+# From WKT2 string to Julia Dict conversion
 ###
 
-function epsg2wktdict(epsg::Int)::Dict
+function epsg2wktdict(epsg::Int)::Union{Dict, Nothing}
   str = CoordRefSystems.wkt2(EPSG{epsg})
+  # TODO upstream to CoordRefSystems
+  if startswith(str, "WKT is not supported")
+    @warn "EPSG:$epsg is not WKT supported"
+    return nothing
+  end
   expr = Meta.parse(str)
   dict = Dict(:root => [])
   process_expr(expr, dict)
-  return dict[:root][1]  
+  return dict[:root][1]
 end
 epsg2wktdict(::Type{EPSG{I}}) where I = epsg2wktdict(I)
 
