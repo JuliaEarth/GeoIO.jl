@@ -33,23 +33,52 @@ function get_item_with_keys(keys::Vector{Symbol}, list::Vector)
   end
 end
 
-wktdict_crs_type(wkt::Dict) = get_main_key(wkt)
-
-###
-# Construct projjson compliant Dict from From WKT2 Dict 
-###
+# --------------------------------------
+# Convert From WKT dict to projjson dict
+# --------------------------------------
 
 function wktdict2jsondict(wkt::Dict)
   type = get_main_key(wkt)
   if type == :GEOGCRS
-    return wktdict2jsondict_geog(wkt, :GEOGCRS)
+    return wktdict2jsondict_geog(wkt)
   elseif type == :GEODCRS
-    return wktdict2jsondict_geog(wkt, :GEODCRS)
+    return wktdict2jsondict_geog(wkt)
   elseif type == :PROJCRS
     return wktdict2jsondict_proj(wkt)
   else
     error("Unimplemented CRS type: $type")
   end
+end
+
+# process GEOGCRS or GEODCRS nodes, either if they're at top-level or under PROJCRS
+function wktdict2jsondict_geog(wkt::Dict)
+  @assert wkt |> keys |> collect |> first in [:GEOGCRS, :GEODCRS]
+  jsondict = Dict{String, Any}()
+  geo_subtype = get_main_key(wkt) 
+  jsondict["type"] = 
+    if geo_subtype == :GEOGCRS
+      "GeographicCRS"
+    elseif geo_subtype == :GEODCRS
+      "GeodeticCRS"
+    else
+      error("Should be unreachable")
+    end
+  
+  jsondict["name"] = wkt[geo_subtype][1]
+
+  ## DESIGN, there are two types of datum entries
+  gen_datum = wktdict2jsondict_general_datum(wkt)
+  jsondict[gen_datum[1]] = gen_datum[2]
+  # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
+
+  # DESIGN: either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
+  # coordinate_system is optional. In our WKT, there is not CS node in PROJCRS.BASEGEOGCRS 
+  if !isnothing(get_item_with_key(:CS, wkt[geo_subtype]))
+    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
+  end
+
+  jsondict["id"] = wktdict2jsondict_id(wkt[geo_subtype][end])
+  return jsondict 
 end
 
 function wktdict2jsondict_proj(wkt::Dict)
@@ -58,12 +87,11 @@ function wktdict2jsondict_proj(wkt::Dict)
     jsondict["type"] = "ProjectedCRS"
     jsondict["name"] = wkt[:PROJCRS][1]
     
-    base_crs_dict = Dict(:GEOGCRS => wkt[:PROJCRS][2][:BASEGEOGCRS])
-    base_crs_type = get_main_key(base_crs_dict)
-    jsondict["base_crs"] = wktdict2jsondict_geog(base_crs_dict, base_crs_type)
+    basecrs_dict = Dict(:GEOGCRS => wkt[:PROJCRS][2][:BASEGEOGCRS])
+    jsondict["base_crs"] = wktdict2jsondict_geog(basecrs_dict)
     
     jsondict["conversion"] = wktdict2jsondict_conversion(wkt[:PROJCRS][3])
-    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, :PROJCRS)
+    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt)
     
     jsondict["id"] = wktdict2jsondict_id(wkt[:PROJCRS][end])
     
@@ -106,49 +134,19 @@ function wktdict2jsondict_conversion(wkt::Dict)
   return jsondict
 end
 
-# Process GEOGCRS or GEODCRS nodes, either if they're at WKT top level or under PROJCRS
-function wktdict2jsondict_geog(wkt::Dict, geo_sub_type::Symbol)
-  @assert wkt |> keys |> collect |> first in [:GEOGCRS, :GEODCRS]
-  jsondict = Dict{String, Any}()
-  
-  jsondict["type"] = 
-    if geo_sub_type == :GEOGCRS
-      "GeographicCRS"
-    elseif geo_sub_type == :GEODCRS
-      "GeodeticCRS"
-    else
-      error("Should be unreachable")
-    end
-  
-  jsondict["name"] = wkt[geo_sub_type][1]
-
-  ## DESIGN, there are two types of datum entries
-  gen_datum = wktdict2jsondict_general_datum(wkt)
-  jsondict[gen_datum[1]] = gen_datum[2]
-  # design: bit of redundancy between the [2] and [:ENSEMBLE] inside the function
-
-  # DESIGN: either pass specifically the CS and AXIS arr elements or all the dict. Caveate, for later projected there is cs nested inside
-  # coordinate_system is optional. In our WKT, there is not CS node in PROJCRS.BASEGEOGCRS 
-  if !isnothing(get_item_with_key(:CS, wkt[geo_sub_type]))
-    jsondict["coordinate_system"] = wktdict2jsondict_cs(wkt, geo_sub_type)
-  end
-
-  jsondict["id"] = wktdict2jsondict_id(wkt[geo_sub_type][end])
-  return jsondict 
-end
-
-function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
+function wktdict2jsondict_cs(wkt::Dict)
   # "required" : [ "subtype", "axis" ],
   # pass base_crs because for coordinate_system: AXIS and potentially UNIT are both on base_crs level
     cs_dict = Dict{String, Any}()
+    geo_subtype = get_main_key(wkt) 
 
     # get_items_with_key Because with DYNAMIC, CS is not at the same location
-    cs_type = get_items_with_key(:CS, wkt[geo_sub_type])[1][:CS][1]
+    cs_type = get_item_with_keys([:CS], wkt[geo_subtype])[:CS][1]
     # cs_type::Symbol = wkt[geo_sub_type][3][:CS][1]
     cs_dict["subtype"] = string(cs_type)
 
     cs_dict["axis"] = []
-    axis_entries = get_items_with_key(:AXIS, wkt[geo_sub_type])
+    axis_entries = get_items_with_key(:AXIS, wkt[geo_subtype])
     length(axis_entries) > 0 || error("Axis entries are required, non are found")
     for axis in axis_entries
         axis_dict = Dict{String, Any}()
@@ -165,13 +163,9 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
         axis_dict["direction"] = dir
 
         # Get unit from the CS node, then try the AXIS node if not found
-        unit = wktdict2jsondict_get_unit(wkt[geo_sub_type])
+        unit = wktdict2jsondict_get_unit(wkt[geo_subtype])
         if isnothing(unit)
           unit = wktdict2jsondict_get_unit(axis[:AXIS])
-        end
-        if isnothing(unit)
-          # TODO: is unit required? enumrate possible types of units
-          error("Could not find a UNIT node")
         end
         axis_dict["unit"] = unit
         
@@ -187,11 +181,7 @@ function wktdict2jsondict_cs(wkt::Dict, geo_sub_type)
     return cs_dict
 end
 
-# DESIGN: for now, print @error and return nothing, so we get both...
-## DESIGN, maybe its better to always return nothing, and be exhastive at call site, because often things are optional and we don't want to throw from child-functions
-#######
-
-function wktdict2jsondict_get_unit(axis)
+function wktdict2jsondict_get_unit(axis::Vector)
   unit_entry = get_item_with_keys([:ANGLEUNIT, :LENGTHUNIT, :SCALEUNIT], axis)
   isnothing(unit_entry) && return nothing
   unit_type = get_main_key(unit_entry)
@@ -231,7 +221,7 @@ function value_or_unit_value(value::Number, context::Vector)
   return unit_value
 end
 
-function wktdict2jsondict_general_datum(wkt::Dict)#::(String, Dict)
+function wktdict2jsondict_general_datum(wkt::Dict)
   name = ""
   jsondict = Dict{String,Any}()
   geo_sub_type = get_main_key(wkt)
@@ -261,9 +251,6 @@ function wktdict2jsondict_general_datum(wkt::Dict)#::(String, Dict)
       longitude = value_or_unit_value(meridian[1][:PRIMEM][2], meridian[1][:PRIMEM])
       jsondict["prime_meridian"]["longitude"] = longitude
     end
-    
-  # was indeed needed for few niche entries, should be exhastive
-  #... its ENSEMBLE location, not [1] as expected
   else
     error("Didn't find a datum node that is either ENSEMBLE or DATUM.")
   end
@@ -291,8 +278,7 @@ function wktdict2jsondict_short_datum(wkt::Dict)
 end
 
 function wktdict2jsondict_long_datum(wkt::Dict)
-  # "required" : [ "name", "members", "accuracy" ],
-  
+  # "required" : [ "name", "members", "accuracy" ]
   @assert wkt |> keys |> collect == [:ENSEMBLE]
   jsondict = Dict{String, Any}()
   jsondict["name"] = wkt[:ENSEMBLE][1]
@@ -337,10 +323,9 @@ function wktdict2jsondict_id(id_dict::Dict)::Dict
   return jsondict
 end
 
-
-###
-# From WKT2 string to Julia Dict conversion
-###
+# --------------------------------------
+# Convert from WKT string to WKT dict
+# --------------------------------------
 
 function epsg2wktdict(epsg::Int)::Union{Dict, Nothing}
   str = CoordRefSystems.wkt2(EPSG{epsg})
