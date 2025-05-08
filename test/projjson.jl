@@ -31,7 +31,7 @@
       gdaljson = gdalprojjsondict(EPSG{crs.code})
       res = @test isempty(delta_keys(gdaljson, ourjson))
       if res isa Test.Fail
-        display(projjson_diff(gdaljson, ourjson))
+        display(projjson_deepdiff(gdaljson, ourjson))
       end
     end
   end
