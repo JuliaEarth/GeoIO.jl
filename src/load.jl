@@ -172,3 +172,68 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   # perform repairs
   geotable |> pipeline
 end
+
+
+"""
+    GeoIO.loadvalues(fname; emptyonly=true, kwargs...)
+
+Load non-geographic information as a table from file `fname` stored in 
+.shp, .geojson, .parquet or other ArchGDAL-compatible format.
+
+This function does not process geographic information, allowing for 
+  loading of non-geographic data from large files.
+
+The return object is a Tables.jl - compatible table, and can be easily
+converted with e.g. `DataFrame()` from DataFrames.jl.
+
+## Options
+
+* `emptyonly`: load only rows with empty or missing geometries. Useful to inspect geometries that have failed to load (and thrown a warning) in `GeoIO.load()`.
+
+## See Also:
+
+[`GeoIO.load()`](@ref)
+
+## Examples
+
+```julia
+# load non-geographic data as Tables.jl table
+GeoIO.loadvalues("file.shp")
+# load only empty geometries
+GeoIO.loadvalues("file.shp", emptyonly=true)
+```
+"""
+function loadvalues(fname; emptyonly=false, kwargs...)
+
+  # GIS formats only
+  table = if endswith(fname, ".shp")
+    SHP.Table(fname; kwargs...)
+  elseif endswith(fname, ".geojson")
+    GJS.read(fname; numbertype, kwargs...)
+  elseif endswith(fname, ".parquet")
+    GPQ.read(fname; kwargs...)
+  else # fallback to GDAL
+    data = AG.read(fname; kwargs...)
+    AG.getlayer(data, layer)
+  end
+
+  #Build table
+  cols = Tables.columns(table)
+  names = Tables.columnnames(cols)
+  gcol = geomcolumn(names)
+  vars = setdiff(names, [gcol])
+  if isempty(vars)
+    @warn "No non-geographic information contained in file."
+    return nothing
+  end
+  etable = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+
+  #Return values for rows where empty/missing geoms are found only, if asked
+  if emptyonly
+    geoms = Tables.getcolumn(cols, gcol)
+    miss = findall(g -> ismissing(g) || isnothing(g), geoms)
+    etable = Tables.subset(etable, miss)
+  end
+
+  return etable
+end
