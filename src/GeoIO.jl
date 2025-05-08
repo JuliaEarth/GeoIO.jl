@@ -116,6 +116,7 @@ include("utils.jl")
 
 # conversions
 include("conversion.jl")
+include("wkt_to_projjson.jl")
 
 # extra code for backends
 include("extra/vtkread.jl")

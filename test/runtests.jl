@@ -9,6 +9,8 @@ using FixedPointNumbers
 using Colors
 using Dates
 using Unitful
+using JSON: JSON
+using JSONSchema: JSONSchema
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
@@ -36,6 +38,7 @@ function _isequal(m::Multi, g)
 end
 
 testfiles = [
+  "wkt_to_projjson.jl",
   "io/images.jl",
   "io/stl.jl",
   "io/obj.jl",
