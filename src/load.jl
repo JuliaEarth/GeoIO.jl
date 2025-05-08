@@ -209,7 +209,7 @@ function loadvalues(fname; emptyonly=false, kwargs...)
   table = if endswith(fname, ".shp")
     SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
-    GJS.read(fname; numbertype, kwargs...)
+    GJS.read(fname; numbertype=Float64, kwargs...) #numbertype not relevant here
   elseif endswith(fname, ".parquet")
     GPQ.read(fname; kwargs...)
   else # fallback to GDAL
