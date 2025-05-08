@@ -66,10 +66,10 @@
     # https://github.com/JuliaEarth/GeoIO.jl/issues/158
     gtb = @test_warn r"1 rows dropped" GeoIO.load(joinpath(datadir, "issue158.shp"))
     @test gtb isa AbstractGeoTable
-    # Values only loading
+    # values only loading
     gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"))
     @test Tables.getcolumn(gtb, :SA22023__2) == ["Putaruru Rural", "Oceanic Kermadec Islands"]
-    # Values only, empty only loading
+    # values only, empty only loading
     gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); emptyonly=true)
     @test Tables.getcolumn(gtb, :SA22023__2) == ["Oceanic Kermadec Islands"]
   end

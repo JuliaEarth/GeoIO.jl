@@ -20,8 +20,9 @@ function asgeotable(table)
   # subset for missing geoms
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
   if !isempty(miss)
-    @warn "$(length(miss)) rows dropped from GeoTable because of empty or missing geometries. \
-    You can use GeoIO.loadvalues(; emptyonly=true) to inspect data for these geometries."
+    @warn """$(length(miss)) rows dropped from GeoTable because of empty or missing geometries. 
+    Please use GeoIO.loadvalues(; emptyonly=true) to inspect data for these geometries.
+    """
   end
   valid = setdiff(1:length(geoms), miss)
   domain = geom2meshes.(geoms[valid], Ref(crs))
@@ -98,5 +99,19 @@ function projjson(CRS)
     GFT.ProjJSON(json)
   catch
     nothing
+  end
+end
+
+# load GIS format data
+function gistable(fname; layer=0, numbertype=Float64, kwargs...)
+  if endswith(fname, ".shp")
+    return SHP.Table(fname; kwargs...)
+  elseif endswith(fname, ".geojson")
+    return GJS.read(fname; numbertype, kwargs...) 
+  elseif endswith(fname, ".parquet")
+    return GPQ.read(fname; kwargs...)
+  else # fallback to GDAL
+    data = AG.read(fname; kwargs...)
+    return AG.getlayer(data, layer)
   end
 end

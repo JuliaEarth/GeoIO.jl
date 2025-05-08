@@ -148,16 +148,7 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   end
 
   # GIS formats
-  table = if endswith(fname, ".shp")
-    SHP.Table(fname; kwargs...)
-  elseif endswith(fname, ".geojson")
-    GJS.read(fname; numbertype, kwargs...)
-  elseif endswith(fname, ".parquet")
-    GPQ.read(fname; kwargs...)
-  else # fallback to GDAL
-    data = AG.read(fname; kwargs...)
-    AG.getlayer(data, layer)
-  end
+  table = gistable(fname; layer, numbertype, kwargs...)
 
   # construct geotable
   geotable = asgeotable(table)
@@ -206,29 +197,18 @@ GeoIO.loadvalues("file.shp", emptyonly=true)
 function loadvalues(fname; emptyonly=false, kwargs...)
 
   # GIS formats only
-  table = if endswith(fname, ".shp")
-    SHP.Table(fname; kwargs...)
-  elseif endswith(fname, ".geojson")
-    GJS.read(fname; numbertype=Float64, kwargs...) #numbertype not relevant here
-  elseif endswith(fname, ".parquet")
-    GPQ.read(fname; kwargs...)
-  else # fallback to GDAL
-    data = AG.read(fname; kwargs...)
-    AG.getlayer(data, layer)
-  end
+  # numbertype not relevant here
+  table = gistable(fname; numbertype=Float64, kwargs...)
 
-  #Build table
+  # build table
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  if isempty(vars)
-    @warn "No non-geographic information contained in file."
-    return nothing
-  end
+  isempty(vars) && return nothing 
   etable = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
 
-  #Return values for rows where empty/missing geoms are found only, if asked
+  # return values for rows where empty/missing geoms are found only, if asked
   if emptyonly
     geoms = Tables.getcolumn(cols, gcol)
     miss = findall(g -> ismissing(g) || isnothing(g), geoms)
