@@ -27,12 +27,8 @@
     @testset "code = $(crs.code)" for crs in filterd_crs
       ourjson = GeoIO.wkt2json(crs.wkt) |> json_round_trip
       @test isvalidprojjson(ourjson)
-
       gdaljson = gdalprojjsondict(EPSG{crs.code})
-      res = @test isempty(delta_keys(gdaljson, ourjson))
-      if res isa Test.Fail
-        display(projjson_deepdiff(gdaljson, ourjson))
-      end
+      @test isempty(delta_paths(gdaljson, ourjson))
     end
   end
 end
