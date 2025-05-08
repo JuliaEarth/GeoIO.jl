@@ -55,7 +55,7 @@ function debug_json(crs::Int; print=true, gdalprint::Bool=false)
   wktdict = GeoIO.epsg2wktdict(crs)
   print && (@info "Parsed WKT"; wktdict |> pprintln)
   
-  jsondict = GeoIO.wktdict2jsondict(wktdict)
+  jsondict = GeoIO.wkt2json(wktdict)
   d = projjson_diff(gdaljson, jsondict)
   print && d |> display
   return (wkt = wktdict, gdaljson = gdaljson, diff = d, test_diff = delta_keys(gdaljson, jsondict))

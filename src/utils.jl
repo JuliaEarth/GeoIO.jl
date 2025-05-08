@@ -51,7 +51,6 @@ function uniquenames(names, newnames)
   end
 end
 
-function projjsonstring(code)
 function projjsonstring(code)::String
   wktdict = epsg2wktdict(code)
   jsondict = wkt2json(wktdict)
