@@ -70,30 +70,30 @@ const GEOTIFFEXTS = [".tif", ".tiff"]
 
 # supported formats
 const FORMATS = [
-  (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".csv", load="CSV.jl", save="CSV.jl"),
+  (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
+  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
+  (extension=".grib", load="GRIBDatasets.jl", save=""),
+  (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
+  (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".kml", load="ArchGDAL.jl", save=""),
+  (extension=".msh", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".nc", load="NCDatasets.jl", save="NCDatasets.jl"),
   (extension=".obj", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".off", load="GeoIO.jl", save="GeoIO.jl"),
-  (extension=".msh", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
-  (extension=".csv", load="CSV.jl", save="CSV.jl"),
-  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
+  (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".tif", load="GeoTIFF.jl", save="GeoTIFF.jl"),
+  (extension=".tiff", load="GeoTIFF.jl", save="GeoTIFF.jl"),
+  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".grib", load="GRIBDatasets.jl", save=""),
-  (extension=".nc", load="NCDatasets.jl", save="NCDatasets.jl"),
-  (extension=".kml", load="ArchGDAL.jl", save=""),
-  (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
-  (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
-  (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
-  (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
-  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
-  (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".tif", load="TiffImages.jl", save="TiffImages.jl"),
-  (extension=".tiff", load="TiffImages.jl", save="TiffImages.jl")
+  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl")
 ]
 
 """
@@ -122,19 +122,19 @@ include("utils/gis.jl")
 include("conversion.jl")
 
 # extra code for backends
-include("extra/vtkread.jl")
-include("extra/vtkwrite.jl")
-include("extra/stl.jl")
-include("extra/obj.jl")
-include("extra/off.jl")
-include("extra/msh.jl")
-include("extra/ply.jl")
-include("extra/csv.jl")
-include("extra/img.jl")
 include("extra/cdm.jl")
+include("extra/csv.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
 include("extra/gis.jl")
+include("extra/img.jl")
+include("extra/msh.jl")
+include("extra/obj.jl")
+include("extra/off.jl")
+include("extra/ply.jl")
+include("extra/stl.jl")
+include("extra/vtkread.jl")
+include("extra/vtkwrite.jl")
 
 # user functions
 include("load.jl")
