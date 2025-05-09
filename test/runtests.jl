@@ -36,23 +36,26 @@ function _isequal(m::Multi, g)
 end
 
 testfiles = [
-  "io/images.jl",
-  "io/stl.jl",
-  "io/obj.jl",
-  "io/off.jl",
-  "io/msh.jl",
-  "io/ply.jl",
+  # IO tests
   "io/csv.jl",
-  "io/gslib.jl",
-  "io/vtk.jl",
-  "io/netcdf.jl",
-  "io/grib.jl",
-  "io/geotiff.jl",
-  "io/shapefile.jl",
   "io/geojson.jl",
   "io/geopackage.jl",
   "io/geoparquet.jl",
+  "io/geotiff.jl",
+  "io/grib.jl",
+  "io/gslib.jl",
+  "io/images.jl",
   "io/kml.jl",
+  "io/msh.jl",
+  "io/netcdf.jl",
+  "io/obj.jl",
+  "io/off.jl",
+  "io/ply.jl",
+  "io/shapefile.jl",
+  "io/stl.jl",
+  "io/vtk.jl",
+
+  # other tests
   "formats.jl",
   "convert.jl",
   "gis.jl",
