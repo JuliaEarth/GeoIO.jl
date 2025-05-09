@@ -24,9 +24,9 @@ are forwarded to the backend packages.
 Please use the [`formats`](@ref) function to list
 all supported file formats.
 
-GIS formats that support missing geometries are considered
-bad practice. In that case, we provide the auxiliary function
-[`loadvalues`](@ref) with similar options.
+GIS formats with missing geometries are considered bad practice.
+In this case, we provide the auxiliary function [`loadvalues`](@ref)
+with similar options.
 
 ## Options
 
@@ -78,6 +78,7 @@ bad practice. In that case, we provide the auxiliary function
 ```julia
 # load coordinates of geojson file as Float64 (default)
 GeoIO.load("file.geojson")
+
 # load coordinates of geojson file as Float32
 GeoIO.load("file.geojson", numbertype=Float32)
 ```
