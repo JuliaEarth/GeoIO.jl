@@ -156,7 +156,6 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   gisread(fname; layer, numbertype, repair, kwargs...)
 end
 
-
 """
     GeoIO.loadvalues(fname; rows=:all, kwargs...)
 
@@ -189,7 +188,7 @@ function loadvalues(fname; rows=:all, kwargs...)
   vars = setdiff(names, [gcol])
 
   # if no variables, return nothing
-  isempty(vars) && return nothing 
+  isempty(vars) && return nothing
 
   # build values table
   values = namedtuple(vars, cols)
