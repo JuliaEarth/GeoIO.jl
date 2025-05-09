@@ -116,22 +116,7 @@ function save(fname, geotable; warn=true, kwargs...)
 
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
-    grid = domain(geotable)
-    if !(grid isa Grid)
-      throw(ArgumentError("image formats only support grids"))
-    end
-    table = values(geotable)
-    if isnothing(table)
-      throw(ArgumentError("image formats need data to save"))
-    end
-    cols = Tables.columns(table)
-    names = Tables.columnnames(cols)
-    if :color ∉ names
-      throw(ArgumentError("color column not found"))
-    end
-    colors = Tables.getcolumn(cols, :color)
-    img = reshape(colors, size(grid))
-    return FileIO.save(fname, img)
+    return imgwrite(fname, geotable; kwargs...)
   end
 
   # GeoTiff formats
