@@ -134,6 +134,7 @@ include("extra/img.jl")
 include("extra/cdm.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
+include("extra/gis.jl")
 
 # user functions
 include("load.jl")

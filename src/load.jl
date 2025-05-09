@@ -24,6 +24,10 @@ are forwarded to the backend packages.
 Please use the [`formats`](@ref) function to list
 all supported file formats.
 
+GIS formats that support missing geometries are considered
+bad practice. In that case, we provide the auxiliary function
+[`loadvalues`](@ref) with similar options.
+
 ## Options
 
 ### OFF
@@ -148,69 +152,54 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   end
 
   # GIS formats
-  table = gistable(fname; layer, numbertype, kwargs...)
-
-  # construct geotable
-  geotable = asgeotable(table)
-
-  # repair pipeline
-  pipeline = if repair
-    Repair(11) → Repair(12)
-  else
-    Identity()
-  end
-
-  # perform repairs
-  geotable |> pipeline
+  gisread(fname; layer, numbertype, repair, kwargs...)
 end
 
 
 """
     GeoIO.loadvalues(fname; rows=:all, kwargs...)
 
-Load non-geographic information as a table from file `fname` stored in 
-.shp, .geojson, .parquet or other ArchGDAL-compatible format.
+Load `values` of geospatial table from file `fname` stored in any GIS format.
 
-This function does not process geographic information, allowing for 
-  loading of non-geographic data from large files.
-
-The return object is a Tables.jl - compatible table, and can be easily
-converted with e.g. `DataFrame()` from DataFrames.jl.
-
-## Options
-
-* `rows`: either `:all` (default) to load all rows, or `:invalid` to load only rows with missing geometries
+The function is particularly useful when geometries are missing, which we consider
+bad practice. In this case, the option `rows=:invalid` can be used to retrieve the
+values of the rows that were dropped by [`load`](@ref). All other options documented
+therein for GIS formats are supported.
 
 ## Examples
 
 ```julia
-# load non-geographic data as Tables.jl table
+# load all values of shapefile, ignoring geometries
 GeoIO.loadvalues("file.shp")
-# load only empty geometries
+
+# load values of shapefile where geometries are missing
 GeoIO.loadvalues("file.shp"; rows=:invalid)
 ```
 """
 function loadvalues(fname; rows=:all, kwargs...)
-  # GIS formats only
-  # numbertype not relevant here
+  # extract Tables.jl table from GIS format
   table = gistable(fname; kwargs...)
 
-  # build element table
+  # retrieve variables and geometry column
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  isempty(vars) && return nothing 
-  etable = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
 
-  # return values for rows where empty/missing geoms are found only, if asked
+  # if no variables, return nothing
+  isempty(vars) && return nothing 
+
+  # build values table
+  values = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+
+  # filter rows if necessary
   if rows === :invalid
     geoms = Tables.getcolumn(cols, gcol)
     miss = findall(g -> ismissing(g) || isnothing(g), geoms)
-    Tables.subset(etable, miss)
+    Tables.subset(values, miss)
   elseif rows === :all
-    etable
+    values
   else
-    throw(ArgumentError("argument `rows` must be :all or :invalid"))
+    throw(ArgumentError("argument `rows` must be either `:all` or `:invalid`"))
   end
 end
