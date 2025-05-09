@@ -70,8 +70,10 @@
     gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"))
     @test Tables.getcolumn(gtb, :SA22023__2) == ["Putaruru Rural", "Oceanic Kermadec Islands"]
     # values only, empty only loading
-    gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); emptyonly=true)
+    gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); rows=:invalid)
     @test Tables.getcolumn(gtb, :SA22023__2) == ["Oceanic Kermadec Islands"]
+    # argument error in loadvalues() function
+    @test_throws ArgumentError gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); rows=:incorrect_argument)
   end
 
   @testset "save" begin

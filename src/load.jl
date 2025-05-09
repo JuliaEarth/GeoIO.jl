@@ -166,7 +166,7 @@ end
 
 
 """
-    GeoIO.loadvalues(fname; emptyonly=true, kwargs...)
+    GeoIO.loadvalues(fname; rows=:all, kwargs...)
 
 Load non-geographic information as a table from file `fname` stored in 
 .shp, .geojson, .parquet or other ArchGDAL-compatible format.
@@ -179,11 +179,7 @@ converted with e.g. `DataFrame()` from DataFrames.jl.
 
 ## Options
 
-* `emptyonly`: load only rows with empty or missing geometries. Useful to inspect geometries that have failed to load (and thrown a warning) in `GeoIO.load()`.
-
-## See Also:
-
-[`GeoIO.load()`](@ref)
+* `rows`: either `:all` (default) to load all rows, or `:invalid` to load only rows with missing geometries
 
 ## Examples
 
@@ -191,16 +187,15 @@ converted with e.g. `DataFrame()` from DataFrames.jl.
 # load non-geographic data as Tables.jl table
 GeoIO.loadvalues("file.shp")
 # load only empty geometries
-GeoIO.loadvalues("file.shp", emptyonly=true)
+GeoIO.loadvalues("file.shp"; rows=:invalid)
 ```
 """
-function loadvalues(fname; emptyonly=false, kwargs...)
-
+function loadvalues(fname; rows=:all, kwargs...)
   # GIS formats only
   # numbertype not relevant here
-  table = gistable(fname; numbertype=Float64, kwargs...)
+  table = gistable(fname; kwargs...)
 
-  # build table
+  # build element table
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
@@ -209,11 +204,13 @@ function loadvalues(fname; emptyonly=false, kwargs...)
   etable = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
 
   # return values for rows where empty/missing geoms are found only, if asked
-  if emptyonly
+  if rows === :invalid
     geoms = Tables.getcolumn(cols, gcol)
     miss = findall(g -> ismissing(g) || isnothing(g), geoms)
-    etable = Tables.subset(etable, miss)
+    Tables.subset(etable, miss)
+  elseif rows === :all
+    etable
+  else
+    throw(ArgumentError("argument `rows` must be :all or :invalid"))
   end
-
-  return etable
 end
