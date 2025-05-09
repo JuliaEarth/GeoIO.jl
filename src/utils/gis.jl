@@ -7,7 +7,7 @@ function gistable(fname; layer=0, numbertype=Float64, kwargs...)
   if endswith(fname, ".shp")
     return SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
-    return GJS.read(fname; numbertype, kwargs...) 
+    return GJS.read(fname; numbertype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
   else # fallback to GDAL
