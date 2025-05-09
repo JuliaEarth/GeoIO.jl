@@ -2,25 +2,33 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# helper type alias
-const Met{T} = Quantity{T,u"𝐋",typeof(u"m")}
-const Deg{T} = Quantity{T,NoDims,typeof(u"°")}
+# helper function to extract Tables.jl table from GIS formats
+function gistable(fname; layer=0, numbertype=Float64, kwargs...)
+  if endswith(fname, ".shp")
+    return SHP.Table(fname; kwargs...)
+  elseif endswith(fname, ".geojson")
+    return GJS.read(fname; numbertype, kwargs...) 
+  elseif endswith(fname, ".parquet")
+    return GPQ.read(fname; kwargs...)
+  else # fallback to GDAL
+    data = AG.read(fname; kwargs...)
+    return AG.getlayer(data, layer)
+  end
+end
 
-# return the default length unit if not set
-lengthunit(u) = isnothing(u) ? m : u
-
+# helper function to convert Tables.jl table to GeoTable
 function asgeotable(table)
   crs = GI.crs(table)
   cols = Tables.columns(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+  etable = isempty(vars) ? nothing : namedtuple(vars, cols)
   geoms = Tables.getcolumn(cols, gcol)
   # subset for missing geoms
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
   if !isempty(miss)
-    @warn "$(length(miss)) rows dropped from GeoTable because of empty or missing geometries."
+    @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
   end
   valid = setdiff(1:length(geoms), miss)
   domain = geom2meshes.(geoms[valid], Ref(crs))
@@ -28,8 +36,7 @@ function asgeotable(table)
   georef(etable, domain)
 end
 
-# helper function to find the
-# geometry column of a table
+# helper function to find the geometry column of a table
 function geomcolumn(names)
   snames = string.(names)
   gnames = ["geometry", "geom", "shape"]
@@ -39,22 +46,6 @@ function geomcolumn(names)
     throw(ErrorException("geometry column not found"))
   else
     Symbol(gnames[select])
-  end
-end
-
-# add "_" to `name` until it is unique compared to the table `names`
-function uniquename(names, name)
-  uname = name
-  while uname ∈ names
-    uname = Symbol(uname, :_)
-  end
-  uname
-end
-
-# make `newnames` unique compared to the table `names`
-function uniquenames(names, newnames)
-  map(newnames) do name
-    uniquename(names, name)
   end
 end
 

@@ -24,6 +24,10 @@ are forwarded to the backend packages.
 Please use the [`formats`](@ref) function to list
 all supported file formats.
 
+GIS formats with missing geometries are considered bad practice.
+In this case, we provide the auxiliary function [`loadvalues`](@ref)
+with similar options.
+
 ## Options
 
 ### OFF
@@ -74,6 +78,7 @@ all supported file formats.
 ```julia
 # load coordinates of geojson file as Float64 (default)
 GeoIO.load("file.geojson")
+
 # load coordinates of geojson file as Float32
 GeoIO.load("file.geojson", numbertype=Float32)
 ```
@@ -148,27 +153,55 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   end
 
   # GIS formats
-  table = if endswith(fname, ".shp")
-    SHP.Table(fname; kwargs...)
-  elseif endswith(fname, ".geojson")
-    GJS.read(fname; numbertype, kwargs...)
-  elseif endswith(fname, ".parquet")
-    GPQ.read(fname; kwargs...)
-  else # fallback to GDAL
-    data = AG.read(fname; kwargs...)
-    AG.getlayer(data, layer)
-  end
+  gisread(fname; layer, numbertype, repair, kwargs...)
+end
 
-  # construct geotable
-  geotable = asgeotable(table)
 
-  # repair pipeline
-  pipeline = if repair
-    Repair(11) → Repair(12)
+"""
+    GeoIO.loadvalues(fname; rows=:all, kwargs...)
+
+Load `values` of geospatial table from file `fname` stored in any GIS format,
+skipping the steps to build the `domain` (i.e., geometry column).
+
+The function is particularly useful when geometries are missing. In this case,
+the option `rows=:invalid` can be used to retrieve the values of the rows that
+were dropped by [`load`](@ref). All other options documented therein for GIS
+formats are supported.
+
+## Examples
+
+```julia
+# load all values of shapefile, ignoring geometries
+GeoIO.loadvalues("file.shp")
+
+# load values of shapefile where geometries are missing
+GeoIO.loadvalues("file.shp"; rows=:invalid)
+```
+"""
+function loadvalues(fname; rows=:all, kwargs...)
+  # extract Tables.jl table from GIS format
+  table = gistable(fname; kwargs...)
+
+  # retrieve variables and geometry column
+  cols = Tables.columns(table)
+  names = Tables.columnnames(cols)
+  gcol = geomcolumn(names)
+  vars = setdiff(names, [gcol])
+
+  # if no variables, return nothing
+  isempty(vars) && return nothing 
+
+  # build values table
+  values = namedtuple(vars, cols)
+
+  # filter rows if necessary
+  if rows === :invalid
+    geoms = Tables.getcolumn(cols, gcol)
+    miss = findall(g -> ismissing(g) || isnothing(g), geoms)
+    Tables.subset(values, miss)
+  elseif rows === :all
+    values
   else
-    Identity()
+    throw(ArgumentError("argument `rows` must be either `:all` or `:invalid`"))
   end
-
-  # perform repairs
-  geotable |> pipeline
 end
