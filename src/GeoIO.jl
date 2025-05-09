@@ -56,62 +56,63 @@ import ArchGDAL.GDAL
 # ProjJSON CRS
 import JSON3
 
-# image extensions
-const IMGEXTS = [".png", ".jpg", ".jpeg"]
-
 # VTK extensions
 const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
-# Common Data Model extensions
-const CDMEXTS = [".grib", ".nc"]
+# image extensions
+const IMGEXTS = [".png", ".jpg", ".jpeg"]
 
 # GeoTiff extensions
 const GEOTIFFEXTS = [".tif", ".tiff"]
 
+# CDM extensions
+const CDMEXTS = [".grib", ".nc"]
+
 # supported formats
 const FORMATS = [
-  (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".csv", load="CSV.jl", save="CSV.jl"),
+  (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
+  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
+  (extension=".grib", load="GRIBDatasets.jl", save=""),
+  (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
+  (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".kml", load="ArchGDAL.jl", save=""),
+  (extension=".msh", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".nc", load="NCDatasets.jl", save="NCDatasets.jl"),
   (extension=".obj", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".off", load="GeoIO.jl", save="GeoIO.jl"),
-  (extension=".msh", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
   (extension=".ply", load="PlyIO.jl", save="PlyIO.jl"),
-  (extension=".csv", load="CSV.jl", save="CSV.jl"),
-  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl"),
+  (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
+  (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
+  (extension=".stl", load="GeoIO.jl", save="GeoIO.jl"),
+  (extension=".tif", load="GeoTIFF.jl", save="GeoTIFF.jl"),
+  (extension=".tiff", load="GeoTIFF.jl", save="GeoTIFF.jl"),
+  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtp", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vtr", load="ReadVTK.jl", save="WriteVTK.jl"),
   (extension=".vts", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".vti", load="ReadVTK.jl", save="WriteVTK.jl"),
-  (extension=".grib", load="GRIBDatasets.jl", save=""),
-  (extension=".nc", load="NCDatasets.jl", save="NCDatasets.jl"),
-  (extension=".kml", load="ArchGDAL.jl", save=""),
-  (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
-  (extension=".shp", load="Shapefile.jl", save="Shapefile.jl"),
-  (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
-  (extension=".parquet", load="GeoParquet.jl", save="GeoParquet.jl"),
-  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
-  (extension=".png", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".jpg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
-  (extension=".tif", load="TiffImages.jl", save="TiffImages.jl"),
-  (extension=".tiff", load="TiffImages.jl", save="TiffImages.jl")
+  (extension=".vtu", load="ReadVTK.jl", save="WriteVTK.jl")
 ]
 
 """
-    formats([io]; sortby=:format)
+    formats([io]; sortby=:extension)
 
 Displays in `io` (defaults to `stdout` if `io` is not given) a table with 
 all formats supported by GeoIO.jl and the packages used to load and save each of them. 
 
 Optionally, sort the table by the `:extension`, `:load` or `:save` columns using the `sortby` argument.
 """
-function formats(io::IO=stdout; sortby::Symbol=:extension)
+function formats(io=stdout; sortby=:extension)
   if sortby ∉ (:extension, :load, :save)
-    throw(ArgumentError("`:$sortby` is not a valid column name, use one of these: `:extension`, `:load` or `:save`"))
+    throw(ArgumentError("invalid `sortby` value, use one of `:extension`, `:load` or `:save`"))
   end
   sorted = sort(FORMATS, by=(row -> row[sortby]))
   pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
 end
 
+# utilities
 include("utils.jl")
 include("wkt2json.jl")
 
@@ -119,18 +120,18 @@ include("wkt2json.jl")
 include("conversion.jl")
 
 # extra code for backends
-include("extra/vtkread.jl")
-include("extra/vtkwrite.jl")
-include("extra/stl.jl")
-include("extra/obj.jl")
-include("extra/off.jl")
-include("extra/msh.jl")
-include("extra/ply.jl")
-include("extra/csv.jl")
-include("extra/img.jl")
 include("extra/cdm.jl")
+include("extra/csv.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
+include("extra/gis.jl")
+include("extra/img.jl")
+include("extra/msh.jl")
+include("extra/obj.jl")
+include("extra/off.jl")
+include("extra/ply.jl")
+include("extra/stl.jl")
+include("extra/vtk.jl")
 
 # user functions
 include("load.jl")

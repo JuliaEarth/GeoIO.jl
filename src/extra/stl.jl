@@ -6,7 +6,7 @@
 # STL READ
 # ---------
 
-function stlraed(fname; lenunit)
+function stlread(fname; lenunit)
   normals, vertices = if _isstlbin(fname)
     stlbinread(fname)
   else

@@ -15,3 +15,22 @@ function imgread(fname; lenunit)
   domain = CartesianGrid(dims, origin, spacing) |> transform
   georef(values, domain)
 end
+
+function imgwrite(fname, geotable; kwargs...)
+  grid = domain(geotable)
+  if !(grid isa Grid)
+    throw(ArgumentError("image formats only support grids"))
+  end
+  table = values(geotable)
+  if isnothing(table)
+    throw(ArgumentError("image formats need data to save"))
+  end
+  cols = Tables.columns(table)
+  names = Tables.columnnames(cols)
+  if :color ∉ names
+    throw(ArgumentError("color column not found"))
+  end
+  colors = Tables.getcolumn(cols, :color)
+  img = reshape(colors, size(grid))
+  FileIO.save(fname, img, kwargs...)
+end
