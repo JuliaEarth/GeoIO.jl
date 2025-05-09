@@ -114,7 +114,6 @@ end
 
 # utilities
 include("utils.jl")
-include("wkt2json.jl")
 
 # conversions
 include("conversion.jl")
@@ -132,6 +131,7 @@ include("extra/off.jl")
 include("extra/ply.jl")
 include("extra/stl.jl")
 include("extra/vtk.jl")
+include("extra/projjson.jl")
 
 # user functions
 include("load.jl")
