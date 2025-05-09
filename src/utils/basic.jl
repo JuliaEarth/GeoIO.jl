@@ -24,3 +24,10 @@ function uniquenames(names, newnames)
     uniquename(names, name)
   end
 end
+
+# construct named tuple with static number of variables
+function namedtuple(vars, cols)
+  tvars = Tuple(vars)
+  tvals = ntuple(i -> Tables.getcolumn(cols, tvars[i]), length(tvars))
+  NamedTuple{tvars}(tvals)
+end

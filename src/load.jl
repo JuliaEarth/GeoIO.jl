@@ -191,7 +191,7 @@ function loadvalues(fname; rows=:all, kwargs...)
   isempty(vars) && return nothing 
 
   # build values table
-  values = (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+  values = namedtuple(vars, cols)
 
   # filter rows if necessary
   if rows === :invalid

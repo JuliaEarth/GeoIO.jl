@@ -23,7 +23,7 @@ function asgeotable(table)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  etable = isempty(vars) ? nothing : (; (v => Tables.getcolumn(cols, v) for v in vars)...)
+  etable = isempty(vars) ? nothing : namedtuple(vars, cols)
   geoms = Tables.getcolumn(cols, gcol)
   # subset for missing geoms
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
