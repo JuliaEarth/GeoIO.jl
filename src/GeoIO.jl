@@ -59,14 +59,14 @@ import JSON3
 # image extensions
 const IMGEXTS = [".png", ".jpg", ".jpeg"]
 
-# VTK extensions
-const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
-
-# Common Data Model extensions
-const CDMEXTS = [".grib", ".nc"]
-
 # GeoTiff extensions
 const GEOTIFFEXTS = [".tif", ".tiff"]
+
+# CDM extensions
+const CDMEXTS = [".grib", ".nc"]
+
+# VTK extensions
+const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
 # supported formats
 const FORMATS = [

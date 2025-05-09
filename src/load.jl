@@ -7,38 +7,57 @@
 
 Load geospatial table from file `fname` stored in any format.
 
+Please use the [`formats`](@ref) function to list all supported
+file formats. GIS formats with missing geometries are considered
+bad practice.  In this case, we provide the auxiliary function
+[`loadvalues`](@ref) with similar options.
+
 Various `repair`s are performed on the stored geometries by
 default, including fixes of orientation in rings of polygons,
-removal of zero-area triangles, etc.
+removal of zero-area triangles, etc. Some of the repairs can
+be expensive on large data sets. In this case, we recommend
+setting `repair=false`. Custom repairs can be performed with
+the `Repair` transform from Meshes.jl.
 
-Some of the repairs can be expensive on large data sets.
-In that case, we recommend setting `repair=false`. Custom
-repairs can be performed with the `Repair` transform from
-Meshes.jl.
-
-Optionally, specify the `layer` to read within the file, and
+One can also specify the `layer` to read within the file, and
 the length unit `lenunit` of the coordinates when the format
-does not include units in its specification. Other `kwargs`
-are forwarded to the backend packages.
+does not include units in its specification.
 
-Please use the [`formats`](@ref) function to list
-all supported file formats.
-
-GIS formats with missing geometries are considered bad practice.
-In this case, we provide the auxiliary function [`loadvalues`](@ref)
-with similar options.
+Other `kwargs` options are forwarded to the backend packages
+and are documented below.
 
 ## Options
-
-### OFF
-
-* `defaultcolor`: default color of the geometries if the file does not have this data
-  (default to `RGBA(0.666, 0.666, 0.666, 0.666)`);
 
 ### CSV
 
 * `coords`: names of the columns with point coordinates (required option);
 * Other options are passed to `CSV.File`, see the CSV.jl documentation for more details;
+
+### GSLIB
+
+* Other options are passed to `GslibIO.load`, see the GslibIO.jl documentation for more details;
+
+### GeoJSON
+
+* `numbertype`: number type of geometry coordinates (default to `Float64`)
+* Other options are passed to `GeoJSON.read`, see the GeoJSON.jl documentation for more details;
+
+### GeoParquet
+
+* Other options are passed to `GeoParquet.read`, see the GeoParquet.jl documentation for more details;
+
+### Shapefile
+
+* Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
+
+### Formats handled by GDAL (GeoPackage, KML)
+
+* Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
+
+### OFF
+
+* `defaultcolor`: default color of the geometries if the file does not have this data
+  (default to `RGBA(0.666, 0.666, 0.666, 0.666)`);
 
 ### VTK formats (`.vtu`, `.vtp`, `.vtr`, `.vts`, `.vti`)
 
@@ -52,27 +71,6 @@ with similar options.
 * `z`: name of the column with z coordinates (default to `"z"`, `"Z"`, `"depth"`, or `"height"`);
 * `t`: name of the column with time measurements (default to `"t"`, `"time"`, or `"TIME"`);
 
-### GeoJSON
-
-* `numbertype`: number type of geometry coordinates (default to `Float64`)
-* Other options are passed to `GeoJSON.read`, see the GeoJSON.jl documentation for more details;
-
-### GSLIB
-
-* Other options are passed to `GslibIO.load`, see the GslibIO.jl documentation for more details;
-
-### Shapefile
-
-* Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
-
-### GeoParquet
-
-* Other options are passed to `GeoParquet.read`, see the GeoParquet.jl documentation for more details;
-
-### Formats handled by GDAL (GeoPackage, KML)
-
-* Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
-
 ## Examples
 
 ```julia
@@ -84,36 +82,6 @@ GeoIO.load("file.geojson", numbertype=Float32)
 ```
 """
 function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, kwargs...)
-  # VTK formats
-  if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkread(fname; lenunit, kwargs...)
-  end
-
-  # STL format
-  if endswith(fname, ".stl")
-    return stlread(fname; lenunit, kwargs...)
-  end
-
-  # OBJ format
-  if endswith(fname, ".obj")
-    return objread(fname; lenunit, numbertype, kwargs...)
-  end
-
-  # OFF format
-  if endswith(fname, ".off")
-    return offread(fname; lenunit, kwargs...)
-  end
-
-  # MSH format
-  if endswith(fname, ".msh")
-    return mshread(fname; lenunit, kwargs...)
-  end
-
-  # PLY format
-  if endswith(fname, ".ply")
-    return plyread(fname; lenunit, kwargs...)
-  end
-
   # CSV format
   if endswith(fname, ".csv")
     if :coords ∉ keys(kwargs)
@@ -132,24 +100,54 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
     return csvread(fname; lenunit, kwargs...)
   end
 
-  # IMG formats
-  if any(ext -> endswith(fname, ext), IMGEXTS)
-    return imgread(fname; lenunit, kwargs...)
-  end
-
   # GSLIB format
   if endswith(fname, ".gslib")
     return GslibIO.load(fname; kwargs...)
   end
 
-  # Common Data Model formats
-  if any(ext -> endswith(fname, ext), CDMEXTS)
-    return cdmread(fname; kwargs...)
+  # MSH format
+  if endswith(fname, ".msh")
+    return mshread(fname; lenunit, kwargs...)
+  end
+
+  # OBJ format
+  if endswith(fname, ".obj")
+    return objread(fname; lenunit, numbertype, kwargs...)
+  end
+
+  # OFF format
+  if endswith(fname, ".off")
+    return offread(fname; lenunit, kwargs...)
+  end
+
+  # PLY format
+  if endswith(fname, ".ply")
+    return plyread(fname; lenunit, kwargs...)
+  end
+
+  # STL format
+  if endswith(fname, ".stl")
+    return stlread(fname; lenunit, kwargs...)
+  end
+
+  # IMG formats
+  if any(ext -> endswith(fname, ext), IMGEXTS)
+    return imgread(fname; lenunit, kwargs...)
   end
 
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
     return geotiffread(fname; kwargs...)
+  end
+
+  # CDM formats
+  if any(ext -> endswith(fname, ext), CDMEXTS)
+    return cdmread(fname; kwargs...)
+  end
+
+  # VTK formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkread(fname; lenunit, kwargs...)
   end
 
   # GIS formats
