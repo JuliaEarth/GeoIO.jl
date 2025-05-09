@@ -133,8 +133,7 @@ include("extra/obj.jl")
 include("extra/off.jl")
 include("extra/ply.jl")
 include("extra/stl.jl")
-include("extra/vtkread.jl")
-include("extra/vtkwrite.jl")
+include("extra/vtk.jl")
 
 # user functions
 include("load.jl")
