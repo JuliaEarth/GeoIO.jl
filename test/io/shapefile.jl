@@ -64,16 +64,14 @@
     @test GeoIO.load(joinpath(datadir, "lines.shp")) isa AbstractGeoTable
 
     # https://github.com/JuliaEarth/GeoIO.jl/issues/158
-    gtb = @test_warn r"1 rows dropped" GeoIO.load(joinpath(datadir, "issue158.shp"))
+    fname = joinpath(datadir, "issue158.shp")
+    gtb = @test_warn r"1 rows dropped" GeoIO.load(fname)
     @test gtb isa AbstractGeoTable
-    # values only loading
-    gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"))
-    @test Tables.getcolumn(gtb, :SA22023__2) == ["Putaruru Rural", "Oceanic Kermadec Islands"]
-    # values only, empty only loading
-    gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); rows=:invalid)
-    @test Tables.getcolumn(gtb, :SA22023__2) == ["Oceanic Kermadec Islands"]
-    # argument error in loadvalues() function
-    @test_throws ArgumentError gtb = GeoIO.loadvalues(joinpath(datadir, "issue158.shp"); rows=:incorrect_argument)
+    tb = GeoIO.loadvalues(fname)
+    @test Tables.getcolumn(tb, :SA22023__2) == ["Putaruru Rural", "Oceanic Kermadec Islands"]
+    tb = GeoIO.loadvalues(fname; rows=:invalid)
+    @test Tables.getcolumn(tb, :SA22023__2) == ["Oceanic Kermadec Islands"]
+    @test_throws ArgumentError GeoIO.loadvalues(fname, rows=:incorrect)
   end
 
   @testset "save" begin
