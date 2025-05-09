@@ -11,7 +11,6 @@ using Dates
 using Unitful
 using JSON3
 using JSONSchema
-using DeepDiffs
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
