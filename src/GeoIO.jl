@@ -97,16 +97,16 @@ const FORMATS = [
 ]
 
 """
-    formats([io]; sortby=:format)
+    formats([io]; sortby=:extension)
 
 Displays in `io` (defaults to `stdout` if `io` is not given) a table with 
 all formats supported by GeoIO.jl and the packages used to load and save each of them. 
 
 Optionally, sort the table by the `:extension`, `:load` or `:save` columns using the `sortby` argument.
 """
-function formats(io::IO=stdout; sortby::Symbol=:extension)
+function formats(io=stdout; sortby=:extension)
   if sortby ∉ (:extension, :load, :save)
-    throw(ArgumentError("`:$sortby` is not a valid column name, use one of these: `:extension`, `:load` or `:save`"))
+    throw(ArgumentError("invalid `sortby` value, use one of `:extension`, `:load` or `:save`"))
   end
   sorted = sort(FORMATS, by=(row -> row[sortby]))
   pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
