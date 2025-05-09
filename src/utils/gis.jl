@@ -3,16 +3,16 @@
 # ------------------------------------------------------------------
 
 # helper function to extract Tables.jl table from GIS formats
-function gistable(fname; layer=0, numbertype=Float64, kwargs...)
+function gistable(fname; layer, numtype, kwargs...)
   if endswith(fname, ".shp")
     return SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
-    return GJS.read(fname; numbertype, kwargs...)
+    return GJS.read(fname; numbertype=numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
-    return AG.getlayer(data, layer)
+    return AG.getlayer(data, layer - 1)
   end
 end
 

@@ -2,9 +2,9 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gisread(fname; layer, numbertype, repair, kwargs...)
+function gisread(fname; repair, layer, numtype, kwargs...)
   # extract Tables.jl table from GIS format
-  table = gistable(fname; layer, numbertype, kwargs...)
+  table = gistable(fname; layer, numtype, kwargs...)
 
   # convert Tables.jl table to GeoTable
   geotable = asgeotable(table)

@@ -25,12 +25,7 @@ table = GeoIO.load("file.shp")
 GeoIO.save("file.gpkg", table)
 ```
 
-Additional keyword arguments are forwarded to the backends:
-
-```julia
-# read `.geojson` geometries with Float64 precision
-table = GeoIO.load("file.geojson", numbertype = Float64)
-```
+Additional keyword arguments are forwarded to the backends.
 
 ### Supported formats
 
