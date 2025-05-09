@@ -28,9 +28,7 @@ function asgeotable(table)
   # subset for missing geoms
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
   if !isempty(miss)
-    @warn """$(length(miss)) rows dropped from GeoTable because of missing geometries. 
-    Please use GeoIO.loadvalues(; rows=:invalid) to load values without geometries.
-    """
+    @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
   end
   valid = setdiff(1:length(geoms), miss)
   domain = geom2meshes.(geoms[valid], Ref(crs))

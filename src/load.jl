@@ -160,12 +160,13 @@ end
 """
     GeoIO.loadvalues(fname; rows=:all, kwargs...)
 
-Load `values` of geospatial table from file `fname` stored in any GIS format.
+Load `values` of geospatial table from file `fname` stored in any GIS format,
+skipping the steps to build the `domain` (i.e., geometry column).
 
-The function is particularly useful when geometries are missing, which we consider
-bad practice. In this case, the option `rows=:invalid` can be used to retrieve the
-values of the rows that were dropped by [`load`](@ref). All other options documented
-therein for GIS formats are supported.
+The function is particularly useful when geometries are missing. In this case,
+the option `rows=:invalid` can be used to retrieve the values of the rows that
+were dropped by [`load`](@ref). All other options documented therein for GIS
+formats are supported.
 
 ## Examples
 

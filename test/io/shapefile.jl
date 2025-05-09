@@ -65,7 +65,7 @@
 
     # https://github.com/JuliaEarth/GeoIO.jl/issues/158
     fname = joinpath(datadir, "issue158.shp")
-    gtb = @test_warn r"1 rows dropped" GeoIO.load(fname)
+    gtb = @test_warn r"Dropping 1 rows" GeoIO.load(fname)
     @test gtb isa AbstractGeoTable
     tb = GeoIO.loadvalues(fname)
     @test Tables.getcolumn(tb, :SA22023__2) == ["Putaruru Rural", "Oceanic Kermadec Islands"]
