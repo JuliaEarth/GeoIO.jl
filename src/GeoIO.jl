@@ -56,6 +56,9 @@ import ArchGDAL.GDAL
 # ProjJSON CRS
 import JSON3
 
+# VTK extensions
+const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
+
 # image extensions
 const IMGEXTS = [".png", ".jpg", ".jpeg"]
 
@@ -64,9 +67,6 @@ const GEOTIFFEXTS = [".tif", ".tiff"]
 
 # CDM extensions
 const CDMEXTS = [".grib", ".nc"]
-
-# VTK extensions
-const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 
 # supported formats
 const FORMATS = [

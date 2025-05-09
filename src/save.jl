@@ -114,6 +114,11 @@ function save(fname, geotable; warn=true, kwargs...)
     return stlwrite(fname, geotable; kwargs...)
   end
 
+  # VTK formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkwrite(fname, geotable)
+  end
+
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     return imgwrite(fname, geotable; kwargs...)
@@ -127,11 +132,6 @@ function save(fname, geotable; warn=true, kwargs...)
   # CDM formats
   if any(ext -> endswith(fname, ext), CDMEXTS)
     return cdmwrite(fname, geotable; kwargs...)
-  end
-
-  # VTK formats
-  if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkwrite(fname, geotable)
   end
 
   # GIS formats

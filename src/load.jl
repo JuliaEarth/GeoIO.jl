@@ -130,6 +130,11 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
     return stlread(fname; lenunit, kwargs...)
   end
 
+  # VTK formats
+  if any(ext -> endswith(fname, ext), VTKEXTS)
+    return vtkread(fname; lenunit, kwargs...)
+  end
+
   # IMG formats
   if any(ext -> endswith(fname, ext), IMGEXTS)
     return imgread(fname; lenunit, kwargs...)
@@ -143,11 +148,6 @@ function load(fname; repair=true, layer=0, lenunit=nothing, numbertype=Float64, 
   # CDM formats
   if any(ext -> endswith(fname, ext), CDMEXTS)
     return cdmread(fname; kwargs...)
-  end
-
-  # VTK formats
-  if any(ext -> endswith(fname, ext), VTKEXTS)
-    return vtkread(fname; lenunit, kwargs...)
   end
 
   # GIS formats
