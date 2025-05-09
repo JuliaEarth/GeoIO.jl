@@ -112,11 +112,8 @@ function formats(io=stdout; sortby=:extension)
   pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
 end
 
-# generic utilities
-include("utils/basic.jl")
-
-# GIS-specific utilities
-include("utils/gis.jl")
+# utilities
+include("utils.jl")
 
 # conversions
 include("conversion.jl")
