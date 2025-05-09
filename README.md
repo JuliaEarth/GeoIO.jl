@@ -35,7 +35,7 @@ table = GeoIO.load("file.geojson", numbertype = Float64)
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on March 1st, 2025:
+Below is the output generated on May 9, 2025:
 
 ```julia
 julia> GeoIO.formats()
@@ -59,8 +59,8 @@ julia> GeoIO.formats()
 │   .png    │   ImageIO.jl    │  ImageIO.jl   │
 │   .shp    │  Shapefile.jl   │ Shapefile.jl  │
 │   .stl    │    GeoIO.jl     │   GeoIO.jl    │
-│   .tif    │  TiffImages.jl  │ TiffImages.jl │
-│   .tiff   │  TiffImages.jl  │ TiffImages.jl │
+│   .tif    │   GeoTIFF.jl    │  GeoTIFF.jl   │
+│   .tiff   │   GeoTIFF.jl    │  GeoTIFF.jl   │
 │   .vti    │   ReadVTK.jl    │  WriteVTK.jl  │
 │   .vtp    │   ReadVTK.jl    │  WriteVTK.jl  │
 │   .vtr    │   ReadVTK.jl    │  WriteVTK.jl  │
