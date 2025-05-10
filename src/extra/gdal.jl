@@ -10,6 +10,11 @@ const DRIVER = AG.extensions()
 asstrings(options::Dict{<:AbstractString,<:AbstractString}) =
   [uppercase(String(k)) * "=" * String(v) for (k, v) in options]
 
+spatialref(code) = AG.importUserInput(codestring(code))
+
+codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
+codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
+
 function agwrite(fname, geotable; layername="data", options=Dict("geometry_name" => "geometry"))
   geoms = domain(geotable)
   table = values(geotable)
