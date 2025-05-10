@@ -14,6 +14,8 @@
     3407,
     # WKT projjson with base_crs.datum.prime_meridian
     31288,
+    # WKT projjson with coordinate_system.axis[1].meridian
+    2986,
   ]
 
   # This is to organize the tests by CRS type for ease of debugging
