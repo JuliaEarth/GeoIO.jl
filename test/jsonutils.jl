@@ -15,7 +15,7 @@ gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
 
 # Helper function to validate PROJJSON against schema
 function isvalidprojjson(json::Union{Dict,JSON3.Object})
-  schema_path = joinpath(@__DIR__, "projjson.schema.json")
+  schema_path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
   schema = Schema(JSON3.parsefile(schema_path))
   return isvalid(schema, json)
 end
