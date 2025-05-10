@@ -18,7 +18,7 @@
 
   # This is to organize the tests by CRS type for ease of debugging
   wktdicts = GeoIO.epsg2wktdict.(epsgcodes)
-  crstypes = GeoIO.get_main_key.(wktdicts)
+  crstypes = GeoIO.rootkey.(wktdicts)
   crs_structs = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
 
   @testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
