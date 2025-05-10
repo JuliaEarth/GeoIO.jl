@@ -102,18 +102,11 @@ function geomcolumn(names)
   end
 end
 
-function projjsonstring(code; multiline=false)
-  spref = spatialref(code)
-  wktptr = Ref{Cstring}()
-  options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
-  GDAL.osrexporttoprojjson(spref, wktptr, options)
-  unsafe_string(wktptr[])
+function projjsonstring(code)
+  wktdict = epsg2wktdict(code)
+  jsondict = wkt2json(wktdict)
+  JSON3.write(jsondict)
 end
-
-spatialref(code) = AG.importUserInput(codestring(code))
-
-codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
-codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
 
 function projjsoncode(json)
   id = json["id"]

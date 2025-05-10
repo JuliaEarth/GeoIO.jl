@@ -9,6 +9,8 @@ using FixedPointNumbers
 using Colors
 using Dates
 using Unitful
+using JSON3
+using JSONSchema
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
@@ -59,7 +61,9 @@ testfiles = [
   "formats.jl",
   "convert.jl",
   "gis.jl",
-  "noattrs.jl"
+  "noattrs.jl",
+  "jsonutils.jl",
+  "projjson.jl"
 ]
 
 @testset "GeoIO.jl" begin
