@@ -88,6 +88,10 @@ function find_diff_paths(v1, v2, path)
   _isapprox(v1, v2) ? nothing : [path]
 end
 
+# ----------------------------------------
+# Tools for live development and debugging
+# ----------------------------------------
+
 # Use DeepDiffs package to view any differences between GDAL's projjson (j1) and our's (j2).
 # Differences are shown red/green color. Few insignificant keys are filtered from (j1),
 # though there are still more false-negatives than delta_paths filtering
@@ -106,30 +110,32 @@ function projjson_deepdiff(j1::J, j2::J) where {J<:Union{Dict}}
   return diff
 end
 
-# For live development.
-# run debug_json(4275); to see differences between current and expected json output
-# If there is no red/green colored output, then all is good
-function debug_json(crs::Int; verbose=true, gdalprint::Bool=false)
-  if !isdefined(Main, :PrettyPrinting)
-    verbose = false
-    @warn "Verbose printing of WKT or JSON is unavailable because PrettyPrinting is not loaded"
-  end
+# For live development or debugging.
+# run check_projjson(4275) to see differences between current and expected json output
+# The presence of red/green colored output does not neccesarly mean that there is a bug to be fixed.
+# If the last printed line is an empty vector, it means the colored diff is likely a superfluous difference.
+function check_projjson(crs::Int; verbose=true)
   gdaljson = gdalprojjsondict(EPSG{crs})
-  verbose && gdalprint && (@info "ArchGDAL JSON"; gdaljson |> pprintln)
   wktdict = GeoIO.epsg2wktdict(crs)
-  verbose && (@info "Parsed WKT"; wktdict |> pprintln)
-
   jsondict = GeoIO.wkt2json(wktdict)
 
-  if !isdefined(Main, :DeepDiffs)
-    @warn "Detailed colored output is unavailable because DeepDiffs is not loaded."
-  else
-    d = projjson_deepdiff(gdaljson, jsondict)
-    verbose && (@info "DeepDiff"; d |> display)
+  # Show pretty-printed WKT if possible
+  if verbose && isdefined(Main, :PrettyPrinting)
+    @info "Parsed WKT"
+    pprintln(wktdict)
+  elseif verbose
+    @warn "Formatted printing of WKT or JSON is unavailable because PrettyPrinting is not loaded"
   end
 
-  diffkeys = delta_paths(gdaljson, jsondict)
-  @info "JSON keys with a potentially significant difference from expected output"
+  # Show deep diff if possible
+  if verbose && isdefined(Main, :DeepDiffs)
+    @info "DeepDiff"
+    display(deepdiff_projjson(gdaljson, jsondict))
+  elseif verbose
+    @warn "Detailed colored output is unavailable because DeepDiffs is not loaded."
+  end
+
+  diffkeys = delta_projjson(gdaljson, jsondict)
+  @info "JSON keys with a potentially significant difference from expected output:"
   display(diffkeys)
-  return (wkt=wktdict, diffkeys=diffkeys)
 end
