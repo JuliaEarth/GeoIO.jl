@@ -1,11 +1,6 @@
-# Helper function to create a spatial reference
-spatialref(code) = AG.importUserInput(codestring(code))
-codestring(::Type{EPSG{Code}}) where {Code} = "EPSG:$Code"
-codestring(::Type{ESRI{Code}}) where {Code} = "ESRI:$Code"
-
 # Old GDAL implementation of projjsonstring for testing
-function gdalprojjsonstring(code; multiline=false)::String
-  spref = spatialref(code)
+function gdalprojjsonstring(code::Type{EPSG{Code}}; multiline=false) where {Code}
+  spref = AG.importUserInput("EPSG:$Code")
   wktptr = Ref{Cstring}()
   options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
   AG.GDAL.osrexporttoprojjson(spref, wktptr, options)
@@ -13,17 +8,18 @@ function gdalprojjsonstring(code; multiline=false)::String
 end
 gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
 
-# Helper function to validate PROJJSON against schema
+# Validate generated json against PROJJSON schema
 function isvalidprojjson(json::Union{Dict,JSON3.Object})
   schema_path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
   schema = Schema(JSON3.parsefile(schema_path))
   return isvalid(schema, json)
 end
 
-json_round_trip(j) = JSON3.read(j |> JSON3.write, Dict)
+# I can not figure out why tests fail without this!
+json_round_trip(j) = JSON3.read(JSON3.write(j), Dict)
 
-# Use DeepDiffs package to compare the different items between ArchGDAL's projjson (j1) and our's (j2).
-# Diffrences are shown red/green color. Few insignificant keys are filters from (j1),
+# Use DeepDiffs package to compare the different items between GDAL's projjson (j1) and our's (j2).
+# Diffrences are shown red/green color. Few insignificant keys are filtered from (j1),
 # though there are still more false-negatives than delta_paths filtering
 function projjson_deepdiff(j1::J, j2::J) where {J<:Union{Dict}}
   nonsig_keys = ["bbox", "area", "scope", "usages", "\$schema"]
@@ -63,8 +59,8 @@ function delta_paths(j1, j2; ignore_insig::Bool=true)::Vector
   return diff_paths
 end
 
-_isequal(x::Number, y::Number) = isapprox(x, y)
-_isequal(x, y) = isequal(x, y)
+_isapprox(x::Number, y::Number) = isapprox(x, y)
+_isapprox(x, y) = isequal(x, y)
 
 function find_diff_paths(d1::Dict, d2::Dict, path="")
   paths = String[]
@@ -72,7 +68,7 @@ function find_diff_paths(d1::Dict, d2::Dict, path="")
   for key in all_keys
     new_path = isempty(path) ? string(key) : string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
-      if !_isequal(d1[key], d2[key])
+      if !_isapprox(d1[key], d2[key])
         append!(paths, find_diff_paths(d1[key], d2[key], new_path))
       end
     else
@@ -89,7 +85,7 @@ function find_diff_paths(v1::Vector, v2::Vector, path)
   max_length = max(length(v1), length(v2))
 
   for i in 1:min_length
-    if !_isequal(v1[i], v2[i])
+    if !_isapprox(v1[i], v2[i])
       append!(paths, find_diff_paths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
@@ -101,7 +97,7 @@ function find_diff_paths(v1::Vector, v2::Vector, path)
 end
 
 function find_diff_paths(v1, v2, path)
-  _isequal(v1, v2) ? String[] : [path]
+  _isapprox(v1, v2) ? String[] : [path]
 end
 
 # For live development.
