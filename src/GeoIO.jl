@@ -119,6 +119,7 @@ include("utils.jl")
 include("conversion.jl")
 
 # extra code for backends
+include("projjson.jl")
 include("extra/cdm.jl")
 include("extra/csv.jl")
 include("extra/gdal.jl")
