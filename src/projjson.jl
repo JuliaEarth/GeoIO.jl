@@ -224,23 +224,7 @@ function wkt2json_general_datum(wkt::Dict)
     jsondict = wkt2json_datumensemble(datum)
   elseif rootkey(datum) == :DATUM
     name = "datum"
-    jsondict = wkt2json_datum(datum)
-
-    # dynamic and meridian ought to be in wkt2json_short_datum but is here now in order not to break encapsulation
-    dynamic = finditem(:DYNAMIC, wkt[geosubtype])
-    if !isnothing(dynamic)
-      jsondict["frame_reference_epoch"] = dynamic[:DYNAMIC][1][:FRAMEEPOCH][1]
-      jsondict["type"] = "DynamicGeodeticReferenceFrame"
-    else
-      jsondict["type"] = "GeodeticReferenceFrame"
-    end
-    prime = finditem(:PRIMEM, wkt[geosubtype])
-    if !isnothing(prime)
-      jsondict["prime_meridian"] = Dict{String,Any}()
-      jsondict["prime_meridian"]["name"] = prime[:PRIMEM][1]
-      longitude = valueunit(prime[:PRIMEM][2], prime[:PRIMEM])
-      jsondict["prime_meridian"]["longitude"] = longitude
-    end
+    jsondict = wkt2json_datum(wkt)
   else
     error("An ENSEMBLE or DATUM node is required, none is found.")
   end
@@ -251,17 +235,35 @@ end
 # Returns geodetic_reference_frame projjson object.
 # Schema requires keys: "name" and "ellipsoid", optionally "type", "anchor_epoch", "prime_meridian"
 function wkt2json_datum(wkt::Dict)
-  @assert wkt |> keys |> collect == [:DATUM]
+  geosubtype = rootkey(wkt)
   jsondict = Dict{String,Any}()
-  jsondict["name"] = wkt[:DATUM][1]
+  datum = finditem(:DATUM, wkt[geosubtype])
+  jsondict["name"] = datum[:DATUM][1]
 
-  ellipsoid = finditem(:ELLIPSOID, wkt[:DATUM])
+  ellipsoid = finditem(:ELLIPSOID, datum[:DATUM])
   jsondict["ellipsoid"] = wkt2json_ellipsoid(ellipsoid)
 
-  anchorepoch = finditem(:ANCHOREPOCH, wkt[:DATUM])
+  anchorepoch = finditem(:ANCHOREPOCH, datum[:DATUM])
   if !isnothing(anchorepoch)
     jsondict["anchor_epoch"] = anchorepoch[:ANCHOREPOCH][1]
   end
+
+  dynamic = finditem(:DYNAMIC, wkt[geosubtype])
+  if !isnothing(dynamic)
+    jsondict["type"] = "DynamicGeodeticReferenceFrame"
+    jsondict["frame_reference_epoch"] = dynamic[:DYNAMIC][1][:FRAMEEPOCH][1]
+  else
+    jsondict["type"] = "GeodeticReferenceFrame"
+  end
+  
+  prime = finditem(:PRIMEM, wkt[geosubtype])
+  if !isnothing(prime)
+    jsondict["prime_meridian"] = Dict{String,Any}()
+    jsondict["prime_meridian"]["name"] = prime[:PRIMEM][1]
+    longitude = valueunit(prime[:PRIMEM][2], prime[:PRIMEM])
+    jsondict["prime_meridian"]["longitude"] = longitude
+  end
+  
   return jsondict
 end
 
