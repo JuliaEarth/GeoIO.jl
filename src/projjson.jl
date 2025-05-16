@@ -113,10 +113,6 @@ function wkt2json_conversion(wkt::Dict)
   for param in params
     paramdict = Dict{String, Any}()
     paramdict["name"] = param[:PARAMETER][1]
-    # Sometimes there are rounding discrepancies between GDAL's WKT and our WKT. 
-    # This becomes problematic when testing is done by comparing our projjson with GDAL's.
-    # This is mitigated if we can use Omar's fork of DeepDiffs or find_diff_path in test/jsonutils.jl as they use isapprox for comparison.
-    # paramdict["value"] = GDALcompat ? round(param[:PARAMETER][2], digits=9) : param[:PARAMETER][2]
     paramdict["value"] = param[:PARAMETER][2]
     
     unit = wkt2json_get_unit(param[:PARAMETER])
@@ -143,7 +139,6 @@ function wkt2json_cs(wkt::Dict)
     geosubtype = rootkey(wkt)
 
     cstype = finditem(:CS, wkt[geosubtype])[:CS][1]
-    # cstype::Symbol = wkt[geosubtype][3][:CS][1]
     csdict["subtype"] = string(cstype)
 
     csdict["axis"] = []
