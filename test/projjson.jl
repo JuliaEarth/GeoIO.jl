@@ -30,7 +30,7 @@
       ourjson = GeoIO.wkt2json(crs.wkt) |> json_round_trip
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
-      @test isempty(delta_paths(gdaljson, ourjson))
+      @test isempty(delta_projjson(gdaljson, ourjson))
     end
   end
 end

@@ -15,15 +15,15 @@ function isvalidprojjson(json::Union{Dict,JSON3.Object})
   return isvalid(schema, json)
 end
 
-# I can not figure out why tests fail without this!
+# I can not figure out why the validation test fails without this!
 json_round_trip(j) = JSON3.read(JSON3.write(j), Dict)
 
 # Return the "paths" of objects that exhibit differences between the two json inputs.
 # By default, we clean the results from some optional projjson objects and minor
 # discrepancies with GDAL's output. Set ignore_insig = true to disable that behavior.
-# Note: find_diff_paths uses isapprox to compare numbers to avoid false negatives
-function delta_paths(j1, j2; ignore_insig=true)::Vector{String}
-  diff_paths = find_diff_paths(j1, j2)
+# Note: diffpaths uses isapprox to compare numbers to avoid false negatives
+function delta_projjson(j1, j2; ignore_insig=true)::Vector{String}
+  diff_paths = diffpaths(j1, j2)
   ignore_insig == false && return diff_paths
 
   insig_keys = ["bbox", "area", "scope", "usages", "\$schema"]
@@ -50,14 +50,28 @@ end
 _isapprox(x::Number, y::Number) = isapprox(x, y)
 _isapprox(x, y) = isequal(x, y)
 
-function find_diff_paths(d1::Dict, d2::Dict, path="")
+"""
+    diffpaths(d1::Dict, d2::Dict, path="")
+
+    Find differences between two dictionaries and return the paths to those differences as json dot-notation strings. This function recursively compares two dictionaries and returns a vector of string paths pointing to the differences found.
+    For numerical values, uses `isapprox` for comparison to avoid false negatives.
+  Example:
+  ========
+    julia> d1 = Dict(:A=>[0,20], :B=>3, :C=>4)
+    julia> d2 =  Dict(:A=>[10,20], :C=>4)
+    julia> diffpaths(d1, d2)
+    2-element Vector{String}:
+     ".A[1]"
+     ".B"
+"""
+function diffpaths(d1::Dict, d2::Dict, path="")
   paths = String[]
   all_keys = union(keys(d1), keys(d2))
   for key in all_keys
     new_path = string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
       if !_isapprox(d1[key], d2[key])
-        append!(paths, find_diff_paths(d1[key], d2[key], new_path))
+        append!(paths, diffpaths(d1[key], d2[key], new_path))
       end
     else
       push!(paths, new_path)
@@ -67,14 +81,14 @@ function find_diff_paths(d1::Dict, d2::Dict, path="")
   return paths
 end
 
-function find_diff_paths(v1::Vector, v2::Vector, path)
+function diffpaths(v1::Vector, v2::Vector, path)
   paths = String[]
   min_length = min(length(v1), length(v2))
   max_length = max(length(v1), length(v2))
 
   for i in 1:min_length
     if !_isapprox(v1[i], v2[i])
-      append!(paths, find_diff_paths(v1[i], v2[i], "$(path)[$(i)]"))
+      append!(paths, diffpaths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
   # extra elements, doesn't matter which vector
@@ -84,7 +98,7 @@ function find_diff_paths(v1::Vector, v2::Vector, path)
   return paths
 end
 
-function find_diff_paths(v1, v2, path)
+function diffpaths(v1, v2, path)
   _isapprox(v1, v2) ? nothing : [path]
 end
 
@@ -95,7 +109,7 @@ end
 # Use DeepDiffs package to view any differences between GDAL's projjson (j1) and our's (j2).
 # Differences are shown red/green color. Few insignificant keys are filtered from (j1),
 # though there are still more false-negatives than delta_paths filtering
-function projjson_deepdiff(j1::J, j2::J) where {J<:Union{Dict}}
+function deepdiff_projjson(j1::J, j2::J) where {J<:Union{Dict}}
   j1 = deepcopy(j1)
   nonsig_keys = ["bbox", "area", "scope", "usages", "\$schema"]
   for k in nonsig_keys
