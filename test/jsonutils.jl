@@ -110,7 +110,7 @@ end
 function debug_json(crs::Int; verbose=true, gdalprint::Bool=false)
   if !isdefined(Main, :PrettyPrinting)
     verbose = false
-    @warn "Verbose formatted printing of WKT or JSON is unavailable because PrettyPrinting is not loaded"
+    @warn "Verbose printing of WKT or JSON is unavailable because PrettyPrinting is not loaded"
   end
   gdaljson = gdalprojjsondict(EPSG{crs})
   verbose && gdalprint && (@info "ArchGDAL JSON"; gdaljson |> pprintln)

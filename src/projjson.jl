@@ -7,8 +7,8 @@ function rootkey(d::Dict)
   return first(keys(d))
 end
 
-# From a Vector{Dict}, get Dict items that all has a particular key
-function finditems(key::Symbol, list::Vector)::Union{Vector, Nothing}
+# From a vector of WKT items, find ones that start with `key`
+function finditems(key::Symbol, list::Vector)::Vector{Dict}
   filter(x->rootkey(x)==key, list)
 end
 
@@ -81,6 +81,7 @@ function wkt2json_geog(wkt::Dict)
   return jsondict 
 end
 
+# Schema requires keys: "name", "base_crs", "conversion", and "coordinate_system"
 function wkt2json_proj(wkt::Dict)
     @assert wkt |> keys |> collect == [:PROJCRS]
     jsondict = Dict{String, Any}()
@@ -94,10 +95,10 @@ function wkt2json_proj(wkt::Dict)
     jsondict["coordinate_system"] = wkt2json_cs(wkt)
     
     jsondict["id"] = wkt2json_id(wkt[:PROJCRS][end])
-    
     return jsondict
 end
 
+# Schema requires keys: "name" and "method"
 function wkt2json_conversion(wkt::Dict)
   @assert wkt |> keys |> collect == [:CONVERSION]
   jsondict = Dict{String, Any}()
@@ -105,7 +106,6 @@ function wkt2json_conversion(wkt::Dict)
   
   method = Dict{String, Any}()
   method["name"] = wkt[:CONVERSION][2][:METHOD][1]
-  method["id"] = wkt2json_id(wkt[:CONVERSION][2][:METHOD][end])
   jsondict["method"] = method
   
   jsondict["parameters"] = []
@@ -113,15 +113,14 @@ function wkt2json_conversion(wkt::Dict)
   for param in params
     paramdict = Dict{String, Any}()
     paramdict["name"] = param[:PARAMETER][1]
-    # There few rounding discrepancies between GDAL and our WKT. Which is problematic when testing by comparing with GDAL.
-    # This is properly avoided if we use Omar's fork of DeepDiffs or find_diff_path in test/jsonutils.jl as they use isapprox for comparison.
+    # Sometimes there are rounding discrepancies between GDAL's WKT and our WKT. 
+    # This becomes problematic when testing is done by comparing our projjson with GDAL's.
+    # This is mitigated if we can use Omar's fork of DeepDiffs or find_diff_path in test/jsonutils.jl as they use isapprox for comparison.
     # paramdict["value"] = GDALcompat ? round(param[:PARAMETER][2], digits=9) : param[:PARAMETER][2]
     paramdict["value"] = param[:PARAMETER][2]
     
     unit = wkt2json_get_unit(param[:PARAMETER])
     if !isnothing(unit)
-      # TODO: process full UNIT nodes, in addition to simple UNIT=>string ones
-      # makes 2/700 error, UNIT direct string shouldn't be other than ["metre", "degree", "unity"] 
       paramdict["unit"] = unit
     end
     paramdict["id"] = wkt2json_id(param[:PARAMETER][4])
@@ -131,23 +130,25 @@ function wkt2json_conversion(wkt::Dict)
   if !GDALcompat && rootkey(wkt[:CONVERSION][end]) == :ID
     jsondict["id"] = wkt2json_id(wkt[:CONVERSION][end])
   end
+  
+  method["id"] = wkt2json_id(wkt[:CONVERSION][2][:METHOD][end])
   return jsondict
 end
 
+# takes top-level node because for json "coordinate_system" requires information from AXIS and UNIT WKT nodes, that are outside the CS node.
+# Schema requires keys: "subtype" and "axis"
 function wkt2json_cs(wkt::Dict)
-  # "required" : [ "subtype", "axis" ],
-  # pass base_crs because for coordinate_system: AXIS and potentially UNIT are both on base_crs level
+  @assert wkt |> keys |> collect |> first in [:GEOGCRS, :GEODCRS, :PROJCRS]
     csdict = Dict{String, Any}()
     geosubtype = rootkey(wkt)
 
-    # itemsbykey Because with DYNAMIC, CS is not at the same location
     cstype = finditem(:CS, wkt[geosubtype])[:CS][1]
     # cstype::Symbol = wkt[geosubtype][3][:CS][1]
     csdict["subtype"] = string(cstype)
 
     csdict["axis"] = []
     axes = finditems(:AXIS, wkt[geosubtype])
-    length(axes) > 0 || error("Axis entries are required, non are found")
+    length(axes) > 0 || error("Axis entries are required, none are found")
     for axis in axes
         axisdict = Dict{String, Any}()
 
@@ -187,12 +188,11 @@ function wkt2json_get_unit(axis::Vector)
   unittype = rootkey(unit)
   name = unit[unittype][1]
 
-  # if standard unit, simply return the string
+  # json unit object can be a simple string if its one of the following, or a full object otherwise
   if name in ("metre", "degree", "unity")
     return name
-  # else construct "unit" json object
   else
-    unitdict = Dict()
+    unitdict = Dict{String, Any}()
     unitdict["name"] = name
     unitdict["conversion_factor"] = unit[unittype][2]
     unitdict["type"] =
@@ -203,10 +203,8 @@ function wkt2json_get_unit(axis::Vector)
       elseif unittype == :SCALEUNIT
         "ScaleUnit"
       else
-        # TODO rest of units don't seem to be needed in the CRS types we support for now
         error("Unit type $unittype is not yet supported")
       end
-
     return unitdict
   end
   return nothing
@@ -226,9 +224,7 @@ function wkt2json_general_datum(wkt::Dict)
   jsondict = Dict{String,Any}()
   geosubtype = rootkey(wkt)
 
-  dynamic = finditem(:DYNAMIC, wkt[rootkey(wkt)])
-  datum = finditem([:ENSEMBLE, :DATUM], wkt[rootkey(wkt)])
-
+  datum = finditem([:ENSEMBLE, :DATUM], wkt[geosubtype])
   if rootkey(datum) == :ENSEMBLE
     name = "datum_ensemble"
     jsondict = wkt2json_long_datum(datum)
@@ -236,14 +232,14 @@ function wkt2json_general_datum(wkt::Dict)
     name = "datum"
     jsondict = wkt2json_short_datum(datum)
 
-    # this is here as not to ruin the encapsulation of _short_datum
+    # dynamic and meridian ought to be in wkt2json_short_datum but is here now in order not to break encapsulation
+    dynamic = finditem(:DYNAMIC, wkt[geosubtype])
     if !isnothing(dynamic)
       jsondict["frame_reference_epoch"] = dynamic[:DYNAMIC][1][:FRAMEEPOCH][1]
       jsondict["type"] = "DynamicGeodeticReferenceFrame"
     else
       jsondict["type"] = "GeodeticReferenceFrame"
     end
-    
     meridian = finditem(:PRIMEM, wkt[geosubtype])
     if !isnothing(meridian)
       jsondict["prime_meridian"] = Dict{String, Any}()
@@ -258,27 +254,26 @@ function wkt2json_general_datum(wkt::Dict)
   return (name, jsondict)
 end
 
+# Schema requires keys: "name" and "ellipsoid", optionally have "type", "anchor_epoch", "prime_meridian"
+# this function should produce object that matches geodetic_reference_frame in the schema. 
 function wkt2json_short_datum(wkt::Dict)
   @assert wkt |> keys |> collect == [:DATUM]
-  # "required":["name", "ellipsoid"], optionally have "type", "anchor_epoch", "prime_meridian"
 
   jsondict = Dict{String, Any}()
   jsondict["name"] = wkt[:DATUM][1]
 
-  ellipsoid = finditems(:ELLIPSOID, wkt[:DATUM])
-  jsondict["ellipsoid"] = wkt2json_ellipsoid(ellipsoid[1])
+  ellipsoid = finditem(:ELLIPSOID, wkt[:DATUM])
+  jsondict["ellipsoid"] = wkt2json_ellipsoid(ellipsoid)
 
-  # Optional, not always present
-  anchorepoch = finditems(:ANCHOREPOCH, wkt[:DATUM])
-  if !isempty(anchorepoch)
-    ## TODO: itemsbykey single usage if we ever refactor
-    jsondict["anchor_epoch"] = anchorepoch[1][:ANCHOREPOCH][1]
+  anchorepoch = finditem(:ANCHOREPOCH, wkt[:DATUM])
+  if !isnothing(anchorepoch)
+    jsondict["anchor_epoch"] = anchorepoch[:ANCHOREPOCH][1]
   end
   return jsondict
 end
 
+# Schema requires keys: "name", "members", "accuracy", and optionally "ellipsoid"
 function wkt2json_long_datum(wkt::Dict)
-  # "required" : [ "name", "members", "accuracy" ]
   @assert wkt |> keys |> collect == [:ENSEMBLE]
   jsondict = Dict{String, Any}()
   jsondict["name"] = wkt[:ENSEMBLE][1]
@@ -291,17 +286,16 @@ function wkt2json_long_datum(wkt::Dict)
     mdict["id"] = wkt2json_id(m[:MEMBER][2])
     push!(jsondict["members"], mdict)
   end
-  
-  ## TODO: potentially another version of itemsbykey to avoid redundancy 
-  accuracy = finditems(:ENSEMBLEACCURACY, wkt[:ENSEMBLE])[1]
+
+  accuracy = finditem(:ENSEMBLEACCURACY, wkt[:ENSEMBLE])
   jsondict["accuracy"] = string(float(accuracy[:ENSEMBLEACCURACY][1]))
   
-  ellipsoid = finditems(:ELLIPSOID, wkt[:ENSEMBLE])
-  if !isempty(ellipsoid) 
-    jsondict["ellipsoid"] = wkt2json_ellipsoid(ellipsoid[1])
+  ellipsoid = finditem(:ELLIPSOID, wkt[:ENSEMBLE])
+  if !isnothing(ellipsoid) 
+    jsondict["ellipsoid"] = wkt2json_ellipsoid(ellipsoid)
   end
+
   jsondict["id"] = wkt2json_id(wkt[:ENSEMBLE][end])
-  
   return jsondict
 end
 
@@ -317,7 +311,7 @@ end
 
 function wkt2json_id(iddict::Dict)::Dict
   @assert iddict  |> keys |> collect == [:ID]
-  jsondict = Dict{String, Any}() # "list" of key value pairs
+  jsondict = Dict{String, Any}()
   jsondict["authority"] = iddict[:ID][1]
   jsondict["code"] = iddict[:ID][2]
   return jsondict
