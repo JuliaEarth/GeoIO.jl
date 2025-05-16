@@ -108,7 +108,7 @@ function wkt2json_conversion(wkt::Dict)
     paramdict["name"] = param[:PARAMETER][1]
     paramdict["value"] = param[:PARAMETER][2]
 
-    unit = wkt2json_get_unit(param[:PARAMETER])
+    unit = wkt2json_unit(param[:PARAMETER])
     if !isnothing(unit)
       paramdict["unit"] = unit
     end
@@ -156,16 +156,16 @@ function wkt2json_cs(wkt::Dict)
     axisdict["direction"] = dir
 
     # if no unit is found in AXIS node, get it from parent CS node
-    unit = wkt2json_get_unit(axis[:AXIS])
+    unit = wkt2json_unit(axis[:AXIS])
     if isnothing(unit)
-      unit = wkt2json_get_unit(wkt[geosubtype])
+      unit = wkt2json_unit(wkt[geosubtype])
     end
     axisdict["unit"] = unit
 
     meridian = finditem(:MERIDIAN, axis[:AXIS])
     if !isnothing(meridian)
       axisdict["meridian"] = Dict{String,Any}()
-      axisdict["meridian"]["longitude"] = meridian[:MERIDIAN][1]
+      axisdict["meridian"]["longitude"] = valueunit(meridian[:MERIDIAN][1], meridian[:MERIDIAN])
     end
 
     push!(csdict["axis"], axisdict)
@@ -174,7 +174,7 @@ function wkt2json_cs(wkt::Dict)
   return csdict
 end
 
-function wkt2json_get_unit(axis::Vector)
+function wkt2json_unit(axis::Vector)
   unit = finditem([:ANGLEUNIT, :LENGTHUNIT, :SCALEUNIT], axis)
   isnothing(unit) && return nothing
   unittype = rootkey(unit)
@@ -201,12 +201,14 @@ function wkt2json_get_unit(axis::Vector)
   return nothing
 end
 
-function value_or_unit_value(value::Number, context::Vector)
-  unit = wkt2json_get_unit(context)
+# See value_in_metre_or_value_and_unit in schema
+function valueunit(value::Number, context::Vector)
+  unit = wkt2json_unit(context)
   if unit isa String
     return value
+  else
+    return Dict("unit" => unit, "value" => value)
   end
-  return Dict("unit" => unit, "value" => value)
 end
 
 # geodetic_crs requires either datum or datum_ensemble objects, depending on which is present in WKT
@@ -219,10 +221,10 @@ function wkt2json_general_datum(wkt::Dict)
   datum = finditem([:ENSEMBLE, :DATUM], wkt[geosubtype])
   if rootkey(datum) == :ENSEMBLE
     name = "datum_ensemble"
-    jsondict = wkt2json_long_datum(datum)
+    jsondict = wkt2json_datumensemble(datum)
   elseif rootkey(datum) == :DATUM
     name = "datum"
-    jsondict = wkt2json_short_datum(datum)
+    jsondict = wkt2json_datum(datum)
 
     # dynamic and meridian ought to be in wkt2json_short_datum but is here now in order not to break encapsulation
     dynamic = finditem(:DYNAMIC, wkt[geosubtype])
@@ -232,11 +234,11 @@ function wkt2json_general_datum(wkt::Dict)
     else
       jsondict["type"] = "GeodeticReferenceFrame"
     end
-    meridian = finditem(:PRIMEM, wkt[geosubtype])
-    if !isnothing(meridian)
+    prime = finditem(:PRIMEM, wkt[geosubtype])
+    if !isnothing(prime)
       jsondict["prime_meridian"] = Dict{String,Any}()
-      jsondict["prime_meridian"]["name"] = meridian[:PRIMEM][1]
-      longitude = value_or_unit_value(meridian[:PRIMEM][2], meridian[:PRIMEM])
+      jsondict["prime_meridian"]["name"] = prime[:PRIMEM][1]
+      longitude = valueunit(prime[:PRIMEM][2], prime[:PRIMEM])
       jsondict["prime_meridian"]["longitude"] = longitude
     end
   else
@@ -248,7 +250,7 @@ end
 
 # Returns geodetic_reference_frame projjson object.
 # Schema requires keys: "name" and "ellipsoid", optionally "type", "anchor_epoch", "prime_meridian"
-function wkt2json_short_datum(wkt::Dict)
+function wkt2json_datum(wkt::Dict)
   @assert wkt |> keys |> collect == [:DATUM]
   jsondict = Dict{String,Any}()
   jsondict["name"] = wkt[:DATUM][1]
@@ -265,7 +267,7 @@ end
 
 # Returns datum_ensemble projjson object.
 # Schema requires keys: "name", "members", "accuracy", and optionally "ellipsoid"
-function wkt2json_long_datum(wkt::Dict)
+function wkt2json_datumensemble(wkt::Dict)
   @assert wkt |> keys |> collect == [:ENSEMBLE]
   jsondict = Dict{String,Any}()
   jsondict["name"] = wkt[:ENSEMBLE][1]
@@ -295,7 +297,7 @@ function wkt2json_ellipsoid(wkt::Dict)
   @assert wkt |> keys |> collect == [:ELLIPSOID]
   jsondict = Dict{String,Any}()
   jsondict["name"] = wkt[:ELLIPSOID][1]
-  semimajor = value_or_unit_value(wkt[:ELLIPSOID][2], wkt[:ELLIPSOID])
+  semimajor = valueunit(wkt[:ELLIPSOID][2], wkt[:ELLIPSOID])
   jsondict["semi_major_axis"] = semimajor
   jsondict["inverse_flattening"] = wkt[:ELLIPSOID][3]
   return jsondict
