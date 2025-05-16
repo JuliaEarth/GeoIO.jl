@@ -118,14 +118,13 @@ function debug_json(crs::Int; verbose=true, gdalprint::Bool=false)
   verbose && (@info "Parsed WKT"; wktdict |> pprintln)
 
   jsondict = GeoIO.wkt2json(wktdict)
-  
+
   if !isdefined(Main, :DeepDiffs)
     @warn "Detailed colored output is unavailable because DeepDiffs is not loaded."
   else
     d = projjson_deepdiff(gdaljson, jsondict)
     verbose && (@info "DeepDiff"; d |> display)
   end
-  
 
   diffkeys = delta_paths(gdaljson, jsondict)
   @info "JSON keys with a potentially significant difference from expected output"
