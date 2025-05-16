@@ -1,5 +1,3 @@
-# Prefer a json structure that is more inline with GDAL's or our WKT input
-const GDALcompat = true
 
 rootkey(d) = nothing
 function rootkey(d::Dict)
@@ -54,8 +52,8 @@ end
 # Can be either GEOGCRS or GEODCRS WKT nodes. Either as top-level crs or under PROJCRS
 function wkt2json_geog(wkt::Dict)
   @assert wkt |> keys |> collect |> first in [:GEOGCRS, :GEODCRS]
-  jsondict = Dict{String,Any}()
   geosubtype = rootkey(wkt)
+  jsondict = Dict{String,Any}()
   jsondict["type"] = if geosubtype == :GEOGCRS
     "GeographicCRS"
   elseif geosubtype == :GEODCRS
@@ -96,13 +94,13 @@ function wkt2json_proj(wkt::Dict)
 end
 
 # Schema requires keys: "name" and "method"
-function wkt2json_conversion(wkt::Dict)
-  @assert wkt |> keys |> collect == [:CONVERSION]
+function wkt2json_conversion(conv::Dict)
+  @assert conv |> keys |> collect == [:CONVERSION]
   jsondict = Dict{String,Any}()
-  jsondict["name"] = wkt[:CONVERSION][1]
+  jsondict["name"] = conv[:CONVERSION][1]
 
   jsondict["parameters"] = []
-  params = finditems(:PARAMETER, wkt[:CONVERSION])
+  params = finditems(:PARAMETER, conv[:CONVERSION])
   for param in params
     paramdict = Dict{String,Any}()
     paramdict["name"] = param[:PARAMETER][1]
@@ -116,14 +114,9 @@ function wkt2json_conversion(wkt::Dict)
     push!(jsondict["parameters"], paramdict)
   end
 
-  if !GDALcompat && rootkey(wkt[:CONVERSION][end]) == :ID
-    jsondict["id"] = wkt2json_id(wkt[:CONVERSION][end])
-  end
-
-  method = Dict{String,Any}()
-  method["name"] = wkt[:CONVERSION][2][:METHOD][1]
-  method["id"] = wkt2json_id(wkt[:CONVERSION][2][:METHOD][end])
-  jsondict["method"] = method
+  jsondict["method"] = Dict{String,Any}()
+  jsondict["method"]["name"] = conv[:CONVERSION][2][:METHOD][1]
+  jsondict["method"]["id"] = wkt2json_id(conv[:CONVERSION][2][:METHOD][end])
   return jsondict
 end
 
@@ -132,13 +125,13 @@ end
 # Schema requires keys: "subtype" and "axis"
 function wkt2json_cs(wkt::Dict)
   @assert wkt |> keys |> collect |> first in [:GEOGCRS, :GEODCRS, :PROJCRS]
-  csdict = Dict{String,Any}()
+  jsondict = Dict{String,Any}()
   geosubtype = rootkey(wkt)
 
   cstype = finditem(:CS, wkt[geosubtype])[:CS][1]
-  csdict["subtype"] = string(cstype)
+  jsondict["subtype"] = string(cstype)
 
-  csdict["axis"] = []
+  jsondict["axis"] = []
   axes = finditems(:AXIS, wkt[geosubtype])
   length(axes) > 0 || error("Axis entries are required, none are found")
   for axis in axes
@@ -168,10 +161,10 @@ function wkt2json_cs(wkt::Dict)
       axisdict["meridian"]["longitude"] = valueunit(meridian[:MERIDIAN][1], meridian[:MERIDIAN])
     end
 
-    push!(csdict["axis"], axisdict)
+    push!(jsondict["axis"], axisdict)
   end
 
-  return csdict
+  return jsondict
 end
 
 function wkt2json_unit(axis::Vector)
@@ -295,13 +288,13 @@ function wkt2json_datumensemble(wkt::Dict)
   return jsondict
 end
 
-function wkt2json_ellipsoid(wkt::Dict)
-  @assert wkt |> keys |> collect == [:ELLIPSOID]
+function wkt2json_ellipsoid(ellipsoid::Dict)
+  @assert ellipsoid |> keys |> collect == [:ELLIPSOID]
   jsondict = Dict{String,Any}()
-  jsondict["name"] = wkt[:ELLIPSOID][1]
-  semimajor = valueunit(wkt[:ELLIPSOID][2], wkt[:ELLIPSOID])
+  jsondict["name"] = ellipsoid[:ELLIPSOID][1]
+  semimajor = valueunit(ellipsoid[:ELLIPSOID][2], ellipsoid[:ELLIPSOID])
   jsondict["semi_major_axis"] = semimajor
-  jsondict["inverse_flattening"] = wkt[:ELLIPSOID][3]
+  jsondict["inverse_flattening"] = ellipsoid[:ELLIPSOID][3]
   return jsondict
 end
 
