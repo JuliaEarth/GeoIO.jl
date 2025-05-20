@@ -21,16 +21,16 @@
   # This is to organize the tests by CRS type for ease of debugging
   wktdicts = GeoIO.epsg2wktdict.(epsgcodes)
   crstypes = GeoIO.rootkey.(wktdicts)
-  crs_structs = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
+  crsstructs = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
 
   @testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
-    filterd_crs = filter(crs -> crs.type == type, crs_structs)
+    filterdcrs = filter(crs -> crs.type == type, crsstructs)
 
-    @testset "code = $(crs.code)" for crs in filterd_crs
-      ourjson = GeoIO.wkt2json(crs.wkt) |> json_round_trip
+    @testset "code = $(crs.code)" for crs in filterdcrs
+      ourjson = GeoIO.wkt2json(crs.wkt) |> jsonroundtrip
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
-      @test isempty(delta_projjson(gdaljson, ourjson))
+      @test isempty(deltaprojjson(gdaljson, ourjson))
     end
   end
 end

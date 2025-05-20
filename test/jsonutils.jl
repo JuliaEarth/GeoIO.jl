@@ -10,48 +10,48 @@ gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
 
 # Validate generated json against PROJJSON schema
 function isvalidprojjson(json::Union{Dict,JSON3.Object})
-  schema_path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
-  schema = Schema(JSON3.parsefile(schema_path))
+  schemafile = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
+  schema = Schema(JSON3.parsefile(schemafile))
   return isvalid(schema, json)
 end
 
 # I can not figure out why the validation test fails without this!
-json_round_trip(j) = JSON3.read(JSON3.write(j), Dict)
+jsonroundtrip(j) = JSON3.read(JSON3.write(j), Dict)
 
 # Return the "paths" of objects that exhibit differences between the two json inputs.
 # By default, we clean the results from some optional projjson objects and minor
-# discrepancies with GDAL's output. Set ignore_insig = true to disable that behavior.
+# discrepancies with GDAL's output. Set ignoreinsig = true to disable that behavior.
 # Note: diffpaths uses isapprox to compare numbers to avoid false negatives
-function delta_projjson(j1, j2; ignore_insig=true)::Vector{String}
-  diff_paths = diffpaths(j1, j2)
-  ignore_insig == false && return diff_paths
+function deltaprojjson(j1, j2; ignoreinsig=true)::Vector{String}
+  diffpaths = finddiffpaths(j1, j2)
+  ignoreinsig == false && return diffpaths
 
-  insig_keys = ["bbox", "area", "scope", "usages", "\$schema"]
+  pathstoignore = ["bbox", "area", "scope", "usages", "\$schema"]
 
   # Occasionally GDAL's ellipsoid doesn't have inverse_flattening and instead has semi_minor_axis
   #that is calculated from semi_major_axis * (1 - 1/inverse_flattening). Both cases are valid.
-  push!(insig_keys, "datum.ellipsoid.semi_minor_axis")
-  push!(insig_keys, "datum.ellipsoid.inverse_flattening")
+  push!(pathstoignore, "datum.ellipsoid.semi_minor_axis")
+  push!(pathstoignore, "datum.ellipsoid.inverse_flattening")
 
   # We don't have the optional node base_crs.coordinate_system in our WKT, in contrast with GDAL
-  push!(insig_keys, "base_crs.coordinate_system")
+  push!(pathstoignore, "base_crs.coordinate_system")
 
   # delete insignificant json objects that are problematic for comparison testing
-  for k in insig_keys
-    index = findfirst(endswith(k), diff_paths)
+  for p in pathstoignore
+    index = findfirst(endswith(p), diffpaths)
     if !isnothing(index)
-      deleteat!(diff_paths, index)
+      deleteat!(diffpaths, index)
     end
   end
 
-  return diff_paths
+  return diffpaths
 end
 
 _isapprox(x::Number, y::Number) = isapprox(x, y)
 _isapprox(x, y) = isequal(x, y)
 
 """
-    diffpaths(d1::Dict, d2::Dict, path="")
+    finddiffpaths(d1::Dict, d2::Dict, path="")
 
     Find differences between two dictionaries and return the paths to those differences as json dot-notation strings. This function recursively compares two dictionaries and returns a vector of string paths pointing to the differences found.
     For numerical values, uses `isapprox` for comparison to avoid false negatives.
@@ -59,46 +59,46 @@ _isapprox(x, y) = isequal(x, y)
   ========
     julia> d1 = Dict(:A=>[0,20], :B=>3, :C=>4)
     julia> d2 =  Dict(:A=>[10,20], :C=>4)
-    julia> diffpaths(d1, d2)
+    julia> finddiffpaths(d1, d2)
     2-element Vector{String}:
      ".A[1]"
      ".B"
 """
-function diffpaths(d1::Dict, d2::Dict, path="")
+function finddiffpaths(d1::Dict, d2::Dict, path="")
   paths = String[]
-  all_keys = union(keys(d1), keys(d2))
-  for key in all_keys
-    new_path = string(path, ".", key)
+  allkeys = union(keys(d1), keys(d2))
+  for key in allkeys
+    newpath = string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
       if !_isapprox(d1[key], d2[key])
-        append!(paths, diffpaths(d1[key], d2[key], new_path))
+        append!(paths, finddiffpaths(d1[key], d2[key], newpath))
       end
     else
-      push!(paths, new_path)
+      push!(paths, newpath)
     end
   end
 
   return paths
 end
 
-function diffpaths(v1::Vector, v2::Vector, path)
+function finddiffpaths(v1::Vector, v2::Vector, path)
   paths = String[]
-  min_length = min(length(v1), length(v2))
-  max_length = max(length(v1), length(v2))
+  minlen = min(length(v1), length(v2))
+  maxlen = max(length(v1), length(v2))
 
-  for i in 1:min_length
+  for i in 1:minlen
     if !_isapprox(v1[i], v2[i])
-      append!(paths, diffpaths(v1[i], v2[i], "$(path)[$(i)]"))
+      append!(paths, finddiffpaths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
   # extra elements, doesn't matter which vector
-  for i in (min_length + 1):max_length
+  for i in (minlen + 1):maxlen
     push!(paths, "$(path)[$(i)]")
   end
   return paths
 end
 
-function diffpaths(v1, v2, path)
+function finddiffpaths(v1, v2, path)
   _isapprox(v1, v2) ? nothing : [path]
 end
 
@@ -108,11 +108,11 @@ end
 
 # Use DeepDiffs package to view any differences between GDAL's projjson (j1) and our's (j2).
 # Differences are shown red/green color. Few insignificant keys are filtered from (j1),
-# though there are still more false-negatives than delta_paths filtering
-function deepdiff_projjson(j1::J, j2::J) where {J<:Union{Dict}}
+# though there are still more false-negatives than deltapaths filtering
+function deepdiffprojjson(j1::J, j2::J) where {J<:Union{Dict}}
   j1 = deepcopy(j1)
-  nonsig_keys = ["bbox", "area", "scope", "usages", "\$schema"]
-  for k in nonsig_keys
+  keystodelete = ["bbox", "area", "scope", "usages", "\$schema"]
+  for k in keystodelete
     delete!(j1, k)
   end
   try
@@ -125,10 +125,10 @@ function deepdiff_projjson(j1::J, j2::J) where {J<:Union{Dict}}
 end
 
 # For live development or debugging.
-# run check_projjson(4275) to see differences between current and expected json output
+# run checkprojjson(4275) to see differences between current and expected json output
 # The presence of red/green colored output does not neccesarly mean that there is a bug to be fixed.
 # If the last printed line is an empty vector, it means the colored diff is likely a superfluous difference.
-function check_projjson(crs::Int; verbose=true)
+function checkprojjson(crs::Int; verbose=true)
   gdaljson = gdalprojjsondict(EPSG{crs})
   wktdict = GeoIO.epsg2wktdict(crs)
   jsondict = GeoIO.wkt2json(wktdict)
@@ -144,12 +144,12 @@ function check_projjson(crs::Int; verbose=true)
   # Show deep diff if possible
   if verbose && isdefined(Main, :DeepDiffs)
     @info "DeepDiff"
-    display(deepdiff_projjson(gdaljson, jsondict))
+    display(deepdiffprojjson(gdaljson, jsondict))
   elseif verbose
     @warn "Detailed colored output is unavailable because DeepDiffs is not loaded."
   end
 
-  diffkeys = delta_projjson(gdaljson, jsondict)
+  diffkeys = deltaprojjson(gdaljson, jsondict)
   @info "JSON keys with a potentially significant difference from expected output:"
   display(diffkeys)
 end

@@ -327,11 +327,11 @@ epsg2wktdict(::Type{EPSG{I}}) where {I} = epsg2wktdict(I)
 function process_expr(elem, dict::Dict)
   k = first(collect(keys(dict)))
   if elem isa Expr
-    expr_name = elem.args[1]
-    child_dict = Dict(expr_name => [])
-    push!(dict[k], child_dict)
-    for child_elem in elem.args[2:end]
-      process_expr(child_elem, child_dict)
+    exprname = elem.args[1]
+    childdict = Dict(exprname => [])
+    push!(dict[k], childdict)
+    for childelem in elem.args[2:end]
+      process_expr(childelem, childdict)
     end
   elseif elem isa Union{String,Number,Symbol}
     push!(dict[k], elem)
