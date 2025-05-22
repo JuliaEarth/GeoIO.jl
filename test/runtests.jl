@@ -57,9 +57,11 @@ testfiles = [
   "io/stl.jl",
   "io/vtk.jl",
 
-  # other tests
-  "noattrs.jl",
-  "gis.jl"
+  # known issues with GIS formats
+  "gisissues.jl",
+
+  # geotables without values
+  "novalues.jl"
 ]
 
 @testset "GeoIO.jl" begin
