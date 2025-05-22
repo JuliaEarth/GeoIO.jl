@@ -25,17 +25,6 @@ islinux = Sys.islinux()
 datadir = joinpath(@__DIR__, "data")
 savedir = mktempdir()
 
-# Note: Shapefile.jl saves Chains and Polygons as Multi
-# This function is used to work around this problem
-_isequal(d1::Domain, d2::Domain) = all(_isequal(g1, g2) for (g1, g2) in zip(d1, d2))
-_isequal(g1, g2) = g1 == g2
-_isequal(m1::Multi, m2::Multi) = m1 == m2
-_isequal(g, m::Multi) = _isequal(m, g)
-function _isequal(m::Multi, g)
-  gs = parent(m)
-  length(gs) == 1 && first(gs) == g
-end
-
 # test utilities
 include("testutils.jl")
 

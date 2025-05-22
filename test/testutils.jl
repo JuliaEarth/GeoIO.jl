@@ -1,3 +1,18 @@
+# Note: Shapefile.jl saves Chains and Polygons as Multi
+# This function is used to work around this problem
+_isequal(d1::Domain, d2::Domain) = all(_isequal(g1, g2) for (g1, g2) in zip(d1, d2))
+_isequal(g1, g2) = g1 == g2
+_isequal(m1::Multi, m2::Multi) = m1 == m2
+_isequal(g, m::Multi) = _isequal(m, g)
+function _isequal(m::Multi, g)
+  gs = parent(m)
+  length(gs) == 1 && first(gs) == g
+end
+
+# helper function to compare fields in JSON objects
+_isequalfield(x::Number, y::Number) = isapprox(x, y)
+_isequalfield(x, y) = isequal(x, y)
+
 # Old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(code::Type{EPSG{Code}}; multiline=false) where {Code}
   spref = AG.importUserInput("EPSG:$Code")
@@ -47,9 +62,6 @@ function deltaprojjson(j1, j2; ignoreinsig=true)::Vector{String}
   return diffpaths
 end
 
-_isapprox(x::Number, y::Number) = isapprox(x, y)
-_isapprox(x, y) = isequal(x, y)
-
 """
     finddiffpaths(d1::Dict, d2::Dict, path="")
 
@@ -70,7 +82,7 @@ function finddiffpaths(d1::Dict, d2::Dict, path="")
   for key in allkeys
     newpath = string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
-      if !_isapprox(d1[key], d2[key])
+      if !_isequalfield(d1[key], d2[key])
         append!(paths, finddiffpaths(d1[key], d2[key], newpath))
       end
     else
@@ -87,7 +99,7 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
   maxlen = max(length(v1), length(v2))
 
   for i in 1:minlen
-    if !_isapprox(v1[i], v2[i])
+    if !_isequalfield(v1[i], v2[i])
       append!(paths, finddiffpaths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
@@ -99,7 +111,7 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
 end
 
 function finddiffpaths(v1, v2, path)
-  _isapprox(v1, v2) ? nothing : [path]
+  _isequalfield(v1, v2) ? nothing : [path]
 end
 
 # ----------------------------------------
