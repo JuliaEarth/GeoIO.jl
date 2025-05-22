@@ -36,8 +36,8 @@ function _isequal(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-# JSON utilities
-include("jsonutils.jl")
+# test utilities
+include("testutils.jl")
 
 testfiles = [
   # IO tests
