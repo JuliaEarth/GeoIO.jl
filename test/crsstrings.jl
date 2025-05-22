@@ -1,4 +1,4 @@
-@testset "projjson" begin
+@testset "PROJJSON" begin
   jsonstr = GeoIO.projjsonstring(EPSG{4326})
   @test isvalidprojjson(JSON3.read(jsonstr))
   

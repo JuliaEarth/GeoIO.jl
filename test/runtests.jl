@@ -29,6 +29,15 @@ savedir = mktempdir()
 include("testutils.jl")
 
 testfiles = [
+  # CRS strings
+  "crsstrings.jl",
+
+  # geometry conversion
+  "conversion.jl",
+
+  # supported formats
+  "formats.jl",
+
   # IO tests
   "io/csv.jl",
   "io/geojson.jl",
@@ -49,11 +58,8 @@ testfiles = [
   "io/vtk.jl",
 
   # other tests
-  "formats.jl",
-  "convert.jl",
-  "gis.jl",
   "noattrs.jl",
-  "projjson.jl"
+  "gis.jl"
 ]
 
 @testset "GeoIO.jl" begin
