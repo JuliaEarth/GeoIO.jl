@@ -2,7 +2,7 @@
   jsonstr = GeoIO.projjsonstring(EPSG{4326})
   @test isvalidprojjson(JSON3.read(jsonstr))
   
-  epsgcodes = Int[
+  epsgcodes = [
     # https://github.com/JuliaEarth/CoordRefSystems.jl/blob/10b3f944ece7d5c4669eed6dc163ae8d9761afcd/src/get.jl
     2157, 2193, 3035, 3310, 3395, 3857, 4171, 4207, 4208, 4230, 4231, 4267, 4269, 4274, 4275, 4277,
     4314, 4326, 4618, 4659, 4666, 4668, 4674, 4745, 4746, 4988, 4989, 5070, 5324, 5527, 8086, 8232,
@@ -18,15 +18,14 @@
     2986,
   ]
 
-  # This is to organize the tests by CRS type for ease of debugging
+  # organize tests by CRS type for ease of debugging
   wktdicts = GeoIO.epsg2wktdict.(epsgcodes)
   crstypes = GeoIO.rootkey.(wktdicts)
   crsstructs = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
 
   @testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
-    filterdcrs = filter(crs -> crs.type == type, crsstructs)
-
-    @testset "code = $(crs.code)" for crs in filterdcrs
+    filtered = filter(crs -> crs.type == type, crsstructs)
+    @testset "code = $(crs.code)" for crs in filtered
       ourjson = GeoIO.wkt2json(crs.wkt) |> jsonroundtrip
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
