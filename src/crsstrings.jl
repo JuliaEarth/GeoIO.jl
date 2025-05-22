@@ -49,7 +49,8 @@ function wkt2json(wkt::Dict)
 end
 
 # Returns geodetic_crs projjson object.
-# Can be either GEOGCRS or GEODCRS WKT nodes. Either as top-level crs or under PROJCRS
+# Can be either GEOGCRS or GEODCRS WKT nodes.
+# Either as top-level crs or under PROJCRS
 function wkt2json_geog(wkt::Dict)
   geosubtype = rootkey(wkt)
   geosubtype in [:GEOGCRS, :GEODCRS] || throw(ArgumentError("Expected key to be GEOGCRS or GEODCRS, got $(geosubtype)"))
@@ -204,7 +205,8 @@ function valueunit(value::Number, context::Vector)
   end
 end
 
-# geodetic_crs requires either datum or datum_ensemble objects, depending on which is present in WKT
+# geodetic_crs requires either datum or datum_ensemble objects,
+# depending on which is present in WKT
 # See one_and_only_one_of_datum_or_datum_ensemble in schema
 function wkt2json_general_datum(wkt::Dict)
   name = ""
@@ -314,7 +316,7 @@ function epsg2wktdict(epsg::Int)::Union{Dict,Nothing}
   str = CoordRefSystems.wkt2(EPSG{epsg})
   # TODO upstream to CoordRefSystems
   if startswith(str, "WKT is not supported")
-    @warn "EPSG:$epsg is not WKT supported"
+    @warn "EPSG:$epsg does not have a WKT in the EPSG database"
     return nothing
   end
   expr = Meta.parse(str)
