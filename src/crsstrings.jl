@@ -6,16 +6,16 @@ function rootkey(d::Dict)
 end
 
 # From a vector of WKT nodes, find ones that start with `key`
-function finditems(key::Symbol, list::Vector)::Vector{Dict}
+function finditems(key::Symbol, list::Vector)
   filter(x -> rootkey(x) == key, list)
 end
 
-function finditem(key::Symbol, list::Vector)::Union{Dict,Nothing}
+function finditem(key::Symbol, list::Vector)
   found = filter(x -> rootkey(x) == key, list)
   return isempty(found) ? nothing : found[1]
 end
 
-function finditem(keys::Vector{Symbol}, list::Vector)::Union{Dict,Nothing}
+function finditem(keys::Vector{Symbol}, list::Vector)
   found = []
   for key in keys
     i = finditem(key, list)
@@ -300,7 +300,7 @@ function wkt2json_ellipsoid(ellipsoid::Dict)
   return jsondict
 end
 
-function wkt2json_id(id::Dict)::Dict
+function wkt2json_id(id::Dict)
   rootkey(id) == :ID || throw(ArgumentError("Expected key ID, got $(rootkey(id))"))
   jsondict = Dict{String,Any}()
   jsondict["authority"] = id[:ID][1]
@@ -312,7 +312,7 @@ end
 # Convert from WKT string to WKT dict
 # --------------------------------------
 
-function epsg2wktdict(epsg::Int)::Union{Dict,Nothing}
+function epsg2wktdict(epsg::Int)
   str = CoordRefSystems.wkt2(EPSG{epsg})
   # TODO upstream to CoordRefSystems
   if startswith(str, "WKT is not supported")
