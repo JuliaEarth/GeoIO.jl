@@ -10,7 +10,7 @@
     # 32662,  # deprecated in 2008, https://github.com/JuliaEarth/CoordRefSystems.jl/issues/262
     2180, 32600, 32700,
     
-    # WKT strings with non-standard measurment units
+    # WKT strings with non-standard measurement units
     3407,
     # WKT projjson with base_crs.datum.prime_meridian
     31288,
