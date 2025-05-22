@@ -1,10 +1,10 @@
 # note: Shapefile.jl saves Chains and Polygons as Multi
 # this function is used to work around this problem
-_isequal(d1::Domain, d2::Domain) = all(_isequal(g1, g2) for (g1, g2) in zip(d1, d2))
-_isequal(g1, g2) = g1 == g2
-_isequal(m1::Multi, m2::Multi) = m1 == m2
-_isequal(g, m::Multi) = _isequal(m, g)
-function _isequal(m::Multi, g)
+isequalshp(d1::Domain, d2::Domain) = all(isequalshp(g1, g2) for (g1, g2) in zip(d1, d2))
+isequalshp(g1, g2) = g1 == g2
+isequalshp(m1::Multi, m2::Multi) = m1 == m2
+isequalshp(g, m::Multi) = isequalshp(m, g)
+function isequalshp(m::Multi, g)
   gs = parent(m)
   length(gs) == 1 && first(gs) == g
 end
@@ -33,8 +33,8 @@ jsonroundtrip(json) = JSON3.read(JSON3.write(json), Dict)
 # By default, we clean the results from some optional projjson objects and minor
 # discrepancies with GDAL's output. Set `exact = true` to disable that behavior.
 # Note: diffpaths uses isapprox to compare numbers to avoid false negatives
-function deltaprojjson(j1, j2; exact=false)
-  diffpaths = finddiffpaths(j1, j2)
+function deltaprojjson(json1, json2; exact=false)
+  diffpaths = finddiffpaths(json1, json2)
 
   # return full diff in case of exact comparison
   exact && return diffpaths
