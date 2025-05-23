@@ -1,3 +1,6 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
 
 rootkey(d) = nothing
 function rootkey(d::Dict)

@@ -1,7 +1,4 @@
 @testset "PROJJSON" begin
-  jsonstr = GeoIO.projjsonstring(EPSG{4326})
-  @test isvalidprojjson(JSON3.read(jsonstr))
-  
   epsgcodes = [
     # https://github.com/JuliaEarth/CoordRefSystems.jl/blob/10b3f944ece7d5c4669eed6dc163ae8d9761afcd/src/get.jl
     2157, 2193, 3035, 3310, 3395, 3857, 4171, 4207, 4208, 4230, 4231, 4267, 4269, 4274, 4275, 4277,
