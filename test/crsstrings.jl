@@ -7,12 +7,21 @@
     # 32662,  # deprecated in 2008, https://github.com/JuliaEarth/CoordRefSystems.jl/issues/262
     2180, 32600, 32700,
     
-    # WKT strings with non-standard measurement units
-    3407,
-    # WKT projjson with base_crs.datum.prime_meridian
-    31288,
-    # WKT projjson with coordinate_system.axis[1].meridian
+    # CRS codes with WKT fields that do not occur in the prior codes.
+    # these WKT fields are only relavent in special circumstances. Such as when using custom measurment units. 
+    # a projjson with coordinate_system.axis[1].meridian
     2986,
+    # a projjson with non-standard units ("Clarke's foot") requires unit.conversion_factor
+    3407,
+    # a projjson with base_crs.datum.prime_meridian
+    31288,
+    
+    # additional codes the exhibit edge cases when comparing our output with GDAL.
+    # these edge cases (EC) are documented and worked around in the deltaprojjson function.
+    # in a way, these test our testing functions
+    2157,  # EC#0
+    4267,  # EC#1
+    22248, # EC#2 
   ]
 
   # organize tests by CRS type for ease of debugging

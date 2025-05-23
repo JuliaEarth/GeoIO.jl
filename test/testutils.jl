@@ -34,6 +34,10 @@ jsonroundtrip(json) = JSON3.read(JSON3.write(json), Dict)
 # discrepancies with GDAL's output. Set `exact = true` to disable that behavior.
 # Note: diffpaths uses isapprox to compare numbers to avoid false negatives
 function deltaprojjson(json1, json2; exact=false)
+  # EC#0 (example 31288):
+  # sometimes there are floating point discrepancies between our WKT from the dataset the GDAL's projjson,
+  # this is false-negative noise and is dealt ignored properly using `isapprox` in `finddiffpaths`.
+  # for 31288, this happens in datum.prime_meridian.longitude (-17.6666666666667 vs -17.666666667)
   diffpaths = finddiffpaths(json1, json2)
 
   # return full diff in case of exact comparison
@@ -44,12 +48,15 @@ function deltaprojjson(json1, json2; exact=false)
   # fully describe the coordinate reference system
   pathstoignore = ["bbox", "area", "scope", "usages", "\$schema"]
 
-  # occasionally GDAL's ellipsoid doesn't have inverse_flattening and instead has semi_minor_axis
-  # that is calculated from semi_major_axis * (1 - 1/inverse_flattening)
+  # EC#1 (example 4267):
+  # sometimes GDAL's projjson ellipsoid is specified using semi_minor_axis instead of inverse_flattening.
+  # our projjson ellipsoids are always specified using semi_major_axis inverse_flattening
+  # semi_minor_axis is calculated from semi_major_axis * (1 - 1/inverse_flattening)
   push!(pathstoignore, "datum.ellipsoid.semi_minor_axis")
   push!(pathstoignore, "datum.ellipsoid.inverse_flattening")
 
-  # we don't have the optional node base_crs.coordinate_system in our WKT, in contrast with GDAL
+  # EC#2 (example 22248):
+  # sometimes GDAL's projjson includes an optional base_crs.coordinate_system that we can't support
   push!(pathstoignore, "base_crs.coordinate_system")
 
   # delete insignificant json objects that are problematic for comparison testing
