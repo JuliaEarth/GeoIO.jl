@@ -8,17 +8,15 @@
     2180, 32600, 32700,
     
     # CRS codes with WKT fields that do not occur in the prior codes.
-    # these WKT fields are only relavent in special circumstances. Such as when using custom measurment units. 
-    # a projjson with coordinate_system.axis[1].meridian
-    2986,
-    # a projjson with non-standard units ("Clarke's foot") requires unit.conversion_factor
-    3407,
-    # a projjson with base_crs.datum.prime_meridian
-    31288,
+    # These WKT fields are only relavent in special circumstances such
+    # as when using custom measurment units.
+    2986, # a PROJJSON with coordinate_system.axis[1].meridian
+    3407, # a PROJJSON with non-standard units ("Clarke's foot") requires unit.conversion_factor
+    31288, # a PROJJSON with base_crs.datum.prime_meridian
     
-    # additional codes the exhibit edge cases when comparing our output with GDAL.
-    # these edge cases (EC) are documented and worked around in the deltaprojjson function.
-    # in a way, these test our testing functions
+    # Additional codes the exhibit edge cases (EC) when comparing our output with GDAL.
+    # These edge cases are documented and worked around in the deltaprojjson function.
+    # In a way, these codes test our testing functions.
     2157,  # EC#0
     4267,  # EC#1
     22248, # EC#2 

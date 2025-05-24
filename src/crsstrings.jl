@@ -8,7 +8,7 @@ function rootkey(d::Dict)
   return first(keys(d))
 end
 
-# From a vector of WKT nodes, find ones that start with `key`
+# from a vector of WKT nodes, find ones that start with `key`
 function finditems(key::Symbol, list::Vector)
   filter(x -> rootkey(x) == key, list)
 end
@@ -34,9 +34,9 @@ function finditem(keys::Vector{Symbol}, list::Vector)
   end
 end
 
-# --------------------------------------
-# Convert From WKT dict to projjson dict
-# --------------------------------------
+# ---------------------------------------
+# Convert From WKT dict to PROJJSON dict
+# ---------------------------------------
 
 function wkt2json(wkt::Dict)
   type = rootkey(wkt)
@@ -51,7 +51,7 @@ function wkt2json(wkt::Dict)
   end
 end
 
-# Returns geodetic_crs projjson object.
+# Returns geodetic_crs PROJJSON object.
 # Can be either GEOGCRS or GEODCRS WKT nodes.
 # Either as top-level crs or under PROJCRS
 function wkt2json_geog(wkt::Dict)
@@ -125,7 +125,7 @@ function wkt2json_conversion(conv::Dict)
 end
 
 # This function breaks the convention by taking the parent CRS node instead of the CS node,
-# because projjson coordinate_system requires information from sibling AXIS and UNIT nodes.
+# because PROJJSON coordinate_system requires information from sibling AXIS and UNIT nodes.
 # Schema requires keys: "subtype" and "axis"
 function wkt2json_cs(wkt::Dict)
   geosubtype = rootkey(wkt)
@@ -177,7 +177,7 @@ function wkt2json_unit(axis::Vector)
   unittype = rootkey(unit)
   name = unit[unittype][1]
 
-  # "unit" projjson object can be a simple string if it's one of the following
+  # "unit" PROJJSON object can be a simple string if it's one of the following
   if name in ("metre", "degree", "unity")
     return name
   else
@@ -230,7 +230,7 @@ function wkt2json_general_datum(wkt::Dict)
   return (name=name, json=jsondict)
 end
 
-# Returns geodetic_reference_frame projjson object.
+# Returns geodetic_reference_frame PROJJSON object.
 # Schema requires keys: "name" and "ellipsoid", optionally "type", "anchor_epoch", "prime_meridian"
 function wkt2json_datum(wkt::Dict)
   geosubtype = rootkey(wkt)
@@ -265,7 +265,7 @@ function wkt2json_datum(wkt::Dict)
   return jsondict
 end
 
-# Returns datum_ensemble projjson object.
+# Returns datum_ensemble PROJJSON object.
 # Schema requires keys: "name", "members", "accuracy", and optionally "ellipsoid"
 function wkt2json_datumensemble(wkt::Dict)
   rootkey(wkt) == :ENSEMBLE || throw(ArgumentError("Expected key ENSEMBLE, got $(rootkey(wkt))"))
@@ -311,9 +311,9 @@ function wkt2json_id(id::Dict)
   return jsondict
 end
 
-# --------------------------------------
+# ------------------------------------
 # Convert from WKT string to WKT dict
-# --------------------------------------
+# ------------------------------------
 
 function epsg2wktdict(epsg::Int)
   str = CoordRefSystems.wkt2(EPSG{epsg})

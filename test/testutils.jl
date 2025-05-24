@@ -30,14 +30,15 @@ end
 jsonroundtrip(json) = JSON3.read(JSON3.write(json), Dict)
 
 # Return the "paths" of objects that exhibit differences between the two json inputs.
-# By default, we clean the results from some optional projjson objects and minor
+# By default, we clean the results from some optional PROJJSON objects and minor
 # discrepancies with GDAL's output. Set `exact = true` to disable that behavior.
-# Note: diffpaths uses isapprox to compare numbers to avoid false negatives
+# Note: diffpaths uses isapprox to compare numbers to avoid false negatives.
 function deltaprojjson(json1, json2; exact=false)
   # EC#0 (example 31288):
-  # sometimes there are floating point discrepancies between our WKT from the dataset the GDAL's projjson,
-  # this is false-negative noise and is dealt ignored properly using `isapprox` in `finddiffpaths`.
-  # for 31288, this happens in datum.prime_meridian.longitude (-17.6666666666667 vs -17.666666667)
+  # Sometimes there are floating point discrepancies between our WKT from the
+  # EPSG dataset and the GDAL's PROJJSON. This is false-negative noise and is
+  # dealt with properly using `isapprox` in `finddiffpaths`. For code 31288,
+  # this happens in datum.prime_meridian.longitude (-17.6666666666667 vs -17.666666667)
   diffpaths = finddiffpaths(json1, json2)
 
   # return full diff in case of exact comparison
@@ -49,17 +50,18 @@ function deltaprojjson(json1, json2; exact=false)
   pathstoignore = ["bbox", "area", "scope", "usages", "\$schema"]
 
   # EC#1 (example 4267):
-  # sometimes GDAL's projjson ellipsoid is specified using semi_minor_axis instead of inverse_flattening.
-  # our projjson ellipsoids are always specified using semi_major_axis inverse_flattening
-  # semi_minor_axis is calculated from semi_major_axis * (1 - 1/inverse_flattening)
+  # Sometimes GDAL's PROJJSON ellipsoid is specified using semi_minor_axis instead of inverse_flattening.
+  # Our PROJJSON ellipsoids are always specified using inverse_flattening because that is the original
+  # parameterization of the WKT standard. Any other parameterization introduces conversion errors.
+  # (e.g. semi_minor_axis is calculated from semi_major_axis * (1 - 1/inverse_flattening))
   push!(pathstoignore, "datum.ellipsoid.semi_minor_axis")
   push!(pathstoignore, "datum.ellipsoid.inverse_flattening")
 
   # EC#2 (example 22248):
-  # sometimes GDAL's projjson includes an optional base_crs.coordinate_system that we can't support
+  # Sometimes GDAL's PROJJSON includes an optional base_crs.coordinate_system that we can't support
   push!(pathstoignore, "base_crs.coordinate_system")
 
-  # delete insignificant json objects that are problematic for comparison testing
+  # delete paths that are irrelevant for our comparison
   for p in pathstoignore
     index = findfirst(endswith(p), diffpaths)
     if !isnothing(index)
@@ -88,7 +90,7 @@ function finddiffpaths(d1::Dict, d2::Dict, path="")
   for key in allkeys
     newpath = string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
-      if !isequalfield(d1[key], d2[key])
+      if !isequalvalue(d1[key], d2[key])
         append!(paths, finddiffpaths(d1[key], d2[key], newpath))
       end
     else
@@ -105,7 +107,7 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
   maxlen = max(length(v1), length(v2))
 
   for i in 1:minlen
-    if !isequalfield(v1[i], v2[i])
+    if !isequalvalue(v1[i], v2[i])
       append!(paths, finddiffpaths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
@@ -117,9 +119,9 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
 end
 
 function finddiffpaths(v1, v2, path)
-  isequalfield(v1, v2) ? nothing : [path]
+  isequalvalue(v1, v2) ? nothing : [path]
 end
 
-# helper function to compare fields in JSON objects
-isequalfield(x::Number, y::Number) = isapprox(x, y)
-isequalfield(x, y) = isequal(x, y)
+# helper function to compare values in JSON objects
+isequalvalue(x::Number, y::Number) = isapprox(x, y)
+isequalvalue(x, y) = isequal(x, y)
