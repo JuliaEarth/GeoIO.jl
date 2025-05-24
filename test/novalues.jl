@@ -1,4 +1,4 @@
-@testset "GeoTables without attributes" begin
+@testset "GeoTables without values" begin
   # Shapefile
   pset = [Point(0.0, 0.0), Point(1.0, 0.0), Point(0.0, 1.0)]
   gtb1 = georef(nothing, pset)

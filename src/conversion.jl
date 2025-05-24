@@ -2,6 +2,9 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+raw(coords::CRS) = coords.x, coords.y
+raw(coords::LatLon) = coords.lon, coords.lat
+
 # --------------------------------------
 # Minimum GeoInterface.jl to perform IO
 # --------------------------------------
@@ -22,9 +25,6 @@ GI.crs(geom::Geometry) = gicrs(crs(geom))
 GI.ncoord(::GI.PointTrait, p::Point) = CoordRefSystems.ncoords(crs(p))
 GI.getcoord(::GI.PointTrait, p::Point) = ustrip.(raw(coords(p)))
 GI.getcoord(trait::GI.PointTrait, p::Point, i) = GI.getcoord(trait, p)[i]
-
-raw(coords::CRS) = coords.x, coords.y
-raw(coords::LatLon) = coords.lon, coords.lat
 
 GI.ncoord(::GI.LineTrait, s::Segment) = CoordRefSystems.ncoords(crs(s))
 GI.ngeom(::GI.LineTrait, s::Segment) = nvertices(s)

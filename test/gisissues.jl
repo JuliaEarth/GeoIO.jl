@@ -1,4 +1,4 @@
-@testset "GIS" begin
+@testset "Known GIS issues" begin
   table =
     (float=[0.07, 0.34, 0.69, 0.62, 0.91], int=[1, 2, 3, 4, 5], string=["word1", "word2", "word3", "word4", "word5"])
   points = Point.([LatLon(0, 0), LatLon(1, 1), LatLon(2, 2), LatLon(3, 3), LatLon(4, 4)])
@@ -26,14 +26,14 @@
   file = joinpath(savedir, "gis-rings.shp")
   GeoIO.save(file, gtring, warn=false)
   gtb = GeoIO.load(file)
-  @test _isequal(gtb.geometry, gtring.geometry)
+  @test isequalshp(gtb.geometry, gtring.geometry)
   @test values(gtb) == values(gtring)
 
   # note: Shapefile saves PolyArea as MultiPolyArea
   file = joinpath(savedir, "gis-polys.shp")
   GeoIO.save(file, gtpoly, warn=false)
   gtb = GeoIO.load(file)
-  @test _isequal(gtb.geometry, gtpoly.geometry)
+  @test isequalshp(gtb.geometry, gtpoly.geometry)
   @test values(gtb) == values(gtpoly)
 
   # GeoJSON

@@ -9,6 +9,8 @@ using FixedPointNumbers
 using Colors
 using Dates
 using Unitful
+using JSON3
+using JSONSchema
 import ReadVTK
 import GeoInterface as GI
 import Shapefile as SHP
@@ -23,19 +25,19 @@ islinux = Sys.islinux()
 datadir = joinpath(@__DIR__, "data")
 savedir = mktempdir()
 
-# Note: Shapefile.jl saves Chains and Polygons as Multi
-# This function is used to work around this problem
-_isequal(d1::Domain, d2::Domain) = all(_isequal(g1, g2) for (g1, g2) in zip(d1, d2))
-
-_isequal(g1, g2) = g1 == g2
-_isequal(m1::Multi, m2::Multi) = m1 == m2
-_isequal(g, m::Multi) = _isequal(m, g)
-function _isequal(m::Multi, g)
-  gs = parent(m)
-  length(gs) == 1 && first(gs) == g
-end
+# test utilities
+include("testutils.jl")
 
 testfiles = [
+  # CRS strings
+  "crsstrings.jl",
+
+  # geometry conversion
+  "conversion.jl",
+
+  # supported formats
+  "formats.jl",
+
   # IO tests
   "io/csv.jl",
   "io/geojson.jl",
@@ -55,11 +57,11 @@ testfiles = [
   "io/stl.jl",
   "io/vtk.jl",
 
-  # other tests
-  "formats.jl",
-  "convert.jl",
-  "gis.jl",
-  "noattrs.jl"
+  # known issues with GIS formats
+  "gisissues.jl",
+
+  # geotables without values
+  "novalues.jl"
 ]
 
 @testset "GeoIO.jl" begin

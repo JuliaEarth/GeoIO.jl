@@ -112,10 +112,13 @@ function formats(io=stdout; sortby=:extension)
   pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
 end
 
-# utilities
+# basic utilities
 include("utils.jl")
 
-# conversions
+# utilities for CRS strings
+include("crsstrings.jl")
+
+# utilities for geometry conversion
 include("conversion.jl")
 
 # extra code for backends

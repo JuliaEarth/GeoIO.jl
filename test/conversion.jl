@@ -1,4 +1,4 @@
-@testset "convert" begin
+@testset "Geometry conversion" begin
   points = Point.([(0, 0), (2.2, 2.2), (0.5, 2)])
   outer = Point.([(0, 0), (2.2, 2.2), (0.5, 2), (0, 0)])
 
