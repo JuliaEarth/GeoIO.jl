@@ -136,8 +136,9 @@ end
 # Schema requires keys: "subtype" and "axis"
 function wkt2json_cs(wkt::Dict)
   geosubtype = rootkey(wkt)
-  endswith(string(geosubtype), "CRS") || throw(ArgumentError("Expected base_crs key (such as GEOGCRS or PROJCRS), got $(geosubtype)"))
-  
+  endswith(string(geosubtype), "CRS") ||
+    throw(ArgumentError("Expected base_crs key (such as GEOGCRS or PROJCRS), got $(geosubtype)"))
+
   jsondict = Dict{String,Any}()
   cstype = finditem(:CS, wkt[geosubtype])[:CS][1]
   jsondict["subtype"] = string(cstype)
@@ -259,7 +260,7 @@ function wkt2json_datum(wkt::Dict)
   else
     jsondict["type"] = "GeodeticReferenceFrame"
   end
-  
+
   prime = finditem(:PRIMEM, wkt[geosubtype])
   if !isnothing(prime)
     jsondict["prime_meridian"] = Dict{String,Any}()
@@ -267,7 +268,7 @@ function wkt2json_datum(wkt::Dict)
     longitude = valueunit(prime[:PRIMEM][2], prime[:PRIMEM])
     jsondict["prime_meridian"]["longitude"] = longitude
   end
-  
+
   jsondict
 end
 
