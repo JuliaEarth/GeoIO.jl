@@ -23,12 +23,14 @@
   ]
 
   # organize tests by CRS type for ease of debugging
-  wktdicts = GeoIO.epsg2wktdict.(epsgcodes)
+  epsgs = [EPSG{code} for code in epsgcodes]
+  wktstrs = CoordRefSystems.wkt2.(epsgs)
+  wktdicts = GeoIO.wktstr2wktdict.(wktstrs)
   crstypes = GeoIO.rootkey.(wktdicts)
-  crsstructs = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
+  crstuples = [(code=c, type=t, wkt=w) for (c, t, w) in zip(epsgcodes, crstypes, wktdicts)]
 
   @testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
-    filtered = filter(crs -> crs.type == type, crsstructs)
+    filtered = filter(crs -> crs.type == type, crstuples)
     @testset "code = $(crs.code)" for crs in filtered
       ourjson = GeoIO.wkt2json(crs.wkt) |> jsonroundtrip
       @test isvalidprojjson(ourjson)

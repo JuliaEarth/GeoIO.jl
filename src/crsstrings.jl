@@ -2,6 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# ---------------------------------
+# Basic utilities to traverse Dict
+# ---------------------------------
+
 rootkey(d) = nothing
 function rootkey(d::Dict)
   length(keys(d)) == 1 || throw(ArgumentError("Dictionary must have exactly one key."))
@@ -35,7 +39,7 @@ function finditem(keys::Vector{Symbol}, list::Vector)
 end
 
 # ---------------------------------------
-# Convert From WKT dict to PROJJSON dict
+# Convert from WKT dict to PROJJSON dict
 # ---------------------------------------
 
 function wkt2json(wkt::Dict)
@@ -316,42 +320,6 @@ function wkt2json_id(id::Dict)
   jsondict
 end
 
-# ------------------------------------
-# Convert from WKT string to WKT dict
-# ------------------------------------
-
-epsg2wktdict(::Type{EPSG{Code}}) where {Code} = epsg2wktdict(Code)
-
-function epsg2wktdict(code::Int)
-  str = CoordRefSystems.wkt2(EPSG{code})
-  # TODO upstream to CoordRefSystems
-  if startswith(str, "WKT is not supported")
-    @warn "EPSG:$code does not have a WKT in the EPSG database"
-    return nothing
-  end
-  expr = Meta.parse(str)
-  dict = Dict(:root => [])
-  process_expr(expr, dict)
-  dict[:root][1]
-end
-
-function process_expr(elem, dict::Dict)
-  k = first(collect(keys(dict)))
-  if elem isa Expr
-    exprname = elem.args[1]
-    childdict = Dict(exprname => [])
-    push!(dict[k], childdict)
-    for childelem in elem.args[2:end]
-      process_expr(childelem, childdict)
-    end
-  elseif elem isa Union{String,Number,Symbol}
-    push!(dict[k], elem)
-  else
-    throw(ArgumentError("The AST representation of the WKT file contains an unexpected node."))
-  end
-  dict
-end
-
 # -------------------
 # PROJJSON utilities
 # -------------------
@@ -368,10 +336,37 @@ function projjson(CRS)
 end
 
 function projjsonstring(code)
-  wktdict = epsg2wktdict(code)
+  wktstr = CoordRefSystems.wkt2(code)
+  wktdict = wktstr2wktdict(wktstr)
   jsondict = wkt2json(wktdict)
   JSON3.write(jsondict)
 end
+
+function wktstr2wktdict(wktstr)
+  expr = Meta.parse(wktstr)
+  dict = Dict(:root => [])
+  processexpr(expr, dict)
+  dict[:root][1]
+end
+
+function processexpr(elem, dict::Dict)
+  k = first(collect(keys(dict)))
+  if elem isa Expr
+    exprname = elem.args[1]
+    childdict = Dict(exprname => [])
+    push!(dict[k], childdict)
+    for childelem in elem.args[2:end]
+      processexpr(childelem, childdict)
+    end
+  elseif elem isa Union{String,Number,Symbol}
+    push!(dict[k], elem)
+  else
+    throw(ArgumentError("The AST representation of the WKT file contains an unexpected node."))
+  end
+  dict
+end
+
+projjsoncode(jsonstr::AbstractString) = projjsoncode(JSON3.read(jsonstr))
 
 function projjsoncode(json)
   id = json["id"]
@@ -384,9 +379,4 @@ function projjsoncode(json)
   else
     throw(ArgumentError("unsupported authority '$authority' in PROJJSON"))
   end
-end
-
-function projjsoncode(jsonstr::AbstractString)
-  json = JSON3.read(jsonstr)
-  projjsoncode(json)
 end
