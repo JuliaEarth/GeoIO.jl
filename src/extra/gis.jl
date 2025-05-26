@@ -101,38 +101,3 @@ function geomcolumn(names)
     Symbol(gnames[select])
   end
 end
-
-function projjsonstring(code)
-  wktdict = epsg2wktdict(code)
-  jsondict = wkt2json(wktdict)
-  JSON3.write(jsondict)
-end
-
-function projjsoncode(json)
-  id = json["id"]
-  code = Int(id["code"])
-  authority = id["authority"]
-  if authority == "EPSG"
-    EPSG{code}
-  elseif authority == "ESRI"
-    ESRI{code}
-  else
-    throw(ArgumentError("unsupported authority '$authority' in ProjJSON"))
-  end
-end
-
-function projjsoncode(jsonstr::AbstractString)
-  json = JSON3.read(jsonstr)
-  projjsoncode(json)
-end
-
-function projjson(CRS)
-  try
-    code = CoordRefSystems.code(CRS)
-    jsonstr = projjsonstring(code)
-    json = JSON3.read(jsonstr, Dict)
-    GFT.ProjJSON(json)
-  catch
-    nothing
-  end
-end

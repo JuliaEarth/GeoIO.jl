@@ -320,11 +320,13 @@ end
 # Convert from WKT string to WKT dict
 # ------------------------------------
 
-function epsg2wktdict(epsg::Int)
-  str = CoordRefSystems.wkt2(EPSG{epsg})
+epsg2wktdict(::Type{EPSG{Code}}) where {Code} = epsg2wktdict(Code)
+
+function epsg2wktdict(code::Int)
+  str = CoordRefSystems.wkt2(EPSG{code})
   # TODO upstream to CoordRefSystems
   if startswith(str, "WKT is not supported")
-    @warn "EPSG:$epsg does not have a WKT in the EPSG database"
+    @warn "EPSG:$code does not have a WKT in the EPSG database"
     return nothing
   end
   expr = Meta.parse(str)
@@ -332,7 +334,6 @@ function epsg2wktdict(epsg::Int)
   process_expr(expr, dict)
   dict[:root][1]
 end
-epsg2wktdict(::Type{EPSG{I}}) where {I} = epsg2wktdict(I)
 
 function process_expr(elem, dict::Dict)
   k = first(collect(keys(dict)))
@@ -349,4 +350,43 @@ function process_expr(elem, dict::Dict)
     throw(ArgumentError("The AST representation of the WKT file contains an unexpected node."))
   end
   dict
+end
+
+# -------------------
+# PROJJSON utilities
+# -------------------
+
+function projjson(CRS)
+  try
+    code = CoordRefSystems.code(CRS)
+    jsonstr = projjsonstring(code)
+    json = JSON3.read(jsonstr, Dict)
+    GFT.ProjJSON(json)
+  catch
+    nothing
+  end
+end
+
+function projjsonstring(code)
+  wktdict = epsg2wktdict(code)
+  jsondict = wkt2json(wktdict)
+  JSON3.write(jsondict)
+end
+
+function projjsoncode(json)
+  id = json["id"]
+  code = Int(id["code"])
+  authority = id["authority"]
+  if authority == "EPSG"
+    EPSG{code}
+  elseif authority == "ESRI"
+    ESRI{code}
+  else
+    throw(ArgumentError("unsupported authority '$authority' in PROJJSON"))
+  end
+end
+
+function projjsoncode(jsonstr::AbstractString)
+  json = JSON3.read(jsonstr)
+  projjsoncode(json)
 end

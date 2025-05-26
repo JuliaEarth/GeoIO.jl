@@ -53,7 +53,7 @@ import GeoInterface as GI
 import GeoFormatTypes as GFT
 import ArchGDAL.GDAL
 
-# ProjJSON CRS
+# PROJJSON CRS
 import JSON3
 
 # VTK extensions
