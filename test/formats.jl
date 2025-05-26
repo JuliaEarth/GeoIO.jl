@@ -1,4 +1,4 @@
-@testset "formats" begin
+@testset "Supported formats" begin
   io = IOBuffer()
   exts = [".ply", ".kml", ".gslib", ".shp", ".geojson", ".parquet", ".gpkg", ".png", ".jpg", ".jpeg", ".tif", ".tiff"]
 
