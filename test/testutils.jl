@@ -23,7 +23,7 @@ gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
 function isvalidprojjson(json)
   path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
   schema = Schema(JSON3.parsefile(path))
-  return isvalid(schema, json)
+  isvalid(schema, json)
 end
 
 # I can not figure out why the validation test fails without this!
@@ -69,7 +69,7 @@ function deltaprojjson(json1, json2; exact=false)
     end
   end
 
-  return diffpaths
+  diffpaths
 end
 
 # Find differences between two dictionaries and return the paths to those differences as json dot-notation strings.
@@ -98,7 +98,7 @@ function finddiffpaths(d1::Dict, d2::Dict, path="")
     end
   end
 
-  return paths
+  paths
 end
 
 function finddiffpaths(v1::Vector, v2::Vector, path)
@@ -111,11 +111,13 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
       append!(paths, finddiffpaths(v1[i], v2[i], "$(path)[$(i)]"))
     end
   end
+
   # extra elements, doesn't matter which vector
   for i in (minlen + 1):maxlen
     push!(paths, "$(path)[$(i)]")
   end
-  return paths
+
+  paths
 end
 
 function finddiffpaths(v1, v2, path)

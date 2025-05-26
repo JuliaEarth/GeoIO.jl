@@ -5,7 +5,7 @@
 rootkey(d) = nothing
 function rootkey(d::Dict)
   length(keys(d)) == 1 || throw(ArgumentError("Dictionary must have exactly one key."))
-  return first(keys(d))
+  first(keys(d))
 end
 
 # from a vector of WKT nodes, find ones that start with `key`
@@ -15,7 +15,7 @@ end
 
 function finditem(key::Symbol, list::Vector)
   found = filter(x -> rootkey(x) == key, list)
-  return isempty(found) ? nothing : found[1]
+  isempty(found) ? nothing : found[1]
 end
 
 function finditem(keys::Vector{Symbol}, list::Vector)
@@ -26,9 +26,9 @@ function finditem(keys::Vector{Symbol}, list::Vector)
   end
 
   if length(found) == 1
-    return found[1]
+    found[1]
   elseif length(found) == 0
-    return nothing
+    nothing
   elseif length(found) > 1
     throw(ArgumentError("Multiple items found for keys: $keys. Only one was expected"))
   end
@@ -41,11 +41,11 @@ end
 function wkt2json(wkt::Dict)
   type = rootkey(wkt)
   if type == :GEOGCRS
-    return wkt2json_geog(wkt)
+    wkt2json_geog(wkt)
   elseif type == :GEODCRS
-    return wkt2json_geog(wkt)
+    wkt2json_geog(wkt)
   elseif type == :PROJCRS
-    return wkt2json_proj(wkt)
+    wkt2json_proj(wkt)
   else
     throw(ArgumentError("WKT to PROJJSON conversion for CRS type: $type is not supported yet."))
   end
@@ -56,7 +56,7 @@ end
 # Either as top-level crs or under PROJCRS
 function wkt2json_geog(wkt::Dict)
   geosubtype = rootkey(wkt)
-  geosubtype in [:GEOGCRS, :GEODCRS] || throw(ArgumentError("Expected key to be GEOGCRS or GEODCRS, got $(geosubtype)"))
+  geosubtype ∈ (:GEOGCRS, :GEODCRS) || throw(ArgumentError("Expected key to be GEOGCRS or GEODCRS, got $(geosubtype)"))
   jsondict = Dict{String,Any}()
   jsondict["type"] = if geosubtype == :GEOGCRS
     "GeographicCRS"
@@ -77,7 +77,8 @@ function wkt2json_geog(wkt::Dict)
   end
 
   jsondict["id"] = wkt2json_id(wkt[geosubtype][end])
-  return jsondict
+
+  jsondict
 end
 
 # Schema requires keys: "name", "base_crs", "conversion", and "coordinate_system"
@@ -94,7 +95,8 @@ function wkt2json_proj(wkt::Dict)
   jsondict["coordinate_system"] = wkt2json_cs(wkt)
 
   jsondict["id"] = wkt2json_id(wkt[:PROJCRS][end])
-  return jsondict
+
+  jsondict
 end
 
 # Schema requires keys: "name" and "method"
@@ -121,7 +123,8 @@ function wkt2json_conversion(conv::Dict)
   jsondict["method"] = Dict{String,Any}()
   jsondict["method"]["name"] = conv[:CONVERSION][2][:METHOD][1]
   jsondict["method"]["id"] = wkt2json_id(conv[:CONVERSION][2][:METHOD][end])
-  return jsondict
+
+  jsondict
 end
 
 # This function breaks the convention by taking the parent CRS node instead of the CS node,
@@ -147,7 +150,7 @@ function wkt2json_cs(wkt::Dict)
     axisdict["abbreviation"] = name[2][1:(end - 1)]
 
     dir = string(axis[:AXIS][2])
-    if dir in ("North", "South", "East", "West")
+    if dir ∈ ("North", "South", "East", "West")
       dir = lowercase(dir)
     end
     axisdict["direction"] = dir
@@ -168,7 +171,7 @@ function wkt2json_cs(wkt::Dict)
     push!(jsondict["axis"], axisdict)
   end
 
-  return jsondict
+  jsondict
 end
 
 function wkt2json_unit(axis::Vector)
@@ -178,8 +181,8 @@ function wkt2json_unit(axis::Vector)
   name = unit[unittype][1]
 
   # "unit" PROJJSON object can be a simple string if it's one of the following
-  if name in ("metre", "degree", "unity")
-    return name
+  if name ∈ ("metre", "degree", "unity")
+    name
   else
     unitdict = Dict{String,Any}()
     unitdict["name"] = name
@@ -193,18 +196,17 @@ function wkt2json_unit(axis::Vector)
     else
       throw(ArgumentError("Unit type $unittype is not yet supported"))
     end
-    return unitdict
+    unitdict
   end
-  return nothing
 end
 
 # See value_in_metre_or_value_and_unit in schema
 function valueunit(value::Number, context::Vector)
   unit = wkt2json_unit(context)
   if unit isa String
-    return value
+    value
   else
-    return Dict("unit" => unit, "value" => value)
+    Dict("unit" => unit, "value" => value)
   end
 end
 
@@ -227,7 +229,7 @@ function wkt2json_general_datum(wkt::Dict)
     throw(ArgumentError("An ENSEMBLE or DATUM node is required, none is found."))
   end
 
-  return (name=name, json=jsondict)
+  (name=name, json=jsondict)
 end
 
 # Returns geodetic_reference_frame PROJJSON object.
@@ -262,7 +264,7 @@ function wkt2json_datum(wkt::Dict)
     jsondict["prime_meridian"]["longitude"] = longitude
   end
   
-  return jsondict
+  jsondict
 end
 
 # Returns datum_ensemble PROJJSON object.
@@ -290,7 +292,8 @@ function wkt2json_datumensemble(wkt::Dict)
   end
 
   jsondict["id"] = wkt2json_id(wkt[:ENSEMBLE][end])
-  return jsondict
+
+  jsondict
 end
 
 function wkt2json_ellipsoid(ellipsoid::Dict)
@@ -300,7 +303,8 @@ function wkt2json_ellipsoid(ellipsoid::Dict)
   semimajor = valueunit(ellipsoid[:ELLIPSOID][2], ellipsoid[:ELLIPSOID])
   jsondict["semi_major_axis"] = semimajor
   jsondict["inverse_flattening"] = ellipsoid[:ELLIPSOID][3]
-  return jsondict
+
+  jsondict
 end
 
 function wkt2json_id(id::Dict)
@@ -308,7 +312,8 @@ function wkt2json_id(id::Dict)
   jsondict = Dict{String,Any}()
   jsondict["authority"] = id[:ID][1]
   jsondict["code"] = id[:ID][2]
-  return jsondict
+
+  jsondict
 end
 
 # ------------------------------------
@@ -325,7 +330,7 @@ function epsg2wktdict(epsg::Int)
   expr = Meta.parse(str)
   dict = Dict(:root => [])
   process_expr(expr, dict)
-  return dict[:root][1]
+  dict[:root][1]
 end
 epsg2wktdict(::Type{EPSG{I}}) where {I} = epsg2wktdict(I)
 
@@ -343,5 +348,5 @@ function process_expr(elem, dict::Dict)
   else
     throw(ArgumentError("The AST representation of the WKT file contains an unexpected node."))
   end
-  return dict
+  dict
 end
