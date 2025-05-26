@@ -32,7 +32,7 @@
   @testset for type in [:GEOGCRS, :GEODCRS, :PROJCRS]
     filtered = filter(crs -> crs.type == type, crstuples)
     @testset "code = $(crs.code)" for crs in filtered
-      ourjson = GeoIO.wkt2json(crs.wkt) |> jsonroundtrip
+      ourjson = GeoIO.wkt2json(crs.wkt)
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
       @test isempty(deltaprojjson(gdaljson, ourjson))

@@ -26,9 +26,6 @@ function isvalidprojjson(json)
   isvalid(schema, json)
 end
 
-# I can not figure out why the validation test fails without this!
-jsonroundtrip(json) = JSON3.read(JSON3.write(json), Dict)
-
 # Return the "paths" of objects that exhibit differences between the two json inputs.
 # By default, we clean the results from some optional PROJJSON objects and minor
 # discrepancies with GDAL's output. Set `exact = true` to disable that behavior.

@@ -150,8 +150,8 @@ function wkt2json_cs(wkt::Dict)
 
     # parse axis name and abbreviation
     name = split(axis[:AXIS][1], " (")
-    axisdict["name"] = name[1]
-    axisdict["abbreviation"] = name[2][1:(end - 1)]
+    axisdict["name"] = string(name[1])
+    axisdict["abbreviation"] = string(name[2][1:(end - 1)])
 
     dir = string(axis[:AXIS][2])
     if dir ∈ ("North", "South", "East", "West")
