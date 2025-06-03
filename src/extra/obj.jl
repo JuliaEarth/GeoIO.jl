@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function objread(fname, numtype::Type{T}; lenunit=nothing) where T
+function objread(fname, numtype::Type{T}; lenunit=nothing) where {T}
   vertices = NTuple{3,T}[]
   faceinds = Vector{Int}[]
 
@@ -19,7 +19,7 @@ function objread(fname, numtype::Type{T}; lenunit=nothing) where T
         elseif prefix == "f"
           inds = map(strs) do s
             slash = findfirst('/', s)
-            ind = @view(s[1:(isnothing(slash) ? end : (slash-1))])
+            ind = @view(s[1:(isnothing(slash) ? end : (slash - 1))])
             parse(Int, ind)
           end
           push!(faceinds, inds)
