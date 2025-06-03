@@ -19,7 +19,7 @@ function objread(fname, numtype::Type{T}; lenunit=nothing) where T
         elseif prefix == "f"
           inds = map(strs) do s
             slash = findfirst('/', s)
-            ind = @view(s[1:(slash-1)])
+            ind = @view(s[1:(isnothing(slash) ? end : (slash-1))])
             parse(Int, ind)
           end
           push!(faceinds, inds)
