@@ -57,12 +57,16 @@ function objwrite(fname, geotable)
   open(fname, write=true) do io
     for point in eachvertex(mesh)
       coords = ustrip.(to(point))
-      write(io, "v $(join(coords, " "))\n")
+      write(io, "v ")
+      join(io, coords, " ")
+      println(io)
     end
 
     for connec in elements(topology(mesh))
       inds = indices(connec)
-      write(io, "f $(join(inds, " "))\n")
+      write(io, "f ")
+      join(io, inds, " ")
+      println(io)
     end
   end
 end
