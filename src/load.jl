@@ -118,7 +118,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
 
   # OBJ format
   if endswith(fname, ".obj")
-    return objread(fname; lenunit, numtype, kwargs...)
+    return objread(fname, numtype; lenunit, kwargs...)
   end
 
   # OFF format
