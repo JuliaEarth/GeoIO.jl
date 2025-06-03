@@ -87,7 +87,7 @@ GeoIO.load("file.tiff")
 GeoIO.load("file.nc")
 ```
 """
-function load(fname; repair=true, layer=1, lenunit=nothing, numtype::Type=Float64, kwargs...)
+function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwargs...)
   # CSV format
   if endswith(fname, ".csv")
     if :coords ∉ keys(kwargs)
