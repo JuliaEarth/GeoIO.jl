@@ -2,22 +2,24 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function objread(fname; lenunit, numtype)
-  vertices = NTuple{3,numtype}[]
+function objread(fname, numtype::Type{T}; lenunit=nothing) where T
+  vertices = NTuple{3,T}[]
   faceinds = Vector{Int}[]
 
   open(fname) do io
     while !eof(io)
-      line = split(readline(io))
+      line = readline(io)
       if !isempty(line)
-        if line[1] == "v"
-          point = ntuple(i -> parse(numtype, line[i + 1]), 3)
+        strs = Iterators.Stateful(eachsplit(line, ' '))
+        isempty(strs) && continue
+        prefix = first(strs)
+        if prefix == "v"
+          point = (parse(T, first(strs)), parse(T, first(strs)), parse(T, first(strs)))
           push!(vertices, point)
-        end
-
-        if line[1] == "f"
-          inds = map(2:length(line)) do i
-            ind = first(split(line[i], "/"))
+        elseif prefix == "f"
+          inds = map(strs) do s
+            slash = findfirst('/', s)
+            ind = @view(s[1:(slash-1)])
             parse(Int, ind)
           end
           push!(faceinds, inds)
