@@ -32,9 +32,17 @@ function vtkread(fname; lenunit, mask=:mask)
   names = propertynames(gtb)
   masknm = Symbol(mask)
   if masknm ∈ names
+    # create view of domain using mask
     inds = findall(==(1), gtb[:, masknm])
+    vdom = view(domain(gtb), inds)
+
+    # create appropriate geotable
     other = setdiff(names, [masknm, :geometry])
-    view(gtb[:, other], inds)
+    if isempty(other)
+      georef(nothing, vdom)
+    else
+      gtb[inds, other]
+    end
   else
     gtb
   end
