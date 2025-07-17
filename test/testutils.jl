@@ -9,9 +9,9 @@ function isequalshp(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-# GeoPackage conversion: Ring → PolyArea
-isequalgpkg(p::PolyArea, r::Ring) = boundary(p) == r
-isequalgpkg(r::Ring, p::PolyArea) = isequalgpkg(p, r)
+# GeoPackage conversion: Ring → Rope (matches GDAL behavior)
+isequalgpkg(rope::Rope, ring::Ring) = vertices(rope) == vertices(ring)
+isequalgpkg(ring::Ring, rope::Rope) = isequalgpkg(rope, ring)
 
 # old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}

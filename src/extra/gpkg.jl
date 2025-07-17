@@ -712,11 +712,11 @@ function write_wkb_geometry(io::IOBuffer, geom::Geometry)
   elseif geom isa PolyArea
     write_wkb_polygon(io, geom)
   elseif geom isa Ring
-    # Convert Ring to PolyArea for WKB output
-    poly = PolyArea(geom)
-    write_wkb_polygon(io, poly)
+    # Convert Ring to Rope for WKB output to match GDAL behavior
+    rope = Rope(vertices(geom))
+    write_wkb_linestring(io, rope)
   elseif geom isa Multi
-    parts = collect(geom)
+    parts = parent(geom)
     first_part = first(parts)
     
     write(io, UInt8(0x01))
@@ -825,6 +825,8 @@ function infer_geometry_type(geoms::AbstractVector{<:Geometry})
     return "POINT"
   elseif all(g -> g isa Rope, geoms)
     return "LINESTRING"
+  elseif all(g -> g isa Ring, geoms)
+    return "LINESTRING"  # Ring is saved as LINESTRING to match GDAL behavior
   elseif all(g -> g isa PolyArea, geoms)
     return "POLYGON"
   elseif all(g -> g isa Multi{<:Point}, geoms)

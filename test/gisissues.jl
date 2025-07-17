@@ -77,7 +77,7 @@
   @test gtb.int == gtpoint.int
   @test gtb.string == gtpoint.string
 
-  # note: GeoPackage saves Ring as PolyArea (WKB limitation)
+  # note: GeoPackage saves Ring as LineString (follows WKB spec and matches GDAL behavior)
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
