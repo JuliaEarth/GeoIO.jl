@@ -1,10 +1,9 @@
 using SQLite
-using DBInterface
 using Tables
 using GeoInterface
+using GeoFormatTypes
 using CoordRefSystems
 using Meshes
-using DataFrames
 using GeoTables
 using Meshes: paramdim, boundingbox, vertices, boundary, coords
 
@@ -22,6 +21,26 @@ struct GeoPackageBinaryHeader
   min_m::Union{Float64,Nothing}
   max_m::Union{Float64,Nothing}
 end
+
+# Table wrapper that implements GeoInterface.crs for GeoPackage tables
+struct GeoPackageTable{T}
+  table::T
+  crs::Any
+end
+
+# Implement Tables.jl interface for the wrapper
+Tables.istable(::Type{GeoPackageTable{T}}) where T = Tables.istable(T)
+Tables.rowaccess(::Type{GeoPackageTable{T}}) where T = Tables.rowaccess(T)
+Tables.columnaccess(::Type{GeoPackageTable{T}}) where T = Tables.columnaccess(T)
+Tables.rows(gt::GeoPackageTable) = Tables.rows(gt.table)
+Tables.columns(gt::GeoPackageTable) = Tables.columns(gt.table)
+Tables.columnnames(gt::GeoPackageTable) = Tables.columnnames(gt.table)
+Tables.getcolumn(gt::GeoPackageTable, i::Int) = Tables.getcolumn(gt.table, i)
+Tables.getcolumn(gt::GeoPackageTable, nm::Symbol) = Tables.getcolumn(gt.table, nm)
+Tables.schema(gt::GeoPackageTable) = Tables.schema(gt.table)
+
+# Implement GeoInterface.crs method
+GeoInterface.crs(gt::GeoPackageTable) = gt.crs
 
 const WKB_POINT = 0x00000001
 const WKB_LINESTRING = 0x00000002
@@ -313,7 +332,7 @@ function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::
   if isempty(hole_rings)
     return PolyArea(exterior_ring)
   else
-    return PolyArea([exterior_ring; hole_rings])
+    return PolyArea(exterior_ring, hole_rings...)
   end
 end
 
@@ -431,7 +450,11 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
     WHERE srs_id = ?
   """
   
-  result = DBInterface.execute(db, query, [srid]) |> DataFrames.DataFrame
+  srs_result = SQLite.DBInterface.execute(db, query, [srid])
+  result = []
+  for row in srs_result
+    push!(result, (definition=row.definition,))
+  end
   
   if isempty(result)
     return LatLon{WGS84Latest}  # Default to WGS84 for unknown SRIDs
@@ -450,17 +473,21 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     ORDER BY table_name
   """
   
-  contents = DBInterface.execute(db, contents_query) |> DataFrames.DataFrame
+  contents_result = SQLite.DBInterface.execute(db, contents_query)
+  contents = []
+  for row in contents_result
+    push!(contents, (table_name=row.table_name, data_type=row.data_type))
+  end
   
   if isempty(contents)
     error("No feature tables found in GeoPackage")
   end
   
-  if layer > nrow(contents)
-    error("Layer $layer not found. GeoPackage contains $(nrow(contents)) feature layers")
+  if layer > length(contents)
+    error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
   end
   
-  table_name = contents.table_name[layer]
+  table_name = contents[layer].table_name
   
   geom_query = """
     SELECT column_name, geometry_type_name, srs_id
@@ -468,42 +495,48 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     WHERE table_name = ?
   """
   
-  geom_info = DBInterface.execute(db, geom_query, [table_name]) |> DataFrames.DataFrame
+  geom_result = SQLite.DBInterface.execute(db, geom_query, [table_name])
+  geom_info = []
+  for row in geom_result
+    push!(geom_info, (column_name=row.column_name, geometry_type_name=row.geometry_type_name, srs_id=row.srs_id))
+  end
   
   if isempty(geom_info)
     error("No geometry column found for table $table_name")
   end
   
-  geom_column = geom_info.column_name[1]
-  srs_id = Int32(geom_info.srs_id[1])
+  geom_column = geom_info[1].column_name
+  srs_id = Int32(geom_info[1].srs_id)
   
   crs = get_crs_from_srid(db, srs_id)
   
   data_query = "SELECT * FROM \"$table_name\""
-  result = DBInterface.execute(db, data_query) |> DataFrames.DataFrame
+  data_result = SQLite.DBInterface.execute(db, data_query)
   
   geometries = Geometry[]
-  valid_indices = Int[]
+  result = []
   
-  for (idx, row) in enumerate(eachrow(result))
-    blob = row[Symbol(geom_column)]
+  for (idx, row) in enumerate(data_result)
+    blob = getproperty(row, Symbol(geom_column))
     if !ismissing(blob) && !isnothing(blob)
       try
         geom, _ = parse_gpb(blob, crs)
         if !isnothing(geom)
           push!(geometries, geom)
-          push!(valid_indices, idx)
+          
+          # Create new row without geometry column
+          row_dict = Dict()
+          for name in propertynames(row)
+            if name != Symbol(geom_column)
+              row_dict[name] = getproperty(row, name)
+            end
+          end
+          push!(result, (; row_dict...))
         end
       catch e
         @warn "Failed to parse geometry at row $idx: $e"
       end
     end
-  end
-  
-  DataFrames.select!(result, DataFrames.Not(Symbol(geom_column)))
-  
-  if !isempty(valid_indices)
-    result = result[valid_indices, :]
   end
   
   if isempty(geometries)
@@ -518,15 +551,30 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   close(db)
   
-  # Create georeferenced table with proper CRS
-  if !isnothing(crs) && crs != Cartesian{NoDatum}
-    # Apply coordinate transformation during domain creation
-    # For now, just use the domain as-is but specify expected CRS behavior
-    # The geometries should already be in the correct coordinate system
-    return GeoTables.georef(result, domain)
-  else
-    return GeoTables.georef(result, domain)
+  # Convert result to proper table format that includes geometry as a column
+  # We need to return a table with geometry column for the gis.jl workflow
+  table_rows = []
+  for (i, row) in enumerate(result)
+    # Create a new row with geometry column
+    new_row = merge(row, (geometry = geometries[i],))
+    push!(table_rows, new_row)
   end
+  
+  # Create a table with CRS information
+  table = Tables.rowtable(table_rows)
+  
+  # Convert CRS to the format expected by GeoInterface
+  gi_crs = if !isnothing(crs)
+    if crs <: LatLon{WGS84Latest}
+      GeoFormatTypes.EPSG{1}((4326,))
+    else
+      nothing
+    end
+  else
+    nothing
+  end
+  
+  return GeoPackageTable(table, gi_crs)
 end
 
 function create_gpb_header(srs_id::Int32, geom::Geometry, envelope_type::Int=1)
@@ -663,6 +711,10 @@ function write_wkb_geometry(io::IOBuffer, geom::Geometry)
     write_wkb_linestring(io, geom)
   elseif geom isa PolyArea
     write_wkb_polygon(io, geom)
+  elseif geom isa Ring
+    # Convert Ring to PolyArea for WKB output
+    poly = PolyArea(geom)
+    write_wkb_polygon(io, poly)
   elseif geom isa Multi
     parts = collect(geom)
     first_part = first(parts)
@@ -717,7 +769,7 @@ function get_srid_for_crs(db::SQLite.DB, crs)
 end
 
 function ensure_gpkg_tables(db::SQLite.DB)
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
       srs_name TEXT NOT NULL,
       srs_id INTEGER NOT NULL PRIMARY KEY,
@@ -728,7 +780,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     INSERT OR IGNORE INTO gpkg_spatial_ref_sys 
     (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
     VALUES 
@@ -737,7 +789,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined Cartesian coordinate reference system')
   """)
   
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_contents (
       table_name TEXT NOT NULL PRIMARY KEY,
       data_type TEXT NOT NULL,
@@ -753,7 +805,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
       table_name TEXT NOT NULL,
       column_name TEXT NOT NULL,
@@ -792,10 +844,10 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   ensure_gpkg_tables(db)
   
   # Drop existing table if it exists to avoid data duplication  
-  DBInterface.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
+  SQLite.DBInterface.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
   try
-    DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
-    DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
+    SQLite.DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
+    SQLite.DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
   catch
     # Tables might not exist yet, which is fine
   end
@@ -807,48 +859,42 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   crs = GeoTables.crs(domain)
   srs_id = get_srid_for_crs(db, crs)
   
-  cols = Tables.columnnames(table)
+  # Handle case where table is Nothing (no attribute columns)
+  cols = isnothing(table) ? Symbol[] : Tables.columnnames(table)
   
-  # Check if fid column already exists
-  has_fid = :fid in cols
-  
-  create_table_sql = if has_fid
-    """
+  # Start with basic table structure (no automatic fid column)
+  create_table_sql = """
     CREATE TABLE IF NOT EXISTS "$layer" (
       geom BLOB NOT NULL
     """
-  else
-    """
-    CREATE TABLE IF NOT EXISTS "$layer" (
-      fid INTEGER PRIMARY KEY AUTOINCREMENT,
-      geom BLOB NOT NULL
-    """
-  end
   
-  for col in cols
-    col_str = string(col)
-    coltype = eltype(Tables.getcolumn(table, col))
-    
-    if coltype <: Integer
-      sql_type = "INTEGER"
-    elseif coltype <: AbstractFloat
-      sql_type = "REAL"
-    else
-      sql_type = "TEXT"
+  # Add columns only if table is not Nothing
+  if !isnothing(table)
+    for col in cols
+      col_str = string(col)
+      coltype = eltype(Tables.getcolumn(table, col))
+      
+      if coltype <: Integer
+        sql_type = "INTEGER"
+      elseif coltype <: AbstractFloat
+        sql_type = "REAL"
+      else
+        sql_type = "TEXT"
+      end
+      
+      create_table_sql *= ",\n    \"$col_str\" $sql_type"
     end
-    
-    create_table_sql *= ",\n    \"$col_str\" $sql_type"
   end
   
   create_table_sql *= "\n)"
   
-  DBInterface.execute(db, create_table_sql)
+  SQLite.DBInterface.execute(db, create_table_sql)
   
   bbox = boundingbox(domain)
   min_coords = CoordRefSystems.raw(coords(bbox.min))
   max_coords = CoordRefSystems.raw(coords(bbox.max))
   
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     INSERT OR REPLACE INTO gpkg_contents 
     (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
     VALUES (?, 'features', ?, ?, ?, ?, ?, ?)
@@ -857,29 +903,39 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   geom_type = infer_geometry_type(geoms)
   z_flag = paramdim(first(geoms)) >= 3 ? 1 : 0
   
-  DBInterface.execute(db, """
+  SQLite.DBInterface.execute(db, """
     INSERT OR REPLACE INTO gpkg_geometry_columns 
     (table_name, column_name, geometry_type_name, srs_id, z, m)
     VALUES (?, 'geom', ?, ?, ?, 0)
   """, [layer, geom_type, srs_id, z_flag])
   
   # Insert data row by row without prepared statements
-  for (i, row) in enumerate(Tables.rows(table))
-    geom = geoms[i]
-    gpb_blob = create_gpb(geom, srs_id)
-    
-    # Build insert SQL dynamically
-    col_names = ["geom"; [string(col) for col in cols]]
-    col_placeholders = repeat(["?"], length(col_names))
-    insert_sql = "INSERT INTO \"$layer\" ($(join(col_names, ", "))) VALUES ($(join(col_placeholders, ", ")))"
-    
-    values = Any[gpb_blob]
-    for col in cols
-      val = getproperty(row, col)
-      push!(values, val)
+  if isnothing(table)
+    # Handle case with no attribute columns - just geometry
+    for (i, geom) in enumerate(geoms)
+      gpb_blob = create_gpb(geom, srs_id)
+      insert_sql = "INSERT INTO \"$layer\" (geom) VALUES (?)"
+      SQLite.DBInterface.execute(db, insert_sql, [gpb_blob])
     end
-    
-    DBInterface.execute(db, insert_sql, values)
+  else
+    # Handle case with attribute columns
+    for (i, row) in enumerate(Tables.rows(table))
+      geom = geoms[i]
+      gpb_blob = create_gpb(geom, srs_id)
+      
+      # Build insert SQL dynamically
+      col_names = ["geom"; [string(col) for col in cols]]
+      col_placeholders = repeat(["?"], length(col_names))
+      insert_sql = "INSERT INTO \"$layer\" ($(join(col_names, ", "))) VALUES ($(join(col_placeholders, ", ")))"
+      
+      values = Any[gpb_blob]
+      for col in cols
+        val = getproperty(row, col)
+        push!(values, val)
+      end
+      
+      SQLite.DBInterface.execute(db, insert_sql, values)
+    end
   end
   close(db)
   

@@ -9,6 +9,10 @@ function isequalshp(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
+# GeoPackage conversion: Ring → PolyArea
+isequalshp(p::PolyArea, r::Ring) = boundary(p) == r
+isequalshp(r::Ring, p::PolyArea) = isequalshp(p, r)
+
 # old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
   spref = AG.importUserInput("EPSG:$Code")

@@ -77,11 +77,12 @@
   @test gtb.int == gtpoint.int
   @test gtb.string == gtpoint.string
 
+  # note: GeoPackage saves Ring as PolyArea (WKB limitation)
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtring))
-  @test gtb.geometry == gtring.geometry
+  @test isequalshp(gtb.geometry, gtring.geometry)
   @test gtb.float == gtring.float
   @test gtb.int == gtring.int
   @test gtb.string == gtring.string

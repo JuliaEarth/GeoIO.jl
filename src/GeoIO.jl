@@ -72,7 +72,7 @@ const CDMEXTS = [".grib", ".nc"]
 const FORMATS = [
   (extension=".csv", load="CSV.jl", save="CSV.jl"),
   (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
-  (extension=".gpkg", load="SQLite.jl", save="SQLite.jl"),
+  (extension=".gpkg", load="GeoIO.jl", save="GeoIO.jl"),
   (extension=".grib", load="GRIBDatasets.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
