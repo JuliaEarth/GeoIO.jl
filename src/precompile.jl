@@ -13,8 +13,5 @@ using PrecompileTools
     load(joinpath(datadir, "lines.parquet"))
     load(joinpath(datadir, "polygons.parquet"))
     load(joinpath(datadir, "field.kml"))
-    load(joinpath(datadir, "points.gpkg"))
-    load(joinpath(datadir, "lines.gpkg"))
-    load(joinpath(datadir, "polygons.gpkg"))
   end
 end
