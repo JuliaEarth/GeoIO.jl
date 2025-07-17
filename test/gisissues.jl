@@ -82,7 +82,7 @@
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtring))
-  @test isequalshp(gtb.geometry, gtring.geometry)
+  @test all(isequalgpkg(g1, g2) for (g1, g2) in zip(gtb.geometry, gtring.geometry))
   @test gtb.float == gtring.float
   @test gtb.int == gtring.int
   @test gtb.string == gtring.string
