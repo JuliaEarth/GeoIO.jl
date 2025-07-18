@@ -77,12 +77,13 @@
   @test gtb.int == gtpoint.int
   @test gtb.string == gtpoint.string
 
-  # note: GeoPackage saves Ring as LineString (follows WKB spec and matches GDAL behavior)
+  # note: GeoPackage saves Ring as closed LineString (follows WKB spec)
+  # When loading, closed LineStrings are converted back to Ring
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
   @test Set(names(gtb)) == Set(names(gtring))
-  @test all(isequalgpkg(g1, g2) for (g1, g2) in zip(gtb.geometry, gtring.geometry))
+  @test gtb.geometry == gtring.geometry
   @test gtb.float == gtring.float
   @test gtb.int == gtring.int
   @test gtb.string == gtring.string

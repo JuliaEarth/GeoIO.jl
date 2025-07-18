@@ -130,7 +130,7 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
   end
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; force_rope::Bool=false)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   num_points = read_value(read(io, UInt32))
@@ -192,7 +192,19 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     end
   end
   
-  return Rope(points)
+  # For MultiLineString components, always return Rope to maintain consistency
+  if force_rope
+    return Rope(points)
+  end
+  
+  # Check if the linestring is closed (first point equals last point)
+  if length(points) >= 2 && points[1] == points[end]
+    # It's a closed linestring, return a Ring (exclude the duplicate last point)
+    return Ring(points[1:end-1])
+  else
+    # It's an open linestring, return a Rope
+    return Rope(points)
+  end
 end
 
 function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -380,15 +392,16 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
     wkb_type_inner = read_value_inner(read(io, UInt32))
-    first_line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type)
+    first_line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type; force_rope=true)
     
+    # All components will be Rope to maintain consistency
     lines = first_line !== nothing ? [first_line] : Rope[]
     
     for i in 2:num_lines
       byte_order_inner = read(io, UInt8)
       read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
       wkb_type_inner = read_value_inner(read(io, UInt32))
-      line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type)
+      line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type; force_rope=true)
       line !== nothing && push!(lines, line)
     end
     return Multi(lines)
@@ -650,6 +663,42 @@ function write_wkb_linestring(io::IOBuffer, rope::Rope)
   end
 end
 
+function write_wkb_ring_as_linestring(io::IOBuffer, ring::Ring)
+  points = vertices(ring)
+  dim = paramdim(first(points))
+  
+  write(io, UInt8(0x01))
+  
+  wkb_type = WKB_LINESTRING
+  if dim == 3
+    wkb_type |= WKB_Z
+  end
+  write(io, UInt32(wkb_type))
+  
+  # Write count including the duplicate last point to close the ring
+  write(io, UInt32(length(points) + 1))
+  
+  # Write all points
+  for point in points
+    coords_pt = CoordRefSystems.raw(coords(point))
+    write(io, Float64(coords_pt[1]))
+    write(io, Float64(coords_pt[2]))
+    
+    if dim >= 3
+      write(io, Float64(coords_pt[3]))
+    end
+  end
+  
+  # Write first point again to close the ring
+  first_coords = CoordRefSystems.raw(coords(first(points)))
+  write(io, Float64(first_coords[1]))
+  write(io, Float64(first_coords[2]))
+  
+  if dim >= 3
+    write(io, Float64(first_coords[3]))
+  end
+end
+
 function write_wkb_polygon(io::IOBuffer, poly::PolyArea)
   exterior_ring = boundary(poly)
   hole_rings = Ring[]
@@ -712,9 +761,8 @@ function write_wkb_geometry(io::IOBuffer, geom::Geometry)
   elseif geom isa PolyArea
     write_wkb_polygon(io, geom)
   elseif geom isa Ring
-    # Convert Ring to Rope for WKB output to match GDAL behavior
-    rope = Rope(vertices(geom))
-    write_wkb_linestring(io, rope)
+    # Write Ring as closed LineString to match GDAL behavior
+    write_wkb_ring_as_linestring(io, geom)
   elseif geom isa Multi
     parts = parent(geom)
     first_part = first(parts)

@@ -9,9 +9,11 @@ function isequalshp(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-# GeoPackage conversion: Ring → Rope (matches GDAL behavior)
+# GeoPackage conversion: Ring is saved as closed LineString and loaded back as Ring
+# (This function is kept for backward compatibility but may not be needed anymore)
 isequalgpkg(rope::Rope, ring::Ring) = vertices(rope) == vertices(ring)
 isequalgpkg(ring::Ring, rope::Rope) = isequalgpkg(rope, ring)
+isequalgpkg(ring1::Ring, ring2::Ring) = ring1 == ring2
 
 # old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
