@@ -130,7 +130,79 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
   end
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; force_rope::Bool=false)
+function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  
+  num_points = read_value(read(io, UInt32))
+  
+  # Create the first point to determine the concrete type
+  x = read_value(read(io, Float64))
+  y = read_value(read(io, Float64))
+  
+  coords_list = [x, y]
+  
+  if has_z
+    z = read_value(read(io, Float64))
+    push!(coords_list, z)
+  end
+  
+  if has_m
+    m = read_value(read(io, Float64))
+  end
+  
+  # Create first point with appropriate CRS
+  first_point = if crs_type <: LatLon
+    if length(coords_list) == 2
+      Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
+    else
+      Point(crs_type(y, x, coords_list[3]))
+    end
+  else
+    Point(coords_list...)
+  end
+  
+  # Initialize typed array with the correct concrete type
+  points = [first_point]
+  
+  # Parse remaining points
+  for i in 2:num_points
+    x = read_value(read(io, Float64))
+    y = read_value(read(io, Float64))
+    
+    coords_list = [x, y]
+    
+    if has_z
+      z = read_value(read(io, Float64))
+      push!(coords_list, z)
+    end
+    
+    if has_m
+      m = read_value(read(io, Float64))
+    end
+    
+    # Create point with appropriate CRS
+    if crs_type <: LatLon
+      if length(coords_list) == 2
+        push!(points, Point(crs_type(y, x)))  # LatLon(lat, lon) - note swapped order
+      else
+        push!(points, Point(crs_type(y, x, coords_list[3])))
+      end
+    else
+      push!(points, Point(coords_list...))
+    end
+  end
+  
+  # Check if the linestring is closed (first point equals last point)
+  if length(points) >= 2 && points[1] == points[end]
+    # It's a closed linestring, return a Ring (exclude the duplicate last point)
+    return Ring(points[1:end-1])
+  else
+    # It's an open linestring, return a Rope
+    return Rope(points)
+  end
+end
+
+function parse_wkb_linestring_as_rope(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   num_points = read_value(read(io, UInt32))
@@ -193,18 +265,7 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
   end
   
   # For MultiLineString components, always return Rope to maintain consistency
-  if force_rope
-    return Rope(points)
-  end
-  
-  # Check if the linestring is closed (first point equals last point)
-  if length(points) >= 2 && points[1] == points[end]
-    # It's a closed linestring, return a Ring (exclude the duplicate last point)
-    return Ring(points[1:end-1])
-  else
-    # It's an open linestring, return a Rope
-    return Rope(points)
-  end
+  return Rope(points)
 end
 
 function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -392,7 +453,7 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
     wkb_type_inner = read_value_inner(read(io, UInt32))
-    first_line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type; force_rope=true)
+    first_line = parse_wkb_linestring_as_rope(io, byte_order_inner, has_z, has_m, crs_type)
     
     # All components will be Rope to maintain consistency
     lines = first_line !== nothing ? [first_line] : Rope[]
@@ -401,7 +462,7 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
       byte_order_inner = read(io, UInt8)
       read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
       wkb_type_inner = read_value_inner(read(io, UInt32))
-      line = parse_wkb_linestring(io, byte_order_inner, has_z, has_m, crs_type; force_rope=true)
+      line = parse_wkb_linestring_as_rope(io, byte_order_inner, has_z, has_m, crs_type)
       line !== nothing && push!(lines, line)
     end
     return Multi(lines)
