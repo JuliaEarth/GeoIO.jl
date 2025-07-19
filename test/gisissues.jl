@@ -77,8 +77,6 @@
   @test gtb.int == gtpoint.int
   @test gtb.string == gtpoint.string
 
-  # note: GeoPackage saves Ring as closed LineString (follows WKB spec)
-  # When loading, closed LineStrings are converted back to Ring
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
