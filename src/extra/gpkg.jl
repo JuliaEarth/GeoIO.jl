@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
+
 struct GeoPackageBinaryHeader
   magic::UInt16
   version::UInt8
@@ -125,38 +129,27 @@ function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
   end
   
   # Determine CRS characteristics using CoordRefSystems.jl
-  try
-    # For geographic coordinate systems (LatLon family)
-    if crs_type <: LatLon
-      # WKB stores geographic coordinates as x=longitude, y=latitude
-      # LatLon constructor expects (latitude, longitude) order
-      if length(coords_list) == 2
-        return Point(crs_type(y, x))  # LatLon(lat, lon) from WKB(x=lon, y=lat)
-      else
-        # 3D geographic with altitude/elevation
-        return Point(crs_type(y, x, coords_list[3]))
-      end
-    elseif crs_type <: LatLonAlt
-      # LatLonAlt always expects (lat, lon, alt)
-      if length(coords_list) >= 3
-        return Point(crs_type(y, x, coords_list[3]))
-      else
-        # Fallback to 2D LatLon if no Z coordinate
-        return Point(LatLon{datum(crs_type)}(y, x))
-      end
+  # For geographic coordinate systems (LatLon family)
+  if crs_type <: LatLon
+    # WKB stores geographic coordinates as x=longitude, y=latitude
+    # LatLon constructor expects (latitude, longitude) order
+    return Point(crs_type(y, x))  # LatLon(lat, lon) from WKB(x=lon, y=lat)
+  elseif crs_type <: LatLonAlt
+    # LatLonAlt always expects (lat, lon, alt)
+    if length(coords_list) >= 3
+      return Point(crs_type(y, x, coords_list[3]))
     else
-      # For projected coordinate systems (Cartesian, UTM, etc.)
-      # WKB coordinate order matches CRS constructor order (x, y, [z])
-      if length(coords_list) == 2
-        return Point(crs_type(x, y))
-      else
-        return Point(crs_type(x, y, coords_list[3]))
-      end
+      # Fallback to 2D LatLon if no Z coordinate
+      return Point(LatLon{datum(crs_type)}(y, x))
     end
-  catch e
-    # If CRS construction fails, fall back to raw coordinates
-    @warn "Failed to create point with CRS $crs_type: $e. Using raw coordinates."
-    return Point(coords_list...)
+  else
+    # For projected coordinate systems (Cartesian, UTM, etc.)
+    # WKB coordinate order matches CRS constructor order (x, y, [z])
+    if length(coords_list) == 2
+      return Point(crs_type(x, y))
+    else
+      return Point(crs_type(x, y, coords_list[3]))
+    end
   end
 end
 
@@ -165,70 +158,45 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
   return create_point_from_coords(coords_list, crs_type)
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; as_rope::Bool=false)
+function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; as_rope::Bool=false, force_ring::Bool=false)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   num_points = read_value(read(io, UInt32))
   
-  if num_points == 0
-    return nothing
-  end
-  
-  # Parse all points using helper functions
-  points = Point[]
-  
-  for i in 1:num_points
+  # Parse all points using map-do syntax
+  points = map(1:num_points) do i
     coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
-    point = create_point_from_coords(coords_list, crs_type)
-    if !isnothing(point)
-      push!(points, point)
+    create_point_from_coords(coords_list, crs_type)
+  end
+  
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_points = filter(!isnothing, points)
+  
+  # Detect if the linestring is closed (first point equals last point)
+  is_closed = length(valid_points) >= 2 && valid_points[1] == valid_points[end]
+  
+  if force_ring
+    # For polygon rings, always return Ring and exclude duplicate last point if present
+    if is_closed
+      return Ring(valid_points[1:end-1]...)
+    else
+      return Ring(valid_points...)
     end
-  end
-  
-  if isempty(points)
-    return nothing
-  end
-  
-  # If forced to be a Rope (for MultiLineString consistency) or open linestring
-  if as_rope || length(points) < 2 || points[1] != points[end]
-    return Rope(points...)
-  else
+  elseif as_rope
+    # Force Rope type (for MultiLineString consistency)
+    return Rope(valid_points...)
+  elseif is_closed
     # It's a closed linestring, return a Ring (exclude the duplicate last point)
-    return Ring(points[1:end-1]...)
+    return Ring(valid_points[1:end-1]...)
+  else
+    # It's an open linestring, return a Rope
+    return Rope(valid_points...)
   end
 end
 
+# Convenience function for ring parsing that delegates to the unified linestring parser
 function parse_wkb_ring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  # Parse ring by temporarily reading as linestring and converting to Ring
-  # First read the number of points
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  num_points = read_value(read(io, UInt32))
-  
-  if num_points == 0
-    return nothing
-  end
-  
-  # Parse all points
-  points = Point[]
-  for i in 1:num_points
-    coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
-    point = create_point_from_coords(coords_list, crs_type)
-    if !isnothing(point)
-      push!(points, point)
-    end
-  end
-  
-  if isempty(points)
-    return nothing
-  end
-  
-  # For rings, exclude duplicate last point if present (WKB rings are closed with duplicate point)
-  if length(points) >= 2 && points[1] == points[end]
-    return Ring(points[1:end-1]...)
-  else
-    # If not closed with duplicate, still return Ring (assuming it should be closed)
-    return Ring(points...)
-  end
+  return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type; force_ring=true)
 end
 
 function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -236,29 +204,21 @@ function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::
   
   num_rings = read_value(read(io, UInt32))
   
-  if num_rings == 0
-    return nothing
-  end
-  
   # Parse exterior ring using ring parsing function
   exterior_ring = parse_wkb_ring(io, byte_order, has_z, has_m, crs_type)
-  if isnothing(exterior_ring)
-    return nothing
+  
+  # Parse interior rings (holes) using map-do syntax
+  hole_rings = map(2:num_rings) do ring_idx
+    parse_wkb_ring(io, byte_order, has_z, has_m, crs_type)
   end
   
-  # Parse interior rings (holes)
-  hole_rings = Ring[]
-  for ring_idx in 2:num_rings
-    hole_ring = parse_wkb_ring(io, byte_order, has_z, has_m, crs_type)
-    if !isnothing(hole_ring)
-      push!(hole_rings, hole_ring)
-    end
-  end
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_hole_rings = filter(!isnothing, hole_rings)
   
-  if isempty(hole_rings)
+  if isempty(valid_hole_rings)
     return PolyArea(exterior_ring)
   else
-    return PolyArea(exterior_ring, hole_rings...)
+    return PolyArea(exterior_ring, valid_hole_rings...)
   end
 end
 
@@ -297,12 +257,8 @@ function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
   read_value = byte_order == 0x01 ? ltoh : ntoh
   num_points = read_value(read(io, UInt32))
   
-  if num_points == 0
-    return nothing
-  end
-  
-  points = Point[]
-  for i in 1:num_points
+  # Parse all points using map-do syntax
+  points = map(1:num_points) do i
     # Each point has its own header in multi-geometry
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
@@ -318,53 +274,23 @@ function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     end
     
     # Use the same point creation logic as standalone points
-    pt = parse_wkb_point(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
-    if !isnothing(pt)
-      push!(points, pt)
-    end
+    parse_wkb_point(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
   end
   
-  # Create Multi geometry with fallback to avoid StackOverflowError
-  # KNOWN LIMITATION: Due to a stack overflow in Meshes.jl Multi constructor
-  # with certain CRS types, we fall back to returning the first component
-  # if Multi creation fails. This preserves data access but loses Multi structure.
-  if isempty(points)
-    return nothing
-  end
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_points = filter(!isnothing, points)
   
-  try
-    # Approach 1: Try with original points first  
-    return Multi(points)
-  catch e
-    # Approach 2: Try with coordinate normalization
-    try
-      normalized_points = Point[]
-      for pt in points
-        coords_raw = CoordRefSystems.raw(coords(pt))
-        # Create new point with raw coordinates to avoid CRS recursion
-        new_point = Point(coords_raw...)
-        push!(normalized_points, new_point)
-      end
-      return Multi(normalized_points)
-    catch e2
-      # Fallback: Return first point to prevent crashes (loses Multi structure)
-      @warn "Failed to create Multi geometry: $e. Returning first point only."
-      return points[1]
-    end
-  end
+  # Create Multi geometry - simplified approach
+  return Multi(valid_points)
 end
 
 function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   num_lines = read_value(read(io, UInt32))
   
-  if num_lines == 0
-    return nothing
-  end
-  
+  # Parse all linestrings using map-do syntax
   # For MultiLineString, all components are Rope to maintain type consistency
-  lines = Rope[]
-  for i in 1:num_lines
+  lines = map(1:num_lines) do i
     # Each linestring has its own header in multi-geometry
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
@@ -375,36 +301,22 @@ function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool,
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    line = parse_wkb_linestring(io, byte_order_inner, inner_has_z, inner_has_m, crs_type; as_rope=true)
-    if !isnothing(line)
-      push!(lines, line)
-    end
+    parse_wkb_linestring(io, byte_order_inner, inner_has_z, inner_has_m, crs_type; as_rope=true)
   end
   
-  # Create Multi geometry with fallback to avoid StackOverflowError
-  if isempty(lines)
-    return nothing
-  end
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_lines = filter(!isnothing, lines)
   
-  try
-    return Multi(lines)
-  catch e
-    # Fallback: Return first line to prevent crashes (loses Multi structure)
-    @warn "Failed to create Multi LineString: $e. Returning first line only."
-    return lines[1]
-  end
+  # Create Multi geometry - simplified approach
+  return Multi(valid_lines)
 end
 
 function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   num_polygons = read_value(read(io, UInt32))
   
-  if num_polygons == 0
-    return nothing
-  end
-  
-  polygons = PolyArea[]
-  for i in 1:num_polygons
+  # Parse all polygons using map-do syntax
+  polygons = map(1:num_polygons) do i
     # Each polygon has its own header in multi-geometry
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
@@ -415,36 +327,22 @@ function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    poly = parse_wkb_polygon(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
-    if !isnothing(poly)
-      push!(polygons, poly)
-    end
+    parse_wkb_polygon(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
   end
   
-  # Create Multi geometry with fallback to avoid StackOverflowError
-  if isempty(polygons)
-    return nothing
-  end
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_polygons = filter(!isnothing, polygons)
   
-  try
-    return Multi(polygons)
-  catch e
-    # Fallback: Return first polygon to prevent crashes (loses Multi structure)
-    @warn "Failed to create Multi Polygon: $e. Returning first polygon only."
-    return polygons[1]
-  end
+  # Create Multi geometry - simplified approach
+  return Multi(valid_polygons)
 end
 
 function parse_wkb_geometrycollection(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   num_geoms = read_value(read(io, UInt32))
   
-  if num_geoms == 0
-    return nothing
-  end
-  
-  geoms = Geometry[]
-  for i in 1:num_geoms
+  # Parse all geometries using map-do syntax
+  geoms = map(1:num_geoms) do i
     # Each geometry in collection has its own WKB header
     geom_byte_order = read(io, UInt8)
     geom_read_value = geom_byte_order == 0x01 ? ltoh : ntoh
@@ -455,28 +353,28 @@ function parse_wkb_geometrycollection(io::IOBuffer, byte_order::UInt8, has_z::Bo
     geom_has_m = (geom_wkb_type & WKB_M) != 0
     
     # Parse the specific geometry type directly to avoid infinite recursion
-    geom = nothing
     if geom_base_type == WKB_POINT
-      geom = parse_wkb_point(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+      parse_wkb_point(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
     elseif geom_base_type == WKB_LINESTRING
-      geom = parse_wkb_linestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+      parse_wkb_linestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
     elseif geom_base_type == WKB_POLYGON
-      geom = parse_wkb_polygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+      parse_wkb_polygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
     elseif geom_base_type == WKB_MULTIPOINT
-      geom = parse_wkb_multipoint(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+      parse_wkb_multipoint(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
     elseif geom_base_type == WKB_MULTILINESTRING
-      geom = parse_wkb_multilinestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+      parse_wkb_multilinestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
     elseif geom_base_type == WKB_MULTIPOLYGON
-      geom = parse_wkb_multipolygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
-    # Note: Don't support nested GeometryCollections to avoid infinite recursion
-    end
-    
-    if !isnothing(geom)
-      push!(geoms, geom)
+      parse_wkb_multipolygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    else
+      # Note: Don't support nested GeometryCollections to avoid infinite recursion
+      nothing
     end
   end
   
-  return isempty(geoms) ? nothing : GeometrySet(geoms)
+  # Filter out any nothing values (though this should not happen with well-formed WKB)
+  valid_geoms = filter(!isnothing, geoms)
+  
+  return GeometrySet(valid_geoms)
 end
 
 
@@ -494,11 +392,15 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
     return Cartesian{NoDatum}
   end
   
-  # Try to get from EPSG directly first
-  try
-    return CoordRefSystems.get(EPSG{Int(srid)})
-  catch
-    # Not a supported EPSG code, continue to check the database
+  # Handle well-known EPSG codes directly
+  if srid == 4326
+    return LatLon{WGS84Latest}
+  elseif srid in [3857, 900913]  # Web Mercator variants
+    return Mercator{WGS84Latest}
+  elseif srid >= 32601 && srid <= 32660  # UTM North zones
+    return Cartesian{WGS84Latest}
+  elseif srid >= 32701 && srid <= 32760  # UTM South zones
+    return Cartesian{WGS84Latest}
   end
   
   # Query the database for the CRS definition
@@ -515,35 +417,30 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   end
   
   if isempty(result)
-    # Default based on common SRID values
-    if srid == 4326
-      return LatLon{WGS84Latest}
-    elseif srid in [3857, 900913]  # Web Mercator variants
-      return Mercator{WGS84Latest}
-    else
-      @warn "Unknown SRID $srid, defaulting to WGS84"
-      return LatLon{WGS84Latest}
-    end
+    # Default for unknown SRID values
+    @warn "Unknown SRID $srid, defaulting to WGS84"
+    return LatLon{WGS84Latest}
   end
   
-  # Try to parse the WKT definition
+  # Parse the WKT definition - use basic validation instead of try-catch
   definition = result[1]
-  try
-    return CoordRefSystems.get(definition)
-  catch e
-    # If parsing fails, fall back to common defaults based on SRID
-    @warn "Failed to parse CRS definition for SRID $srid: $e"
-    if srid == 4326
-      return LatLon{WGS84Latest}
-    elseif srid in [3857, 900913]  # Web Mercator variants
-      return Mercator{WGS84Latest}
-    elseif srid >= 32601 && srid <= 32760  # UTM zones (both North and South)
-      # For UTM zones, fallback to projected Cartesian since specific UTM types may not be available
-      return Cartesian{WGS84Latest}
-    else
-      # For completely unknown SRIDs, default to WGS84
-      return LatLon{WGS84Latest}
-    end
+  if isnothing(definition) || isempty(strip(definition))
+    @warn "Empty CRS definition for SRID $srid, defaulting to WGS84"
+    return LatLon{WGS84Latest}
+  end
+  
+  # Basic WKT format validation before parsing
+  definition_upper = uppercase(strip(definition))
+  if startswith(definition_upper, "GEOGCS") || startswith(definition_upper, "GEOGCRS")
+    # Geographic coordinate system - likely LatLon based
+    return LatLon{WGS84Latest}
+  elseif startswith(definition_upper, "PROJCS") || startswith(definition_upper, "PROJCRS")
+    # Projected coordinate system - likely Cartesian based
+    return Cartesian{WGS84Latest}
+  else
+    # Unknown format, default to WGS84
+    @warn "Unrecognized CRS definition format for SRID $srid, defaulting to WGS84"
+    return LatLon{WGS84Latest}
   end
 end
 
@@ -760,21 +657,10 @@ end
 
 function write_wkb_polygon(io::IOBuffer, poly::PolyArea)
   exterior_ring = boundary(poly)
-  hole_rings = Ring[]
   
-  # Get interior rings if they exist
-  try
-    # Try to access holes - this may fail if there are no holes
-    for ring in poly
-      if ring != exterior_ring
-        push!(hole_rings, ring)
-      end
-    end
-  catch
-    # No holes, which is fine
-  end
-  
-  all_rings = [exterior_ring; hole_rings]
+  # For now, just handle simple polygons without holes
+  # TODO: Add proper hole support if needed
+  all_rings = [exterior_ring]
   
   dim = paramdim(first(vertices(exterior_ring)))
   
