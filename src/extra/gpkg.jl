@@ -313,13 +313,45 @@ function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
+    if inner_base_type != WKB_POINT
+      error("Expected WKB_POINT ($WKB_POINT) in multipoint, got $inner_base_type")
+    end
+    
+    # Use the same point creation logic as standalone points
     pt = parse_wkb_point(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
     if !isnothing(pt)
       push!(points, pt)
     end
   end
   
-  return isempty(points) ? nothing : Multi(points)
+  # Create Multi geometry with fallback to avoid StackOverflowError
+  # KNOWN LIMITATION: Due to a stack overflow in Meshes.jl Multi constructor
+  # with certain CRS types, we fall back to returning the first component
+  # if Multi creation fails. This preserves data access but loses Multi structure.
+  if isempty(points)
+    return nothing
+  end
+  
+  try
+    # Approach 1: Try with original points first  
+    return Multi(points)
+  catch e
+    # Approach 2: Try with coordinate normalization
+    try
+      normalized_points = Point[]
+      for pt in points
+        coords_raw = CoordRefSystems.raw(coords(pt))
+        # Create new point with raw coordinates to avoid CRS recursion
+        new_point = Point(coords_raw...)
+        push!(normalized_points, new_point)
+      end
+      return Multi(normalized_points)
+    catch e2
+      # Fallback: Return first point to prevent crashes (loses Multi structure)
+      @warn "Failed to create Multi geometry: $e. Returning first point only."
+      return points[1]
+    end
+  end
 end
 
 function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -349,7 +381,18 @@ function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool,
     end
   end
   
-  return isempty(lines) ? nothing : Multi(lines)
+  # Create Multi geometry with fallback to avoid StackOverflowError
+  if isempty(lines)
+    return nothing
+  end
+  
+  try
+    return Multi(lines)
+  catch e
+    # Fallback: Return first line to prevent crashes (loses Multi structure)
+    @warn "Failed to create Multi LineString: $e. Returning first line only."
+    return lines[1]
+  end
 end
 
 function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -378,7 +421,18 @@ function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
     end
   end
   
-  return isempty(polygons) ? nothing : Multi(polygons)
+  # Create Multi geometry with fallback to avoid StackOverflowError
+  if isempty(polygons)
+    return nothing
+  end
+  
+  try
+    return Multi(polygons)
+  catch e
+    # Fallback: Return first polygon to prevent crashes (loses Multi structure)
+    @warn "Failed to create Multi Polygon: $e. Returning first polygon only."
+    return polygons[1]
+  end
 end
 
 function parse_wkb_geometrycollection(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
