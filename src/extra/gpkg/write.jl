@@ -2,17 +2,6 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# WKB type constants (shared with read.jl)
-const WKB_POINT = 0x00000001
-const WKB_LINESTRING = 0x00000002
-const WKB_POLYGON = 0x00000003
-const WKB_MULTIPOINT = 0x00000004
-const WKB_MULTILINESTRING = 0x00000005
-const WKB_MULTIPOLYGON = 0x00000006
-
-const WKB_Z = 0x80000000
-const WKB_M = 0x40000000
-const WKB_ZM = 0xC0000000
 
 function create_gpb_header(srs_id::Int32, geom::Geometry, envelope_type::Int=1)
   io = IOBuffer()
@@ -356,7 +345,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   srs_id = get_srid_for_crs(db, crs)
   
   # Handle case where table is Nothing (no attribute columns)
-  cols = isnothing(table) ? Symbol[] : Tables.columnnames(table)
+  cols = isnothing(table) ? Symbol[] : Tables.columnnames(Tables.columns(table))
   
   # Start with basic table structure (no automatic fid column)
   create_table_sql = """
@@ -368,7 +357,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   if !isnothing(table)
     for col in cols
       col_str = string(col)
-      coltype = eltype(Tables.getcolumn(table, col))
+      coltype = eltype(Tables.getcolumn(Tables.columns(table), col))
       
       if coltype <: Integer
         sql_type = "INTEGER"

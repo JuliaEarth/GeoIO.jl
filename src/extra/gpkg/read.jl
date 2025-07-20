@@ -19,17 +19,6 @@ struct GeoPackageBinaryHeader
 end
 
 
-# WKB type constants
-const WKB_POINT = 0x00000001
-const WKB_LINESTRING = 0x00000002
-const WKB_POLYGON = 0x00000003
-const WKB_MULTIPOINT = 0x00000004
-const WKB_MULTILINESTRING = 0x00000005
-const WKB_MULTIPOLYGON = 0x00000006
-
-const WKB_Z = 0x80000000
-const WKB_M = 0x40000000
-const WKB_ZM = 0xC0000000
 
 function parse_gpb_header(blob::Vector{UInt8})
   io = IOBuffer(blob)
@@ -146,12 +135,16 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     create_point_from_coords(coords_list, crs_type)
   end
   
-  # Detect if the linestring is closed (first point equals last point)
-  is_closed = length(points) >= 2 && points[1] == points[end]
+  # Check if WKB writer included duplicate closing point (varies by implementation)
+  has_equal_ends = length(points) >= 2 && points[1] == points[end]
   
-  if is_ring || is_closed
+  # Two-flag logic explained:
+  # - is_ring: Semantic flag indicating this linestring is part of a polygon structure
+  # - has_equal_ends: WKB format flag indicating if writer included duplicate closing point
+  # We need both because polygon rings should always return Ring regardless of WKB format variation
+  if is_ring || has_equal_ends
     # Return a Ring, exclude duplicate last point if present
-    if is_closed
+    if has_equal_ends
       return Ring(points[1:end-1]...)
     else
       return Ring(points...)
@@ -412,9 +405,15 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   isempty(geometries) && error("No valid geometries found in table $table_name")
   
-  # Create Tables.jl compatible table
-  table = Tables.rowtable(table_data)
-  
-  # Step 3: Call georef(table, geoms) to produce the final result
-  return georef(table, geometries)
+  # Handle case with no attribute columns (only geometry)
+  if !isempty(table_data) && isempty(first(table_data))
+    # No attributes - pass nothing to georef
+    return georef(nothing, geometries)
+  else
+    # Create Tables.jl compatible table
+    table = Tables.rowtable(table_data)
+    
+    # Step 3: Call georef(table, geoms) to produce the final result
+    return georef(table, geometries)
+  end
 end
