@@ -342,6 +342,55 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   end
 end
 
+function gpkgreadattribs(db::SQLite.DB, table_name::String, geom_column::String)
+  # Get all data from the table  
+  data_query = "SELECT * FROM \"$table_name\""
+  data_result = DBInterface.execute(db, data_query)
+  
+  table_data = []
+  for row in data_result
+    # Skip rows with missing geometry
+    blob = getproperty(row, Symbol(geom_column))
+    if !ismissing(blob) && !isnothing(blob)
+      # Create attribute row without geometry column
+      row_dict = Dict()
+      for name in propertynames(row)
+        if name != Symbol(geom_column)
+          row_dict[name] = getproperty(row, name)
+        end
+      end
+      push!(table_data, (; row_dict...))
+    end
+  end
+  
+  # Handle case with no attribute columns (only geometry)
+  if !isempty(table_data) && isempty(first(table_data))
+    return nothing
+  else
+    return Tables.rowtable(table_data)
+  end
+end
+
+function gpkgreadgeoms(db::SQLite.DB, table_name::String, geom_column::String, crs)
+  # Get all data from the table
+  data_query = "SELECT \"$geom_column\" FROM \"$table_name\""
+  data_result = DBInterface.execute(db, data_query)
+  
+  geometries = Geometry[]
+  for row in data_result
+    blob = getproperty(row, Symbol(geom_column))
+    if !ismissing(blob) && !isnothing(blob)
+      geom, _ = parse_gpb(blob, crs)
+      if !isnothing(geom)
+        push!(geometries, geom)
+      end
+    end
+  end
+  
+  isempty(geometries) && error("No valid geometries found in table $table_name")
+  return geometries
+end
+
 function gpkgread(fname::String; layer::Int=1, kwargs...)
   db = SQLite.DB(fname)
   
@@ -355,8 +404,15 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   contents_result = DBInterface.execute(db, contents_query)
   contents = [row.table_name for row in contents_result]
   
-  isempty(contents) && error("No vector feature tables found in GeoPackage")
-  layer > length(contents) && error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
+  if isempty(contents)
+    close(db)
+    error("No vector feature tables found in GeoPackage")
+  end
+  
+  if layer > length(contents)
+    close(db)
+    error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
+  end
   
   table_name = contents[layer]
   
@@ -372,48 +428,12 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   srs_id = Int32(geom_info.srs_id)
   crs = get_crs_from_srid(db, srs_id)
   
-  # Get all data from the table
-  data_query = "SELECT * FROM \"$table_name\""
-  data_result = DBInterface.execute(db, data_query)
-  
-  # Step 1: Extract the table of attributes as a valid Tables.jl table
-  table_data = []
-  geometries = Geometry[]
-  
-  for row in data_result
-    blob = getproperty(row, Symbol(geom_column))
-    
-    # Step 2: Extract the geometry column (i.e. geometrycollection)
-    if !ismissing(blob) && !isnothing(blob)
-      geom, _ = parse_gpb(blob, crs)
-      if !isnothing(geom)
-        push!(geometries, geom)
-        
-        # Create attribute row without geometry column
-        row_dict = Dict()
-        for name in propertynames(row)
-          if name != Symbol(geom_column)
-            row_dict[name] = getproperty(row, name)
-          end
-        end
-        push!(table_data, (; row_dict...))
-      end
-    end
-  end
+  # Read attributes and geometries separately for better performance
+  table = gpkgreadattribs(db, table_name, geom_column)
+  geometries = gpkgreadgeoms(db, table_name, geom_column, crs)
   
   close(db)
   
-  isempty(geometries) && error("No valid geometries found in table $table_name")
-  
-  # Handle case with no attribute columns (only geometry)
-  if !isempty(table_data) && isempty(first(table_data))
-    # No attributes - pass nothing to georef
-    return georef(nothing, geometries)
-  else
-    # Create Tables.jl compatible table
-    table = Tables.rowtable(table_data)
-    
-    # Step 3: Call georef(table, geoms) to produce the final result
-    return georef(table, geometries)
-  end
+  # Combine into final result
+  return georef(table, geometries)
 end
