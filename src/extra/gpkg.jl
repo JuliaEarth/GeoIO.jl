@@ -3,10 +3,10 @@ struct GeoPackageBinaryHeader
   version::UInt8
   flags::UInt8
   srs_id::Int32
-  min_x::Union{Float64,Nothing}
-  max_x::Union{Float64,Nothing}
-  min_y::Union{Float64,Nothing}
-  max_y::Union{Float64,Nothing}
+  min_x::Float64
+  max_x::Float64
+  min_y::Float64
+  max_y::Float64
   min_z::Union{Float64,Nothing}
   max_z::Union{Float64,Nothing}
   min_m::Union{Float64,Nothing}
@@ -59,16 +59,19 @@ function parse_gpb_header(blob::Vector{UInt8})
   envelope_type = flags >> 1 & 0x07
   has_envelope = envelope_type > 0
   
-  min_x = min_y = max_x = max_y = nothing
   min_z = max_z = min_m = max_m = nothing
   
+  if has_envelope && envelope_type >= 1
+    min_x = ltoh(read(io, Float64))
+    max_x = ltoh(read(io, Float64))
+    min_y = ltoh(read(io, Float64))
+    max_y = ltoh(read(io, Float64))
+  else
+    # Default envelope when not present
+    min_x = max_x = min_y = max_y = 0.0
+  end
+  
   if has_envelope
-    if envelope_type >= 1
-      min_x = ltoh(read(io, Float64))
-      max_x = ltoh(read(io, Float64))
-      min_y = ltoh(read(io, Float64))
-      max_y = ltoh(read(io, Float64))
-    end
     if envelope_type >= 2
       min_z = ltoh(read(io, Float64))
       max_z = ltoh(read(io, Float64))
@@ -549,11 +552,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     error("No valid geometries found in table $table_name")
   end
   
-  if all(g -> g isa Point, geometries)
-    domain = PointSet(geometries)
-  else
-    domain = GeometrySet(geometries)
-  end
+  domain = GeometrySet(geometries)
   
   close(db)
   
@@ -820,7 +819,7 @@ function get_srid_for_crs(db::SQLite.DB, crs)
 end
 
 function ensure_gpkg_tables(db::SQLite.DB)
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
       srs_name TEXT NOT NULL,
       srs_id INTEGER NOT NULL PRIMARY KEY,
@@ -831,7 +830,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     INSERT OR IGNORE INTO gpkg_spatial_ref_sys 
     (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
     VALUES 
@@ -840,7 +839,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined Cartesian coordinate reference system')
   """)
   
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_contents (
       table_name TEXT NOT NULL PRIMARY KEY,
       data_type TEXT NOT NULL,
@@ -856,7 +855,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
       table_name TEXT NOT NULL,
       column_name TEXT NOT NULL,
@@ -872,23 +871,35 @@ function ensure_gpkg_tables(db::SQLite.DB)
 end
 
 function infer_geometry_type(geoms::AbstractVector{<:Geometry})
-  if all(g -> g isa Point, geoms)
-    return "POINT"
-  elseif all(g -> g isa Rope, geoms)
-    return "LINESTRING"
-  elseif all(g -> g isa Ring, geoms)
-    return "LINESTRING"  # Ring is saved as LINESTRING to match GDAL behavior
-  elseif all(g -> g isa PolyArea, geoms)
-    return "POLYGON"
-  elseif all(g -> g isa Multi{<:Point}, geoms)
-    return "MULTIPOINT"
-  elseif all(g -> g isa Multi{<:Rope}, geoms)
-    return "MULTILINESTRING"
-  elseif all(g -> g isa Multi{<:PolyArea}, geoms)
-    return "MULTIPOLYGON"
-  else
+  if isempty(geoms)
     return "GEOMETRY"
   end
+  
+  # Check for homogeneous geometry types using eltype dispatch
+  T = eltype(geoms)
+  
+  if T <: Point
+    return "POINT"
+  elseif T <: Rope
+    return "LINESTRING"
+  elseif T <: Ring
+    return "LINESTRING"  # Ring is saved as LINESTRING to match GDAL behavior
+  elseif T <: PolyArea
+    return "POLYGON"
+  elseif T <: Multi
+    # Check the element type of Multi
+    element_type = eltype(parent(first(geoms)))
+    if element_type <: Point
+      return "MULTIPOINT"
+    elseif element_type <: Rope
+      return "MULTILINESTRING"
+    elseif element_type <: PolyArea
+      return "MULTIPOLYGON"
+    end
+  end
+  
+  # Fallback for mixed or unknown types
+  return "GEOMETRY"
 end
 
 function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
@@ -897,10 +908,10 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   ensure_gpkg_tables(db)
   
   # Drop existing table if it exists to avoid data duplication  
-  SQLite.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
+  DBInterface.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
   try
-    SQLite.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
-    SQLite.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
+    DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
+    DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
   catch
     # Tables might not exist yet, which is fine
   end
@@ -941,13 +952,13 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   
   create_table_sql *= "\n)"
   
-  SQLite.execute(db, create_table_sql)
+  DBInterface.execute(db, create_table_sql)
   
   bbox = boundingbox(domain)
   min_coords = CoordRefSystems.raw(coords(bbox.min))
   max_coords = CoordRefSystems.raw(coords(bbox.max))
   
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     INSERT OR REPLACE INTO gpkg_contents 
     (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
     VALUES (?, 'features', ?, ?, ?, ?, ?, ?)
@@ -956,7 +967,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   geom_type = infer_geometry_type(geoms)
   z_flag = paramdim(first(geoms)) >= 3 ? 1 : 0
   
-  SQLite.execute(db, """
+  DBInterface.execute(db, """
     INSERT OR REPLACE INTO gpkg_geometry_columns 
     (table_name, column_name, geometry_type_name, srs_id, z, m)
     VALUES (?, 'geom', ?, ?, ?, 0)
@@ -968,7 +979,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
     for (i, geom) in enumerate(geoms)
       gpb_blob = create_gpb(geom, srs_id)
       insert_sql = "INSERT INTO \"$layer\" (geom) VALUES (?)"
-      SQLite.execute(db, insert_sql, [gpb_blob])
+      DBInterface.execute(db, insert_sql, [gpb_blob])
     end
   else
     # Handle case with attribute columns
@@ -987,7 +998,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
         push!(values, val)
       end
       
-      SQLite.execute(db, insert_sql, values)
+      DBInterface.execute(db, insert_sql, values)
     end
   end
   close(db)
