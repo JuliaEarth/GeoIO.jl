@@ -56,6 +56,10 @@ import ArchGDAL.GDAL
 # PROJJSON CRS
 import JSON3
 
+# SQLite for GeoPackage
+import SQLite
+import DBInterface
+
 # VTK extensions
 const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
 

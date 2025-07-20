@@ -1,12 +1,3 @@
-using SQLite
-using Tables
-using GeoInterface
-using GeoFormatTypes
-using CoordRefSystems
-using Meshes
-using GeoTables
-using Meshes: paramdim, boundingbox, vertices, boundary, coords
-
 struct GeoPackageBinaryHeader
   magic::UInt16
   version::UInt8
@@ -23,24 +14,24 @@ struct GeoPackageBinaryHeader
 end
 
 # Table wrapper that implements GeoInterface.crs for GeoPackage tables
-struct GeoPackageTable{T}
+struct GPKGTable{T}
   table::T
   crs::Any
 end
 
 # Implement Tables.jl interface for the wrapper
-Tables.istable(::Type{GeoPackageTable{T}}) where T = Tables.istable(T)
-Tables.rowaccess(::Type{GeoPackageTable{T}}) where T = Tables.rowaccess(T)
-Tables.columnaccess(::Type{GeoPackageTable{T}}) where T = Tables.columnaccess(T)
-Tables.rows(gt::GeoPackageTable) = Tables.rows(gt.table)
-Tables.columns(gt::GeoPackageTable) = Tables.columns(gt.table)
-Tables.columnnames(gt::GeoPackageTable) = Tables.columnnames(gt.table)
-Tables.getcolumn(gt::GeoPackageTable, i::Int) = Tables.getcolumn(gt.table, i)
-Tables.getcolumn(gt::GeoPackageTable, nm::Symbol) = Tables.getcolumn(gt.table, nm)
-Tables.schema(gt::GeoPackageTable) = Tables.schema(gt.table)
+Tables.istable(::Type{GPKGTable{T}}) where T = Tables.istable(T)
+Tables.rowaccess(::Type{GPKGTable{T}}) where T = Tables.rowaccess(T)
+Tables.columnaccess(::Type{GPKGTable{T}}) where T = Tables.columnaccess(T)
+Tables.rows(gt::GPKGTable) = Tables.rows(gt.table)
+Tables.columns(gt::GPKGTable) = Tables.columns(gt.table)
+Tables.columnnames(gt::GPKGTable) = Tables.columnnames(gt.table)
+Tables.getcolumn(gt::GPKGTable, i::Int) = Tables.getcolumn(gt.table, i)
+Tables.getcolumn(gt::GPKGTable, nm::Symbol) = Tables.getcolumn(gt.table, nm)
+Tables.schema(gt::GPKGTable) = Tables.schema(gt.table)
 
 # Implement GeoInterface.crs method
-GeoInterface.crs(gt::GeoPackageTable) = gt.crs
+GI.crs(gt::GPKGTable) = gt.crs
 
 const WKB_POINT = 0x00000001
 const WKB_LINESTRING = 0x00000002
@@ -97,15 +88,11 @@ function parse_gpb_header(blob::Vector{UInt8})
   return header, position(io)
 end
 
-function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+function read_coordinate_values(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   x = read_value(read(io, Float64))
   y = read_value(read(io, Float64))
-  
-  if isnan(x) && isnan(y)
-    return nothing
-  end
   
   coords_list = [x, y]
   
@@ -118,7 +105,22 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
     m = read_value(read(io, Float64))
   end
   
+  return coords_list
+end
+
+function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
+  x, y = coords_list[1], coords_list[2]
+  
+  if isnan(x) && isnan(y)
+    return nothing
+  end
+  
+  # Debug output
+  # println("CRS type: ", crs_type, " typeof: ", typeof(crs_type))
+  # println("Is LatLon: ", crs_type <: LatLon)
+  
   # Create point with appropriate CRS
+  # Check if crs_type is a geographic coordinate system (LatLon family)
   if crs_type <: LatLon
     if length(coords_list) == 2
       return Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
@@ -130,142 +132,52 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
   end
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
+  return create_point_from_coords(coords_list, crs_type)
+end
+
+function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; force_rope::Bool=false)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   num_points = read_value(read(io, UInt32))
   
-  # Create the first point to determine the concrete type
-  x = read_value(read(io, Float64))
-  y = read_value(read(io, Float64))
-  
-  coords_list = [x, y]
-  
-  if has_z
-    z = read_value(read(io, Float64))
-    push!(coords_list, z)
+  if num_points == 0
+    return nothing
   end
   
-  if has_m
-    m = read_value(read(io, Float64))
+  # Parse all points using helper functions
+  points = Point[]
+  
+  for i in 1:num_points
+    coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
+    point = create_point_from_coords(coords_list, crs_type)
+    if !isnothing(point)
+      push!(points, point)
+    end
   end
   
-  # Create first point with appropriate CRS
-  first_point = if crs_type <: LatLon
-    if length(coords_list) == 2
-      Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
-    else
-      Point(crs_type(y, x, coords_list[3]))
-    end
-  else
-    Point(coords_list...)
+  if isempty(points)
+    return nothing
   end
   
-  # Initialize typed array with the correct concrete type
-  points = [first_point]
-  
-  # Parse remaining points
-  for i in 2:num_points
-    x = read_value(read(io, Float64))
-    y = read_value(read(io, Float64))
-    
-    coords_list = [x, y]
-    
-    if has_z
-      z = read_value(read(io, Float64))
-      push!(coords_list, z)
-    end
-    
-    if has_m
-      m = read_value(read(io, Float64))
-    end
-    
-    # Create point with appropriate CRS
-    if crs_type <: LatLon
-      if length(coords_list) == 2
-        push!(points, Point(crs_type(y, x)))  # LatLon(lat, lon) - note swapped order
-      else
-        push!(points, Point(crs_type(y, x, coords_list[3])))
-      end
-    else
-      push!(points, Point(coords_list...))
-    end
+  # For MultiLineString components, always return Rope to maintain consistency
+  if force_rope
+    return Rope(points...)
   end
   
   # Check if the linestring is closed (first point equals last point)
   if length(points) >= 2 && points[1] == points[end]
     # It's a closed linestring, return a Ring (exclude the duplicate last point)
-    return Ring(points[1:end-1])
+    return Ring(points[1:end-1]...)
   else
     # It's an open linestring, return a Rope
-    return Rope(points)
+    return Rope(points...)
   end
 end
 
 function parse_wkb_linestring_as_rope(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  
-  num_points = read_value(read(io, UInt32))
-  
-  # Create the first point to determine the concrete type
-  x = read_value(read(io, Float64))
-  y = read_value(read(io, Float64))
-  
-  coords_list = [x, y]
-  
-  if has_z
-    z = read_value(read(io, Float64))
-    push!(coords_list, z)
-  end
-  
-  if has_m
-    m = read_value(read(io, Float64))
-  end
-  
-  # Create first point with appropriate CRS
-  first_point = if crs_type <: LatLon
-    if length(coords_list) == 2
-      Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
-    else
-      Point(crs_type(y, x, coords_list[3]))
-    end
-  else
-    Point(coords_list...)
-  end
-  
-  # Initialize typed array with the correct concrete type
-  points = [first_point]
-  
-  # Parse remaining points
-  for i in 2:num_points
-    x = read_value(read(io, Float64))
-    y = read_value(read(io, Float64))
-    
-    coords_list = [x, y]
-    
-    if has_z
-      z = read_value(read(io, Float64))
-      push!(coords_list, z)
-    end
-    
-    if has_m
-      m = read_value(read(io, Float64))
-    end
-    
-    # Create point with appropriate CRS
-    if crs_type <: LatLon
-      if length(coords_list) == 2
-        push!(points, Point(crs_type(y, x)))  # LatLon(lat, lon) - note swapped order
-      else
-        push!(points, Point(crs_type(y, x, coords_list[3])))
-      end
-    else
-      push!(points, Point(coords_list...))
-    end
-  end
-  
-  # For MultiLineString components, always return Rope to maintain consistency
-  return Rope(points)
+  return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type; force_rope=true)
 end
 
 function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -510,31 +422,51 @@ function parse_gpb(blob::Vector{UInt8}, crs_type)
 end
 
 function get_crs_from_srid(db::SQLite.DB, srid::Int32)
-  if srid == 4326
-    return LatLon{WGS84Latest}
-  elseif srid == 0
+  # Handle special cases
+  if srid == 0
     return nothing
   elseif srid == -1
     return Cartesian{NoDatum}
   end
   
+  # Try to get from EPSG directly first
+  try
+    return CoordRefSystems.get(EPSG{Int(srid)})
+  catch
+    # Not a supported EPSG code, continue to check the database
+  end
+  
+  # Query the database for the CRS definition
   query = """
     SELECT definition
     FROM gpkg_spatial_ref_sys
     WHERE srs_id = ?
   """
   
-  srs_result = SQLite.DBInterface.execute(db, query, [srid])
+  srs_result = DBInterface.execute(db, query, [srid])
   result = []
   for row in srs_result
-    push!(result, (definition=row.definition,))
+    push!(result, row.definition)
   end
   
   if isempty(result)
-    return LatLon{WGS84Latest}  # Default to WGS84 for unknown SRIDs
+    # Default to WGS84 for unknown SRIDs
+    return LatLon{WGS84Latest}
   end
   
-  return LatLon{WGS84Latest}
+  # Try to parse the WKT definition
+  definition = result[1]
+  try
+    return CoordRefSystems.get(definition)
+  catch
+    # If parsing fails, fall back to common defaults
+    if srid == 4326
+      return LatLon{WGS84Latest}
+    else
+      # Default to WGS84 if we can't parse
+      return LatLon{WGS84Latest}
+    end
+  end
 end
 
 function gpkgread(fname::String; layer::Int=1, kwargs...)
@@ -547,7 +479,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     ORDER BY table_name
   """
   
-  contents_result = SQLite.DBInterface.execute(db, contents_query)
+  contents_result = DBInterface.execute(db, contents_query)
   contents = []
   for row in contents_result
     push!(contents, (table_name=row.table_name, data_type=row.data_type))
@@ -569,7 +501,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     WHERE table_name = ?
   """
   
-  geom_result = SQLite.DBInterface.execute(db, geom_query, [table_name])
+  geom_result = DBInterface.execute(db, geom_query, [table_name])
   geom_info = []
   for row in geom_result
     push!(geom_info, (column_name=row.column_name, geometry_type_name=row.geometry_type_name, srs_id=row.srs_id))
@@ -585,7 +517,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   crs = get_crs_from_srid(db, srs_id)
   
   data_query = "SELECT * FROM \"$table_name\""
-  data_result = SQLite.DBInterface.execute(db, data_query)
+  data_result = DBInterface.execute(db, data_query)
   
   geometries = Geometry[]
   result = []
@@ -637,18 +569,10 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   # Create a table with CRS information
   table = Tables.rowtable(table_rows)
   
-  # Convert CRS to the format expected by GeoInterface
-  gi_crs = if !isnothing(crs)
-    if crs <: LatLon{WGS84Latest}
-      GeoFormatTypes.EPSG{1}((4326,))
-    else
-      nothing
-    end
-  else
-    nothing
-  end
+  # For now, just pass the CRS directly
+  # TODO: Implement proper CRS conversion when needed
   
-  return GeoPackageTable(table, gi_crs)
+  return GPKGTable(table, crs)
 end
 
 function create_gpb_header(srs_id::Int32, geom::Geometry, envelope_type::Int=1)
@@ -868,17 +792,35 @@ end
 function get_srid_for_crs(db::SQLite.DB, crs)
   if isnothing(crs)
     return Int32(0)
-  elseif crs <: LatLon{WGS84Latest} || crs <: LatLon{WGS84{1762}}
-    return Int32(4326)
   elseif crs <: Cartesian{NoDatum}
     return Int32(-1)
-  else
+  end
+  
+  # Try to extract EPSG code from the CRS type
+  crs_string = string(crs)
+  
+  # Check if it's an EPSG-based CRS
+  if occursin("EPSG", crs_string)
+    # Try to extract the EPSG code
+    m = match(r"EPSG\{(\d+)\}", crs_string)
+    if !isnothing(m)
+      return Int32(parse(Int, m.captures[1]))
+    end
+  end
+  
+  # Handle specific well-known CRS types
+  if crs <: LatLon{WGS84Latest} || crs <: LatLon{WGS84{1762}}
     return Int32(4326)
   end
+  
+  # For other CRS types, try to find or insert into gpkg_spatial_ref_sys
+  # For now, default to 4326 (WGS84)
+  # TODO: Implement proper CRS registration in the database
+  return Int32(4326)
 end
 
 function ensure_gpkg_tables(db::SQLite.DB)
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
       srs_name TEXT NOT NULL,
       srs_id INTEGER NOT NULL PRIMARY KEY,
@@ -889,7 +831,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     INSERT OR IGNORE INTO gpkg_spatial_ref_sys 
     (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
     VALUES 
@@ -898,7 +840,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined Cartesian coordinate reference system')
   """)
   
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_contents (
       table_name TEXT NOT NULL PRIMARY KEY,
       data_type TEXT NOT NULL,
@@ -914,7 +856,7 @@ function ensure_gpkg_tables(db::SQLite.DB)
     )
   """)
   
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
       table_name TEXT NOT NULL,
       column_name TEXT NOT NULL,
@@ -955,10 +897,10 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   ensure_gpkg_tables(db)
   
   # Drop existing table if it exists to avoid data duplication  
-  SQLite.DBInterface.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
+  SQLite.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
   try
-    SQLite.DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
-    SQLite.DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
+    SQLite.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
+    SQLite.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
   catch
     # Tables might not exist yet, which is fine
   end
@@ -999,13 +941,13 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   
   create_table_sql *= "\n)"
   
-  SQLite.DBInterface.execute(db, create_table_sql)
+  SQLite.execute(db, create_table_sql)
   
   bbox = boundingbox(domain)
   min_coords = CoordRefSystems.raw(coords(bbox.min))
   max_coords = CoordRefSystems.raw(coords(bbox.max))
   
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     INSERT OR REPLACE INTO gpkg_contents 
     (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
     VALUES (?, 'features', ?, ?, ?, ?, ?, ?)
@@ -1014,7 +956,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   geom_type = infer_geometry_type(geoms)
   z_flag = paramdim(first(geoms)) >= 3 ? 1 : 0
   
-  SQLite.DBInterface.execute(db, """
+  SQLite.execute(db, """
     INSERT OR REPLACE INTO gpkg_geometry_columns 
     (table_name, column_name, geometry_type_name, srs_id, z, m)
     VALUES (?, 'geom', ?, ?, ?, 0)
@@ -1026,7 +968,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
     for (i, geom) in enumerate(geoms)
       gpb_blob = create_gpb(geom, srs_id)
       insert_sql = "INSERT INTO \"$layer\" (geom) VALUES (?)"
-      SQLite.DBInterface.execute(db, insert_sql, [gpb_blob])
+      SQLite.execute(db, insert_sql, [gpb_blob])
     end
   else
     # Handle case with attribute columns
@@ -1045,7 +987,7 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
         push!(values, val)
       end
       
-      SQLite.DBInterface.execute(db, insert_sql, values)
+      SQLite.execute(db, insert_sql, values)
     end
   end
   close(db)
