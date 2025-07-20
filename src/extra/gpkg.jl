@@ -118,19 +118,44 @@ function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
     return nothing
   end
   
-  # Debug output
-  # println("CRS type: ", crs_type, " typeof: ", typeof(crs_type))
-  # println("Is LatLon: ", crs_type <: LatLon)
+  # Handle different CRS types properly
+  if isnothing(crs_type)
+    # No CRS specified - use raw coordinates as Cartesian
+    return Point(coords_list...)
+  end
   
-  # Create point with appropriate CRS
-  # Check if crs_type is a geographic coordinate system (LatLon family)
-  if crs_type <: LatLon
-    if length(coords_list) == 2
-      return Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
+  # Determine CRS characteristics using CoordRefSystems.jl
+  try
+    # For geographic coordinate systems (LatLon family)
+    if crs_type <: LatLon
+      # WKB stores geographic coordinates as x=longitude, y=latitude
+      # LatLon constructor expects (latitude, longitude) order
+      if length(coords_list) == 2
+        return Point(crs_type(y, x))  # LatLon(lat, lon) from WKB(x=lon, y=lat)
+      else
+        # 3D geographic with altitude/elevation
+        return Point(crs_type(y, x, coords_list[3]))
+      end
+    elseif crs_type <: LatLonAlt
+      # LatLonAlt always expects (lat, lon, alt)
+      if length(coords_list) >= 3
+        return Point(crs_type(y, x, coords_list[3]))
+      else
+        # Fallback to 2D LatLon if no Z coordinate
+        return Point(LatLon{datum(crs_type)}(y, x))
+      end
     else
-      return Point(crs_type(y, x, coords_list[3]))
+      # For projected coordinate systems (Cartesian, UTM, etc.)
+      # WKB coordinate order matches CRS constructor order (x, y, [z])
+      if length(coords_list) == 2
+        return Point(crs_type(x, y))
+      else
+        return Point(crs_type(x, y, coords_list[3]))
+      end
     end
-  else
+  catch e
+    # If CRS construction fails, fall back to raw coordinates
+    @warn "Failed to create point with CRS $crs_type: $e. Using raw coordinates."
     return Point(coords_list...)
   end
 end
@@ -140,7 +165,7 @@ function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bo
   return create_point_from_coords(coords_list, crs_type)
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; force_rope::Bool=false)
+function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; as_rope::Bool=false)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
   num_points = read_value(read(io, UInt32))
@@ -164,23 +189,46 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     return nothing
   end
   
-  # For MultiLineString components, always return Rope to maintain consistency
-  if force_rope
+  # If forced to be a Rope (for MultiLineString consistency) or open linestring
+  if as_rope || length(points) < 2 || points[1] != points[end]
     return Rope(points...)
-  end
-  
-  # Check if the linestring is closed (first point equals last point)
-  if length(points) >= 2 && points[1] == points[end]
+  else
     # It's a closed linestring, return a Ring (exclude the duplicate last point)
     return Ring(points[1:end-1]...)
-  else
-    # It's an open linestring, return a Rope
-    return Rope(points...)
   end
 end
 
-function parse_wkb_linestring_as_rope(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type; force_rope=true)
+function parse_wkb_ring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  # Parse ring by temporarily reading as linestring and converting to Ring
+  # First read the number of points
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  num_points = read_value(read(io, UInt32))
+  
+  if num_points == 0
+    return nothing
+  end
+  
+  # Parse all points
+  points = Point[]
+  for i in 1:num_points
+    coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
+    point = create_point_from_coords(coords_list, crs_type)
+    if !isnothing(point)
+      push!(points, point)
+    end
+  end
+  
+  if isempty(points)
+    return nothing
+  end
+  
+  # For rings, exclude duplicate last point if present (WKB rings are closed with duplicate point)
+  if length(points) >= 2 && points[1] == points[end]
+    return Ring(points[1:end-1]...)
+  else
+    # If not closed with duplicate, still return Ring (assuming it should be closed)
+    return Ring(points...)
+  end
 end
 
 function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
@@ -192,129 +240,19 @@ function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::
     return nothing
   end
   
-  num_points = read_value(read(io, UInt32))
-  
-  # Create the first point to determine the concrete type
-  x = read_value(read(io, Float64))
-  y = read_value(read(io, Float64))
-  
-  coords_list = [x, y]
-  
-  if has_z
-    z = read_value(read(io, Float64))
-    push!(coords_list, z)
+  # Parse exterior ring using ring parsing function
+  exterior_ring = parse_wkb_ring(io, byte_order, has_z, has_m, crs_type)
+  if isnothing(exterior_ring)
+    return nothing
   end
   
-  if has_m
-    m = read_value(read(io, Float64))
-  end
-  
-  # Create first point with appropriate CRS
-  first_point = if crs_type <: LatLon
-    if length(coords_list) == 2
-      Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
-    else
-      Point(crs_type(y, x, coords_list[3]))
-    end
-  else
-    Point(coords_list...)
-  end
-  
-  # Initialize typed array with the correct concrete type
-  exterior_points = [first_point]
-  
-  # Parse remaining points
-  for i in 2:num_points
-    x = read_value(read(io, Float64))
-    y = read_value(read(io, Float64))
-    
-    coords_list = [x, y]
-    
-    if has_z
-      z = read_value(read(io, Float64))
-      push!(coords_list, z)
-    end
-    
-    if has_m
-      m = read_value(read(io, Float64))
-    end
-    
-    # Create point with appropriate CRS
-    if crs_type <: LatLon
-      if length(coords_list) == 2
-        push!(exterior_points, Point(crs_type(y, x)))  # LatLon(lat, lon) - note swapped order
-      else
-        push!(exterior_points, Point(crs_type(y, x, coords_list[3])))
-      end
-    else
-      push!(exterior_points, Point(coords_list...))
-    end
-  end
-  
-  exterior_ring = Ring(exterior_points[1:end-1])
-  
+  # Parse interior rings (holes)
   hole_rings = Ring[]
   for ring_idx in 2:num_rings
-    num_points = read_value(read(io, UInt32))
-    
-    # Create the first point to determine the concrete type
-    x = read_value(read(io, Float64))
-    y = read_value(read(io, Float64))
-    
-    coords_list = [x, y]
-    
-    if has_z
-      z = read_value(read(io, Float64))
-      push!(coords_list, z)
+    hole_ring = parse_wkb_ring(io, byte_order, has_z, has_m, crs_type)
+    if !isnothing(hole_ring)
+      push!(hole_rings, hole_ring)
     end
-    
-    if has_m
-      m = read_value(read(io, Float64))
-    end
-    
-    # Create first point with appropriate CRS
-    first_hole_point = if crs_type <: LatLon
-      if length(coords_list) == 2
-        Point(crs_type(y, x))  # LatLon(lat, lon) - note swapped order
-      else
-        Point(crs_type(y, x, coords_list[3]))
-      end
-    else
-      Point(coords_list...)
-    end
-    
-    # Initialize typed array with the correct concrete type
-    hole_points = [first_hole_point]
-    
-    # Parse remaining points
-    for i in 2:num_points
-      x = read_value(read(io, Float64))
-      y = read_value(read(io, Float64))
-      
-      coords_list = [x, y]
-      
-      if has_z
-        z = read_value(read(io, Float64))
-        push!(coords_list, z)
-      end
-      
-      if has_m
-        m = read_value(read(io, Float64))
-      end
-      
-      # Create point with appropriate CRS
-      if crs_type <: LatLon
-        if length(coords_list) == 2
-          push!(hole_points, Point(crs_type(y, x)))  # LatLon(lat, lon) - note swapped order
-        else
-          push!(hole_points, Point(crs_type(y, x, coords_list[3])))
-        end
-      else
-        push!(hole_points, Point(coords_list...))
-      end
-    end
-    
-    push!(hole_rings, Ring(hole_points[1:end-1]))
   end
   
   if isempty(hole_rings)
@@ -343,80 +281,150 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   elseif base_type == WKB_POLYGON
     return parse_wkb_polygon(io, byte_order, has_z, has_m, crs_type)
   elseif base_type == WKB_MULTIPOINT
-    num_points = read_value(read(io, UInt32))
-    
-    # Parse first point to determine type
-    byte_order_inner = read(io, UInt8)
-    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
-    first_pt = parse_wkb_point(io, byte_order_inner, has_z, has_m, crs_type)
-    
-    points = first_pt !== nothing ? [first_pt] : Point[]
-    
-    for i in 2:num_points
-      byte_order_inner = read(io, UInt8)
-      read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-      wkb_type_inner = read_value_inner(read(io, UInt32))
-      pt = parse_wkb_point(io, byte_order_inner, has_z, has_m, crs_type)
-      pt !== nothing && push!(points, pt)
-    end
-    return Multi(points)
+    return parse_wkb_multipoint(io, byte_order, has_z, has_m, crs_type)
   elseif base_type == WKB_MULTILINESTRING
-    num_lines = read_value(read(io, UInt32))
-    
-    # Parse first line to determine type
-    byte_order_inner = read(io, UInt8)
-    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
-    first_line = parse_wkb_linestring_as_rope(io, byte_order_inner, has_z, has_m, crs_type)
-    
-    # All components will be Rope to maintain consistency
-    lines = first_line !== nothing ? [first_line] : Rope[]
-    
-    for i in 2:num_lines
-      byte_order_inner = read(io, UInt8)
-      read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-      wkb_type_inner = read_value_inner(read(io, UInt32))
-      line = parse_wkb_linestring_as_rope(io, byte_order_inner, has_z, has_m, crs_type)
-      line !== nothing && push!(lines, line)
-    end
-    return Multi(lines)
+    return parse_wkb_multilinestring(io, byte_order, has_z, has_m, crs_type)
   elseif base_type == WKB_MULTIPOLYGON
-    num_polygons = read_value(read(io, UInt32))
-    
-    # Parse first polygon to determine type
-    byte_order_inner = read(io, UInt8)
-    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
-    first_poly = parse_wkb_polygon(io, byte_order_inner, has_z, has_m, crs_type)
-    
-    polygons = first_poly !== nothing ? [first_poly] : PolyArea[]
-    
-    for i in 2:num_polygons
-      byte_order_inner = read(io, UInt8)
-      read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-      wkb_type_inner = read_value_inner(read(io, UInt32))
-      poly = parse_wkb_polygon(io, byte_order_inner, has_z, has_m, crs_type)
-      poly !== nothing && push!(polygons, poly)
-    end
-    return Multi(polygons)
+    return parse_wkb_multipolygon(io, byte_order, has_z, has_m, crs_type)
   elseif base_type == WKB_GEOMETRYCOLLECTION
-    num_geoms = read_value(read(io, UInt32))
-    geoms = Geometry[]
-    for i in 1:num_geoms
-      remaining_blob = read(io)
-      prepend!(remaining_blob, [byte_order])
-      seekstart(io)
-      write(io, remaining_blob)
-      seekstart(io)
-      geom = parse_wkb_geometry(remaining_blob, 0, crs_type)
-      geom !== nothing && push!(geoms, geom)
-    end
-    return GeometrySet(geoms)
+    return parse_wkb_geometrycollection(io, byte_order, has_z, has_m, crs_type)
   else
     error("Unsupported WKB geometry type: $base_type")
   end
 end
+
+function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  num_points = read_value(read(io, UInt32))
+  
+  if num_points == 0
+    return nothing
+  end
+  
+  points = Point[]
+  for i in 1:num_points
+    # Each point has its own header in multi-geometry
+    byte_order_inner = read(io, UInt8)
+    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
+    wkb_type_inner = read_value_inner(read(io, UInt32))
+    
+    # Parse the individual geometry's Z/M flags from its own header
+    inner_base_type = wkb_type_inner & 0x0FFFFFFF
+    inner_has_z = (wkb_type_inner & WKB_Z) != 0
+    inner_has_m = (wkb_type_inner & WKB_M) != 0
+    
+    pt = parse_wkb_point(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
+    if !isnothing(pt)
+      push!(points, pt)
+    end
+  end
+  
+  return isempty(points) ? nothing : Multi(points)
+end
+
+function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  num_lines = read_value(read(io, UInt32))
+  
+  if num_lines == 0
+    return nothing
+  end
+  
+  # For MultiLineString, all components are Rope to maintain type consistency
+  lines = Rope[]
+  for i in 1:num_lines
+    # Each linestring has its own header in multi-geometry
+    byte_order_inner = read(io, UInt8)
+    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
+    wkb_type_inner = read_value_inner(read(io, UInt32))
+    
+    # Parse the individual geometry's Z/M flags from its own header
+    inner_base_type = wkb_type_inner & 0x0FFFFFFF
+    inner_has_z = (wkb_type_inner & WKB_Z) != 0
+    inner_has_m = (wkb_type_inner & WKB_M) != 0
+    
+    line = parse_wkb_linestring(io, byte_order_inner, inner_has_z, inner_has_m, crs_type; as_rope=true)
+    if !isnothing(line)
+      push!(lines, line)
+    end
+  end
+  
+  return isempty(lines) ? nothing : Multi(lines)
+end
+
+function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  num_polygons = read_value(read(io, UInt32))
+  
+  if num_polygons == 0
+    return nothing
+  end
+  
+  polygons = PolyArea[]
+  for i in 1:num_polygons
+    # Each polygon has its own header in multi-geometry
+    byte_order_inner = read(io, UInt8)
+    read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
+    wkb_type_inner = read_value_inner(read(io, UInt32))
+    
+    # Parse the individual geometry's Z/M flags from its own header
+    inner_base_type = wkb_type_inner & 0x0FFFFFFF
+    inner_has_z = (wkb_type_inner & WKB_Z) != 0
+    inner_has_m = (wkb_type_inner & WKB_M) != 0
+    
+    poly = parse_wkb_polygon(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
+    if !isnothing(poly)
+      push!(polygons, poly)
+    end
+  end
+  
+  return isempty(polygons) ? nothing : Multi(polygons)
+end
+
+function parse_wkb_geometrycollection(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  num_geoms = read_value(read(io, UInt32))
+  
+  if num_geoms == 0
+    return nothing
+  end
+  
+  geoms = Geometry[]
+  for i in 1:num_geoms
+    # Each geometry in collection has its own WKB header
+    geom_byte_order = read(io, UInt8)
+    geom_read_value = geom_byte_order == 0x01 ? ltoh : ntoh
+    geom_wkb_type = geom_read_value(read(io, UInt32))
+    
+    geom_base_type = geom_wkb_type & 0x0FFFFFFF
+    geom_has_z = (geom_wkb_type & WKB_Z) != 0
+    geom_has_m = (geom_wkb_type & WKB_M) != 0
+    
+    # Parse the specific geometry type directly to avoid infinite recursion
+    geom = nothing
+    if geom_base_type == WKB_POINT
+      geom = parse_wkb_point(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    elseif geom_base_type == WKB_LINESTRING
+      geom = parse_wkb_linestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    elseif geom_base_type == WKB_POLYGON
+      geom = parse_wkb_polygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    elseif geom_base_type == WKB_MULTIPOINT
+      geom = parse_wkb_multipoint(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    elseif geom_base_type == WKB_MULTILINESTRING
+      geom = parse_wkb_multilinestring(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    elseif geom_base_type == WKB_MULTIPOLYGON
+      geom = parse_wkb_multipolygon(io, geom_byte_order, geom_has_z, geom_has_m, crs_type)
+    # Note: Don't support nested GeometryCollections to avoid infinite recursion
+    end
+    
+    if !isnothing(geom)
+      push!(geoms, geom)
+    end
+  end
+  
+  return isempty(geoms) ? nothing : GeometrySet(geoms)
+end
+
 
 function parse_gpb(blob::Vector{UInt8}, crs_type)
   header, offset = parse_gpb_header(blob)
@@ -453,20 +461,33 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   end
   
   if isempty(result)
-    # Default to WGS84 for unknown SRIDs
-    return LatLon{WGS84Latest}
+    # Default based on common SRID values
+    if srid == 4326
+      return LatLon{WGS84Latest}
+    elseif srid in [3857, 900913]  # Web Mercator variants
+      return Mercator{WGS84Latest}
+    else
+      @warn "Unknown SRID $srid, defaulting to WGS84"
+      return LatLon{WGS84Latest}
+    end
   end
   
   # Try to parse the WKT definition
   definition = result[1]
   try
     return CoordRefSystems.get(definition)
-  catch
-    # If parsing fails, fall back to common defaults
+  catch e
+    # If parsing fails, fall back to common defaults based on SRID
+    @warn "Failed to parse CRS definition for SRID $srid: $e"
     if srid == 4326
       return LatLon{WGS84Latest}
+    elseif srid in [3857, 900913]  # Web Mercator variants
+      return Mercator{WGS84Latest}
+    elseif srid >= 32601 && srid <= 32760  # UTM zones (both North and South)
+      # For UTM zones, fallback to projected Cartesian since specific UTM types may not be available
+      return Cartesian{WGS84Latest}
     else
-      # Default to WGS84 if we can't parse
+      # For completely unknown SRIDs, default to WGS84
       return LatLon{WGS84Latest}
     end
   end
@@ -810,10 +831,16 @@ function get_srid_for_crs(db::SQLite.DB, crs)
   # Handle specific well-known CRS types
   if crs <: LatLon{WGS84Latest} || crs <: LatLon{WGS84{1762}}
     return Int32(4326)
+  elseif crs <: Cartesian{WGS84Latest} || crs <: Cartesian{WGS84{1762}}
+    # Use SRID -1 for undefined Cartesian systems
+    return Int32(-1)
+  elseif crs <: Cartesian
+    # Any other Cartesian system
+    return Int32(-1)
   end
   
   # For other CRS types, try to find or insert into gpkg_spatial_ref_sys
-  # For now, default to 4326 (WGS84)
+  # For now, default to 4326 (WGS84) only for geographic systems
   # TODO: Implement proper CRS registration in the database
   return Int32(4326)
 end
