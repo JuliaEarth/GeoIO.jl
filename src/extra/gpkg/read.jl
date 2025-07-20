@@ -79,8 +79,9 @@ function read_coordinate_values(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
     push!(coords_list, z)
   end
   
+  # Skip M coordinate if present (we don't use it)
   if has_m
-    m = read_value(read(io, Float64))
+    read_value(read(io, Float64))
   end
   
   return coords_list
