@@ -388,7 +388,6 @@ function gpkgreadgeoms(db::SQLite.DB, table_name::String, geom_column::String, c
     end
   end
   
-  isempty(geometries) && error("No valid geometries found in table $table_name")
   return geometries
 end
 
