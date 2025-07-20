@@ -54,12 +54,6 @@ and are documented below.
 
 * Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
 
-!!! warning "GeoPackage Multi-Geometry Limitation"
-    Multi-geometry objects (MultiPoint, MultiLineString, MultiPolygon) in GeoPackage files 
-    are converted to single geometries during load to prevent stack overflow crashes. 
-    Only the first component geometry is preserved. For full multi-geometry support, 
-    consider using GeoJSON or Shapefile formats.
-
 ### OFF
 
 * `defaultcolor`: default color of the geometries if the file does not have this data
