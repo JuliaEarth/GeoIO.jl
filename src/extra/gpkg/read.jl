@@ -18,25 +18,6 @@ struct GeoPackageBinaryHeader
   max_m::Union{Float64,Nothing}
 end
 
-# Table wrapper that implements GeoInterface.crs for GeoPackage tables
-struct GPKGTable{T}
-  table::T
-  crs::Any
-end
-
-# Implement Tables.jl interface for the wrapper
-Tables.istable(::Type{GPKGTable{T}}) where T = Tables.istable(T)
-Tables.rowaccess(::Type{GPKGTable{T}}) where T = Tables.rowaccess(T)
-Tables.columnaccess(::Type{GPKGTable{T}}) where T = Tables.columnaccess(T)
-Tables.rows(gt::GPKGTable) = Tables.rows(gt.table)
-Tables.columns(gt::GPKGTable) = Tables.columns(gt.table)
-Tables.columnnames(gt::GPKGTable) = Tables.columnnames(gt.table)
-Tables.getcolumn(gt::GPKGTable, i::Int) = Tables.getcolumn(gt.table, i)
-Tables.getcolumn(gt::GPKGTable, nm::Symbol) = Tables.getcolumn(gt.table, nm)
-Tables.schema(gt::GPKGTable) = Tables.schema(gt.table)
-
-# Implement GeoInterface.crs method
-GI.crs(gt::GPKGTable) = gt.crs
 
 # WKB type constants
 const WKB_POINT = 0x00000001
@@ -371,97 +352,69 @@ end
 function gpkgread(fname::String; layer::Int=1, kwargs...)
   db = SQLite.DB(fname)
   
+  # Get feature table names
   contents_query = """
     SELECT table_name, data_type
     FROM gpkg_contents
     WHERE data_type = 'features'
     ORDER BY table_name
   """
-  
   contents_result = DBInterface.execute(db, contents_query)
-  contents = []
-  for row in contents_result
-    push!(contents, (table_name=row.table_name, data_type=row.data_type))
-  end
+  contents = [row.table_name for row in contents_result]
   
-  if isempty(contents)
-    error("No feature tables found in GeoPackage")
-  end
+  isempty(contents) && error("No vector feature tables found in GeoPackage")
+  layer > length(contents) && error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
   
-  if layer > length(contents)
-    error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
-  end
+  table_name = contents[layer]
   
-  table_name = contents[layer].table_name
-  
+  # Get geometry column information
   geom_query = """
-    SELECT column_name, geometry_type_name, srs_id
+    SELECT column_name, srs_id
     FROM gpkg_geometry_columns
     WHERE table_name = ?
   """
-  
   geom_result = DBInterface.execute(db, geom_query, [table_name])
-  geom_info = []
-  for row in geom_result
-    push!(geom_info, (column_name=row.column_name, geometry_type_name=row.geometry_type_name, srs_id=row.srs_id))
-  end
-  
-  if isempty(geom_info)
-    error("No geometry column found for table $table_name")
-  end
-  
-  geom_column = geom_info[1].column_name
-  srs_id = Int32(geom_info[1].srs_id)
-  
+  geom_info = first(geom_result)
+  geom_column = geom_info.column_name
+  srs_id = Int32(geom_info.srs_id)
   crs = get_crs_from_srid(db, srs_id)
   
+  # Get all data from the table
   data_query = "SELECT * FROM \"$table_name\""
   data_result = DBInterface.execute(db, data_query)
   
+  # Step 1: Extract the table of attributes as a valid Tables.jl table
+  table_data = []
   geometries = Geometry[]
-  result = []
   
-  for (idx, row) in enumerate(data_result)
+  for row in data_result
     blob = getproperty(row, Symbol(geom_column))
+    
+    # Step 2: Extract the geometry column (i.e. geometrycollection)
     if !ismissing(blob) && !isnothing(blob)
       geom, _ = parse_gpb(blob, crs)
       if !isnothing(geom)
         push!(geometries, geom)
         
-        # Create new row without geometry column
+        # Create attribute row without geometry column
         row_dict = Dict()
         for name in propertynames(row)
           if name != Symbol(geom_column)
             row_dict[name] = getproperty(row, name)
           end
         end
-        push!(result, (; row_dict...))
+        push!(table_data, (; row_dict...))
       end
     end
   end
   
-  if isempty(geometries)
-    error("No valid geometries found in table $table_name")
-  end
-  
-  domain = GeometrySet(geometries)
-  
   close(db)
   
-  # Convert result to proper table format that includes geometry as a column
-  # We need to return a table with geometry column for the gis.jl workflow
-  table_rows = []
-  for (i, row) in enumerate(result)
-    # Create a new row with geometry column
-    new_row = merge(row, (geometry = geometries[i],))
-    push!(table_rows, new_row)
-  end
+  isempty(geometries) && error("No valid geometries found in table $table_name")
   
-  # Create a table with CRS information
-  table = Tables.rowtable(table_rows)
+  # Create Tables.jl compatible table
+  table = Tables.rowtable(table_data)
   
-  # For now, just pass the CRS directly
-  # TODO: Implement proper CRS conversion when needed
-  
-  return GPKGTable(table, crs)
+  # Step 3: Call georef(table, geoms) to produce the final result
+  return georef(table, geometries)
 end
