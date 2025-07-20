@@ -500,22 +500,18 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   for (idx, row) in enumerate(data_result)
     blob = getproperty(row, Symbol(geom_column))
     if !ismissing(blob) && !isnothing(blob)
-      try
-        geom, _ = parse_gpb(blob, crs)
-        if !isnothing(geom)
-          push!(geometries, geom)
-          
-          # Create new row without geometry column
-          row_dict = Dict()
-          for name in propertynames(row)
-            if name != Symbol(geom_column)
-              row_dict[name] = getproperty(row, name)
-            end
+      geom, _ = parse_gpb(blob, crs)
+      if !isnothing(geom)
+        push!(geometries, geom)
+        
+        # Create new row without geometry column
+        row_dict = Dict()
+        for name in propertynames(row)
+          if name != Symbol(geom_column)
+            row_dict[name] = getproperty(row, name)
           end
-          push!(result, (; row_dict...))
         end
-      catch e
-        @warn "Failed to parse geometry at row $idx: $e"
+        push!(result, (; row_dict...))
       end
     end
   end
@@ -876,12 +872,9 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   
   # Drop existing table if it exists to avoid data duplication  
   DBInterface.execute(db, "DROP TABLE IF EXISTS \"$layer\"")
-  try
-    DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ?", [layer])
-    DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ?", [layer])
-  catch
-    # Tables might not exist yet, which is fine
-  end
+  # Clean up existing metadata (ignore if tables don't exist)
+  DBInterface.execute(db, "DELETE FROM gpkg_contents WHERE table_name = ? AND EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = ?)", [layer, layer])
+  DBInterface.execute(db, "DELETE FROM gpkg_geometry_columns WHERE table_name = ? AND EXISTS (SELECT 1 FROM gpkg_geometry_columns WHERE table_name = ?)", [layer, layer])
   
   table = values(geotable)
   domain = GeoTables.domain(geotable)
