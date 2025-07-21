@@ -44,15 +44,19 @@ function parse_gpb_header(blob::Vector{UInt8})
     min_x = max_x = min_y = max_y = 0.0
   end
   
-  if has_envelope
-    if envelope_type >= 2
-      min_z = ltoh(read(io, Float64))
-      max_z = ltoh(read(io, Float64))
-    end
-    if envelope_type >= 3
-      min_m = ltoh(read(io, Float64))
-      max_m = ltoh(read(io, Float64))
-    end
+  # Initialize z and m coordinates based on envelope type
+  if has_envelope && envelope_type >= 2
+    min_z = ltoh(read(io, Float64))
+    max_z = ltoh(read(io, Float64))
+  else
+    min_z = max_z = nothing
+  end
+  
+  if has_envelope && envelope_type >= 3
+    min_m = ltoh(read(io, Float64))
+    max_m = ltoh(read(io, Float64))
+  else
+    min_m = max_m = nothing
   end
   
   header = GeoPackageBinaryHeader(
@@ -289,20 +293,9 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
     return Cartesian{NoDatum}
   end
   
-  # Handle well-known EPSG codes directly
-  if srid == 4326
-    return LatLon{WGS84Latest}
-  elseif srid in [3857, 900913]  # Web Mercator variants
-    return Mercator{WGS84Latest}
-  elseif srid >= 32601 && srid <= 32660  # UTM North zones
-    return Cartesian{WGS84Latest}
-  elseif srid >= 32701 && srid <= 32760  # UTM South zones
-    return Cartesian{WGS84Latest}
-  end
-  
-  # Query the database for the CRS definition
+  # Query the database for the organization and organization_coordsys_id
   query = """
-    SELECT definition
+    SELECT organization, organization_coordsys_id
     FROM gpkg_spatial_ref_sys
     WHERE srs_id = ?
   """
@@ -310,7 +303,7 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   srs_result = DBInterface.execute(db, query, [srid])
   result = []
   for row in srs_result
-    push!(result, row.definition)
+    push!(result, (org=row.organization, coord_id=row.organization_coordsys_id))
   end
   
   if isempty(result)
@@ -319,24 +312,31 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
     return LatLon{WGS84Latest}
   end
   
-  # Parse the WKT definition - use basic validation instead of try-catch
-  definition = result[1]
-  if isnothing(definition) || isempty(strip(definition))
-    @warn "Empty CRS definition for SRID $srid, defaulting to WGS84"
-    return LatLon{WGS84Latest}
-  end
+  org_info = result[1]
   
-  # Basic WKT format validation before parsing
-  definition_upper = uppercase(strip(definition))
-  if startswith(definition_upper, "GEOGCS") || startswith(definition_upper, "GEOGCRS")
-    # Geographic coordinate system - likely LatLon based
+  # Handle EPSG organization
+  if uppercase(org_info.org) == "EPSG"
+    # Use CoordRefSystems.get with EPSG code
+    epsg_code = org_info.coord_id
+    crs_type = CoordRefSystems.get(EPSG{epsg_code})
+    return crs_type
+  elseif uppercase(org_info.org) == "ESRI"
+    # Handle ESRI codes if needed
+    @warn "ESRI CRS organization detected for SRID $srid, using fallback to WGS84"
     return LatLon{WGS84Latest}
-  elseif startswith(definition_upper, "PROJCS") || startswith(definition_upper, "PROJCRS")
-    # Projected coordinate system - likely Cartesian based
-    return Cartesian{WGS84Latest}
+  elseif uppercase(org_info.org) == "NONE"
+    # Handle the special "NONE" organization cases
+    if srid == 0
+      return nothing
+    elseif srid == -1
+      return Cartesian{NoDatum}
+    else
+      @warn "Unknown 'NONE' organization SRID $srid, defaulting to WGS84"
+      return LatLon{WGS84Latest}
+    end
   else
-    # Unknown format, default to WGS84
-    @warn "Unrecognized CRS definition format for SRID $srid, defaulting to WGS84"
+    # Unknown organization, default to WGS84
+    @warn "Unknown CRS organization '$(org_info.org)' for SRID $srid, defaulting to WGS84"
     return LatLon{WGS84Latest}
   end
 end
