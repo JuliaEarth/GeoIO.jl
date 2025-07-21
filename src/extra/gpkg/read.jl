@@ -18,8 +18,6 @@ struct GeoPackageBinaryHeader
   max_m::Union{Float64,Nothing}
 end
 
-
-
 function parse_gpb_header(blob::Vector{UInt8})
   io = IOBuffer(blob)
   
@@ -122,6 +120,35 @@ function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
   end
 end
 
+function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
+  io = IOBuffer(blob[offset+1:end])
+  
+  byte_order = read(io, UInt8)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  
+  wkb_type = read_value(read(io, UInt32))
+  
+  base_type = wkb_type & 0x0FFFFFFF
+  has_z = (wkb_type & WKB_Z) != 0
+  has_m = (wkb_type & WKB_M) != 0
+  
+  if base_type == WKB_POINT
+    return parse_wkb_point(io, byte_order, has_z, has_m, crs_type)
+  elseif base_type == WKB_LINESTRING
+    return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type)
+  elseif base_type == WKB_POLYGON
+    return parse_wkb_polygon(io, byte_order, has_z, has_m, crs_type)
+  elseif base_type == WKB_MULTIPOINT
+    return parse_wkb_multipoint(io, byte_order, has_z, has_m, crs_type)
+  elseif base_type == WKB_MULTILINESTRING
+    return parse_wkb_multilinestring(io, byte_order, has_z, has_m, crs_type)
+  elseif base_type == WKB_MULTIPOLYGON
+    return parse_wkb_multipolygon(io, byte_order, has_z, has_m, crs_type)
+  else
+    error("Unsupported WKB geometry type: $base_type")
+  end
+end
+
 function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
   return create_point_from_coords(coords_list, crs_type)
@@ -175,34 +202,6 @@ function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::
   return PolyArea(exterior_ring, hole_rings...)
 end
 
-function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
-  io = IOBuffer(blob[offset+1:end])
-  
-  byte_order = read(io, UInt8)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  
-  wkb_type = read_value(read(io, UInt32))
-  
-  base_type = wkb_type & 0x0FFFFFFF
-  has_z = (wkb_type & WKB_Z) != 0
-  has_m = (wkb_type & WKB_M) != 0
-  
-  if base_type == WKB_POINT
-    return parse_wkb_point(io, byte_order, has_z, has_m, crs_type)
-  elseif base_type == WKB_LINESTRING
-    return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type)
-  elseif base_type == WKB_POLYGON
-    return parse_wkb_polygon(io, byte_order, has_z, has_m, crs_type)
-  elseif base_type == WKB_MULTIPOINT
-    return parse_wkb_multipoint(io, byte_order, has_z, has_m, crs_type)
-  elseif base_type == WKB_MULTILINESTRING
-    return parse_wkb_multilinestring(io, byte_order, has_z, has_m, crs_type)
-  elseif base_type == WKB_MULTIPOLYGON
-    return parse_wkb_multipolygon(io, byte_order, has_z, has_m, crs_type)
-  else
-    error("Unsupported WKB geometry type: $base_type")
-  end
-end
 
 function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
   read_value = byte_order == 0x01 ? ltoh : ntoh
@@ -307,56 +306,45 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   end
   
   if isempty(result)
-    # Default for unknown SRID values
-    @warn "Unknown SRID $srid, defaulting to WGS84"
-    return LatLon{WGS84Latest}
+    return Cartesian{NoDatum}
   end
   
   org_info = result[1]
   
-  # Handle EPSG organization
+  # Handle different CRS organizations
   if uppercase(org_info.org) == "EPSG"
-    # Use CoordRefSystems.get with EPSG code
     epsg_code = org_info.coord_id
-    crs_type = CoordRefSystems.get(EPSG{epsg_code})
-    return crs_type
+    return CoordRefSystems.get(EPSG{epsg_code})
   elseif uppercase(org_info.org) == "ESRI"
-    # Handle ESRI codes if needed
-    @warn "ESRI CRS organization detected for SRID $srid, using fallback to WGS84"
-    return LatLon{WGS84Latest}
-  elseif uppercase(org_info.org) == "NONE"
-    # Handle the special "NONE" organization cases
-    if srid == 0
-      return nothing
-    elseif srid == -1
-      return Cartesian{NoDatum}
-    else
-      @warn "Unknown 'NONE' organization SRID $srid, defaulting to WGS84"
-      return LatLon{WGS84Latest}
-    end
+    esri_code = org_info.coord_id
+    return CoordRefSystems.get(ESRI{esri_code})
   else
-    # Unknown organization, default to WGS84
-    @warn "Unknown CRS organization '$(org_info.org)' for SRID $srid, defaulting to WGS84"
-    return LatLon{WGS84Latest}
+    return Cartesian{NoDatum}
   end
 end
 
 function gpkgreadattribs(db::SQLite.DB, table_name::String, geom_column::String)
-  # Get all data from the table  
+  # Get all data from the table
   data_query = "SELECT * FROM \"$table_name\""
   data_result = DBInterface.execute(db, data_query)
   
   table_data = []
+  attr_names = nothing
+  
   for row in data_result
+    # Get attribute names from the first row
+    if attr_names === nothing
+      all_names = propertynames(row)
+      attr_names = filter(name -> name != Symbol(geom_column), all_names)
+    end
+    
     # Skip rows with missing geometry
     blob = getproperty(row, Symbol(geom_column))
     if !ismissing(blob) && !isnothing(blob)
       # Create attribute row without geometry column
       row_dict = Dict()
-      for name in propertynames(row)
-        if name != Symbol(geom_column)
-          row_dict[name] = getproperty(row, name)
-        end
+      for name in attr_names
+        row_dict[name] = getproperty(row, name)
       end
       push!(table_data, (; row_dict...))
     end
@@ -371,7 +359,7 @@ function gpkgreadattribs(db::SQLite.DB, table_name::String, geom_column::String)
 end
 
 function gpkgreadgeoms(db::SQLite.DB, table_name::String, geom_column::String, crs)
-  # Get all data from the table
+  # Get geometry data from the table
   data_query = "SELECT \"$geom_column\" FROM \"$table_name\""
   data_result = DBInterface.execute(db, data_query)
   
@@ -433,5 +421,10 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   close(db)
   
   # Combine into final result
-  return georef(table, geoms)
+  # Handle case where table is empty or nothing by passing nothing for attributes
+  if table === nothing || isempty(table)
+    return georef(nothing, geoms)
+  else
+    return georef(table, geoms)
+  end
 end
