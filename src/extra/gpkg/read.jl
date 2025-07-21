@@ -428,10 +428,10 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   # Read attributes and geometries separately for better performance
   table = gpkgreadattribs(db, table_name, geom_column)
-  geometries = gpkgreadgeoms(db, table_name, geom_column, crs)
+  geoms = gpkgreadgeoms(db, table_name, geom_column, crs)
   
   close(db)
   
   # Combine into final result
-  return georef(table, geometries)
+  return georef(table, geoms)
 end
