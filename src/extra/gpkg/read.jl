@@ -34,8 +34,6 @@ function parse_gpb_header(blob::Vector{UInt8})
   envelope_type = flags >> 1 & 0x07
   has_envelope = envelope_type > 0
   
-  min_z = max_z = min_m = max_m = nothing
-  
   if has_envelope && envelope_type >= 1
     min_x = ltoh(read(io, Float64))
     max_x = ltoh(read(io, Float64))
