@@ -331,22 +331,31 @@ function gpkgreadattribs(db::SQLite.DB, table_name::String, geom_column::String)
   table_data = []
   attr_names = nothing
   
+  # Get attribute names from the first row (moved outside loop)
+  first_row = nothing
   for row in data_result
-    # Get attribute names from the first row
-    if attr_names === nothing
-      all_names = propertynames(row)
-      attr_names = filter(name -> name != Symbol(geom_column), all_names)
-    end
+    first_row = row
+    break
+  end
+  
+  if !isnothing(first_row)
+    all_names = propertynames(first_row)
+    attr_names = filter(name -> name != Symbol(geom_column), all_names)
     
-    # Skip rows with missing geometry
-    blob = getproperty(row, Symbol(geom_column))
-    if !ismissing(blob) && !isnothing(blob)
-      # Create attribute row without geometry column
-      row_dict = Dict()
-      for name in attr_names
-        row_dict[name] = getproperty(row, name)
+    # Re-execute query for processing all rows
+    data_result = DBInterface.execute(db, data_query)
+    
+    for row in data_result
+      # Skip rows with missing geometry
+      blob = getproperty(row, Symbol(geom_column))
+      if !ismissing(blob) && !isnothing(blob)
+        # Create attribute row without geometry column
+        row_dict = Dict()
+        for name in attr_names
+          row_dict[name] = getproperty(row, name)
+        end
+        push!(table_data, (; row_dict...))
       end
-      push!(table_data, (; row_dict...))
     end
   end
   
@@ -422,7 +431,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   # Combine into final result
   # Handle case where table is empty or nothing by passing nothing for attributes
-  if table === nothing || isempty(table)
+  if isnothing(table) || isempty(table)
     return georef(nothing, geoms)
   else
     return georef(table, geoms)
