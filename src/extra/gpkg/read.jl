@@ -116,7 +116,7 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   end
 end
 
-function create_point_from_coords(coords::Union{Tuple{Float64,Float64},Tuple{Float64,Float64,Float64}}, crs_type)
+function create_point_from_coords(coords, crs_type)
   x, y = coords[1], coords[2]
   
   if isnan(x) && isnan(y)
