@@ -326,41 +326,37 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
 end
 
 function gpkgreadtable(table_result, geom_column::String)
-  # Convert to row iterator that can be collected
-  all_rows = Tables.rowtable(table_result)
+  # Get the first row to determine structure
+  row_iter = Tables.rows(table_result)
+  first_row = nothing
+  for row in row_iter
+    first_row = row
+    break
+  end
   
-  if isempty(all_rows)
+  if isnothing(first_row)
     return nothing
   end
   
-  # Determine attribute names excluding geometry column
-  geom_sym = Symbol(geom_column)
-  attr_names = filter(name -> name != geom_sym, propertynames(first(all_rows)))
-  
+  # Get attribute names from the first row (geometry column already excluded)
+  attr_names = propertynames(first_row)
   if isempty(attr_names)
     return nothing
   end
   
-  # Extract attributes from all rows with valid geometry
-  rows = map(all_rows) do row
-    blob = getproperty(row, geom_sym)
-    if !ismissing(blob) && !isnothing(blob)
-      [getproperty(row, name) for name in attr_names]
-    else
-      nothing
-    end
+  # Collect all rows in a single pass
+  rows = Vector{Vector{Any}}()
+  for row in Tables.rows(table_result)
+    push!(rows, [getproperty(row, name) for name in attr_names])
   end
   
-  # Filter out nothing values
-  valid_rows = filter(!isnothing, rows)
-  
-  if isempty(valid_rows)
+  if isempty(rows)
     return nothing
   end
   
   # Create a named tuple of vectors (Tables.jl compatible)
   columns = NamedTuple{Tuple(attr_names)}([
-    [row[i] for row in valid_rows] for i in 1:length(attr_names)
+    [row[i] for row in rows] for i in 1:length(attr_names)
   ])
   
   return columns
@@ -383,10 +379,7 @@ function gpkgreadgeoms(data_result, geom_column::String, crs_type)
   return geometries
 end
 
-function gpkgread(fname::String; layer::Int=1, kwargs...)
-  db = SQLite.DB(fname)
-  
-  # 1. Read metadata to extract names of tables and CRS type
+function gpkgmetadata(db::SQLite.DB, layer::Int)
   # Get feature table names
   contents_result = DBInterface.execute(db,
     """
@@ -398,12 +391,10 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   contents = [row.table_name for row in contents_result]
   
   if isempty(contents)
-    close(db)
     error("No vector feature tables found in GeoPackage")
   end
   
   if layer > length(contents)
-    close(db)
     error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
   end
   
@@ -421,13 +412,34 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   srs_id = Int32(geom_info.srs_id)
   crs_type = get_crs_from_srid(db, srs_id)
   
-  # 2. Execute queries to get table and geometry data
-  table_result = DBInterface.execute(db, "SELECT * FROM \"$table_name\"")
+  return table_name, geom_column, crs_type
+end
+
+function gpkgread(fname::String; layer::Int=1, kwargs...)
+  db = SQLite.DB(fname)
+  
+  # 1. Read metadata to extract names of tables and CRS type
+  table_name, geom_column, crs_type = gpkgmetadata(db, layer)
+  
+  # 2. Get all column names from the table
+  columns_result = DBInterface.execute(db, "PRAGMA table_info(\"$table_name\")")
+  all_columns = [row.name for row in columns_result]
+  
+  # Filter out geometry column to get only attribute columns
+  attr_columns = filter(col -> col != geom_column, all_columns)
+  
+  # 3. Execute queries to get attribute and geometry data separately
+  if !isempty(attr_columns)
+    # Build query for attribute columns only
+    attr_columns_str = join(["\"$col\"" for col in attr_columns], ", ")
+    table_result = DBInterface.execute(db, "SELECT $attr_columns_str FROM \"$table_name\"")
+    table = gpkgreadtable(table_result, geom_column)
+  else
+    # No attribute columns, only geometry
+    table = nothing
+  end
   
   geom_result = DBInterface.execute(db, "SELECT \"$geom_column\" FROM \"$table_name\"")
-  
-  # 3. Read attributes given the database object and the appropriate table name
-  table = gpkgreadtable(table_result, geom_column)
   
   # 4. Read geometries given the database object, the appropriate table name and CRS type
   geoms = gpkgreadgeoms(geom_result, geom_column, crs_type)
