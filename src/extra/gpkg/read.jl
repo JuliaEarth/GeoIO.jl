@@ -99,18 +99,23 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   has_z = (wkb_type & WKB_Z) != 0
   has_m = (wkb_type & WKB_M) != 0
   
+  # Create parse_coords closure that captures byte_order, has_z, has_m
+  parse_coords = function(io_inner)
+    return read_coordinate_values(io_inner, byte_order, has_z, has_m)
+  end
+
   if base_type == WKB_POINT
-    return parse_wkb_point(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_point(io, parse_coords, crs_type)
   elseif base_type == WKB_LINESTRING
-    return parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_linestring(io, parse_coords, crs_type)
   elseif base_type == WKB_POLYGON
-    return parse_wkb_polygon(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_polygon(io, parse_coords, crs_type)
   elseif base_type == WKB_MULTIPOINT
-    return parse_wkb_multipoint(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_multipoint(io, parse_coords, crs_type)
   elseif base_type == WKB_MULTILINESTRING
-    return parse_wkb_multilinestring(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_multilinestring(io, parse_coords, crs_type)
   elseif base_type == WKB_MULTIPOLYGON
-    return parse_wkb_multipolygon(io, byte_order, has_z, has_m, crs_type)
+    return parse_wkb_multipolygon(io, parse_coords, crs_type)
   else
     error("Unsupported WKB geometry type: $base_type")
   end
@@ -143,21 +148,37 @@ function create_point_from_coords(coords, crs_type)
   end
 end
 
-function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  coords = read_coordinate_values(io, byte_order, has_z, has_m)
+function create_crs_coord_from_buffer(buff, crs_type)
+  if crs_type <: LatLon
+    return crs_type(buff[2], buff[1])  # LatLon(lat, lon) from WKB(x=lon, y=lat)
+  elseif crs_type <: LatLonAlt
+    return crs_type(buff[2], buff[1], buff[3])  # LatLonAlt(lat, lon, alt)
+  else
+    return crs_type(buff...)  # fallback for other coordinate systems
+  end
+end
+
+function parse_wkb_points(io::IOBuffer, n::Int, parse_coords::Function, crs_type)
+  # Read n chunks of coordinates and convert them to crs_type objects  
+  coords_vector = map(1:n) do _
+    buff = parse_coords(io)
+    create_crs_coord_from_buffer(buff, crs_type)
+  end
+  
+  # Return Point.(coords)
+  return Point.(coords_vector)
+end
+
+function parse_wkb_point(io::IOBuffer, parse_coords::Function, crs_type)
+  coords = parse_coords(io)
   return create_point_from_coords(coords, crs_type)
 end
 
-function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; is_ring::Bool=false)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
+function parse_wkb_linestring(io::IOBuffer, parse_coords::Function, crs_type; is_ring::Bool=false)
+  num_points = Int(ltoh(read(io, UInt32)))
   
-  num_points = read_value(read(io, UInt32))
-  
-  # Parse all points using map-do syntax
-  points = map(1:num_points) do i
-    coords = read_coordinate_values(io, byte_order, has_z, has_m)
-    create_point_from_coords(coords, crs_type)
-  end
+  # Use batch processing for points
+  points = parse_wkb_points(io, num_points, parse_coords, crs_type)
   
   # Check if WKB writer included duplicate closing point (varies by implementation)
   has_equal_ends = length(points) >= 2 && points[1] == points[end]
@@ -179,17 +200,15 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
   end
 end
 
-function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  
-  num_rings = read_value(read(io, UInt32))
+function parse_wkb_polygon(io::IOBuffer, parse_coords::Function, crs_type)
+  num_rings = Int(ltoh(read(io, UInt32)))
   
   # Parse exterior ring using ring parsing function
-  exterior_ring = parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type; is_ring=true)
+  exterior_ring = parse_wkb_linestring(io, parse_coords, crs_type; is_ring=true)
   
   # Parse interior rings (holes) using map-do syntax
   hole_rings = map(2:num_rings) do ring_idx
-    parse_wkb_linestring(io, byte_order, has_z, has_m, crs_type; is_ring=true)
+    parse_wkb_linestring(io, parse_coords, crs_type; is_ring=true)
   end
   
   # Always use the second branch approach as suggested in review
@@ -197,9 +216,8 @@ function parse_wkb_polygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::
 end
 
 
-function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  num_points = read_value(read(io, UInt32))
+function parse_wkb_multipoint(io::IOBuffer, parse_coords::Function, crs_type)
+  num_points = Int(ltoh(read(io, UInt32)))
   
   # Parse all points using map-do syntax
   points = map(1:num_points) do i
@@ -213,17 +231,21 @@ function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
+    # Create inner parse_coords for this specific point
+    inner_parse_coords = function(io_inner)
+      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
+    end
+    
     # Use the same point creation logic as standalone points
-    parse_wkb_point(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
+    parse_wkb_point(io, inner_parse_coords, crs_type)
   end
   
   # Create Multi geometry - simplified approach
   return Multi(points)
 end
 
-function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  num_lines = read_value(read(io, UInt32))
+function parse_wkb_multilinestring(io::IOBuffer, parse_coords::Function, crs_type)
+  num_lines = Int(ltoh(read(io, UInt32)))
   
   # Parse all linestrings using map-do syntax
   # For MultiLineString, all components are Rope to maintain type consistency
@@ -238,16 +260,20 @@ function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, has_z::Bool,
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    parse_wkb_linestring(io, byte_order_inner, inner_has_z, inner_has_m, crs_type; is_ring=false)
+    # Create inner parse_coords for this specific linestring
+    inner_parse_coords = function(io_inner)
+      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
+    end
+    
+    parse_wkb_linestring(io, inner_parse_coords, crs_type; is_ring=false)
   end
   
   # Create Multi geometry - simplified approach
   return Multi(lines)
 end
 
-function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  num_polygons = read_value(read(io, UInt32))
+function parse_wkb_multipolygon(io::IOBuffer, parse_coords::Function, crs_type)
+  num_polygons = Int(ltoh(read(io, UInt32)))
   
   # Parse all polygons using map-do syntax
   polygons = map(1:num_polygons) do i
@@ -261,7 +287,12 @@ function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    parse_wkb_polygon(io, byte_order_inner, inner_has_z, inner_has_m, crs_type)
+    # Create inner parse_coords for this specific polygon
+    inner_parse_coords = function(io_inner)
+      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
+    end
+    
+    parse_wkb_polygon(io, inner_parse_coords, crs_type)
   end
   
   # Create Multi geometry - simplified approach
