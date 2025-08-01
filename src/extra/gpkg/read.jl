@@ -72,19 +72,19 @@ function read_coordinate_values(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
   x = read_value(read(io, Float64))
   y = read_value(read(io, Float64))
   
-  coords_list = [x, y]
-  
-  if has_z
+  coords = if has_z
     z = read_value(read(io, Float64))
-    push!(coords_list, z)
+    (x, y, z)
+  else
+    (x, y)
   end
   
-  # Skip M coordinate if present (we don't use it)
+  # skip M coordinate if present (we don't use it)
   if has_m
     read_value(read(io, Float64))
   end
   
-  return coords_list
+  return coords
 end
 
 function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
@@ -116,8 +116,8 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   end
 end
 
-function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
-  x, y = coords_list[1], coords_list[2]
+function create_point_from_coords(coords::Union{Tuple{Float64,Float64},Tuple{Float64,Float64,Float64}}, crs_type)
+  x, y = coords[1], coords[2]
   
   if isnan(x) && isnan(y)
     return nothing
@@ -131,12 +131,12 @@ function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
     return Point(crs_type(y, x))  # LatLon(lat, lon) from WKB(x=lon, y=lat)
   elseif crs_type <: LatLonAlt
     # LatLonAlt always expects (lat, lon, alt)
-    return Point(crs_type(y, x, coords_list[3]))
+    return Point(crs_type(y, x, coords[3]))
   else
     # For projected coordinate systems
     # Projected systems always have 2 coordinates. If file has Z, use Cartesian
-    if length(coords_list) >= 3
-      return Point(Cartesian(x, y, coords_list[3]))
+    if length(coords) >= 3
+      return Point(Cartesian(x, y, coords[3]))
     else
       return Point(crs_type(x, y))
     end
@@ -144,8 +144,8 @@ function create_point_from_coords(coords_list::Vector{Float64}, crs_type)
 end
 
 function parse_wkb_point(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type)
-  coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
-  return create_point_from_coords(coords_list, crs_type)
+  coords = read_coordinate_values(io, byte_order, has_z, has_m)
+  return create_point_from_coords(coords, crs_type)
 end
 
 function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool, crs_type; is_ring::Bool=false)
@@ -155,8 +155,8 @@ function parse_wkb_linestring(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_
   
   # Parse all points using map-do syntax
   points = map(1:num_points) do i
-    coords_list = read_coordinate_values(io, byte_order, has_z, has_m)
-    create_point_from_coords(coords_list, crs_type)
+    coords = read_coordinate_values(io, byte_order, has_z, has_m)
+    create_point_from_coords(coords, crs_type)
   end
   
   # Check if WKB writer included duplicate closing point (varies by implementation)
@@ -289,13 +289,12 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
   end
   
   # Query the database for the organization and organization_coordsys_id
-  query = """
+  srs_result = DBInterface.execute(db,
+    """
     SELECT organization, organization_coordsys_id
     FROM gpkg_spatial_ref_sys
     WHERE srs_id = ?
-  """
-  
-  srs_result = DBInterface.execute(db, query, [srid])
+    """, [srid])
   
   # Process first row directly (forward-only iterator)
   org_info = nothing
@@ -316,13 +315,17 @@ function get_crs_from_srid(db::SQLite.DB, srid::Int32)
     return CoordRefSystems.get(EPSG{coord_id})
   elseif org == "ESRI"
     return CoordRefSystems.get(ESRI{coord_id})
+  elseif org == "NONE" || org == ""
+    # NONE organization indicates undefined/custom CRS
+    return Cartesian{NoDatum}
   else
-    # Unknown organization - use Cartesian as fallback
+    # Other organizations (custom authorities) - use Cartesian as fallback
+    # This branch is reachable for custom organization names
     return Cartesian{NoDatum}
   end
 end
 
-function gpkgreadattribs(table_result, geom_column::String)
+function gpkgreadtable(table_result, geom_column::String)
   # Convert to row iterator that can be collected
   all_rows = Tables.rowtable(table_result)
   
@@ -385,13 +388,13 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   # 1. Read metadata to extract names of tables and CRS type
   # Get feature table names
-  contents_query = """
+  contents_result = DBInterface.execute(db,
+    """
     SELECT table_name, data_type
     FROM gpkg_contents
     WHERE data_type = 'features'
     ORDER BY table_name
-  """
-  contents_result = DBInterface.execute(db, contents_query)
+    """)
   contents = [row.table_name for row in contents_result]
   
   if isempty(contents)
@@ -407,26 +410,24 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   table_name = contents[layer]
   
   # Get geometry column information
-  geom_query = """
+  geom_result = DBInterface.execute(db,
+    """
     SELECT column_name, srs_id
     FROM gpkg_geometry_columns
     WHERE table_name = ?
-  """
-  geom_result = DBInterface.execute(db, geom_query, [table_name])
+    """, [table_name])
   geom_info = first(geom_result)
   geom_column = geom_info.column_name
   srs_id = Int32(geom_info.srs_id)
   crs_type = get_crs_from_srid(db, srs_id)
   
   # 2. Execute queries to get table and geometry data
-  table_query = "SELECT * FROM \"$table_name\""
-  table_result = DBInterface.execute(db, table_query)
+  table_result = DBInterface.execute(db, "SELECT * FROM \"$table_name\"")
   
-  geom_query = "SELECT \"$geom_column\" FROM \"$table_name\""
-  geom_result = DBInterface.execute(db, geom_query)
+  geom_result = DBInterface.execute(db, "SELECT \"$geom_column\" FROM \"$table_name\"")
   
   # 3. Read attributes given the database object and the appropriate table name
-  table = gpkgreadattribs(table_result, geom_column)
+  table = gpkgreadtable(table_result, geom_column)
   
   # 4. Read geometries given the database object, the appropriate table name and CRS type
   geoms = gpkgreadgeoms(geom_result, geom_column, crs_type)
