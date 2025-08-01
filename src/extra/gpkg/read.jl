@@ -277,14 +277,18 @@ end
 
 # Get CRS from SRID according to GeoPackage specification
 # SRID possibilities:
-# - 0: Undefined geographic coordinate reference system
-# - -1: Undefined Cartesian coordinate reference system  
-# - 1-32766: Reserved for OGC use
-# - 32767-65535: Reserved for GeoPackage use
-# - >65535: User-defined coordinate reference systems
+#  0: Undefined geographic coordinate reference system
+# -1: Undefined Cartesian coordinate reference system  
+#  1-32766: Reserved for OGC use
+#  32767-65535: Reserved for GeoPackage use
+#  >65535: User-defined coordinate reference systems
 function get_crs_from_srid(db::SQLite.DB, srid::Integer)
   # Handle special cases per GeoPackage spec
-  if srid == 0 || srid == -1
+  if srid == 0
+    # Undefined geographic coordinate reference system - use WGS84 as default
+    return LatLon{WGS84Latest}
+  elseif srid == -1
+    # Undefined Cartesian coordinate reference system
     return Cartesian{NoDatum}
   end
   
@@ -388,17 +392,28 @@ function gpkgmetadata(db::SQLite.DB, layer::Int)
     WHERE data_type = 'features'
     ORDER BY table_name
     """)
-  contents = [row.table_name for row in contents_result]
+  # Count total layers and find the requested one without allocating an array
+  table_name = ""  # Initialize with correct type to avoid Union{Nothing,String}
+  layer_count = 0
   
-  if isempty(contents)
+  for row in contents_result
+    layer_count += 1
+    if layer_count == layer
+      table_name = row.table_name
+    end
+  end
+  
+  if layer_count == 0
     error("No vector feature tables found in GeoPackage")
   end
   
-  if layer > length(contents)
-    error("Layer $layer not found. GeoPackage contains $(length(contents)) feature layers")
+  if layer > layer_count
+    error("Layer $layer not found. GeoPackage contains $layer_count feature layers")
   end
   
-  table_name = contents[layer]
+  if table_name == ""
+    error("Failed to retrieve table name for layer $layer")
+  end
   
   # Get geometry column information
   geom_result = DBInterface.execute(db,
