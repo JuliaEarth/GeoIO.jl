@@ -282,7 +282,7 @@ end
 # - 1-32766: Reserved for OGC use
 # - 32767-65535: Reserved for GeoPackage use
 # - >65535: User-defined coordinate reference systems
-function get_crs_from_srid(db::SQLite.DB, srid::Int32)
+function get_crs_from_srid(db::SQLite.DB, srid::Integer)
   # Handle special cases per GeoPackage spec
   if srid == 0 || srid == -1
     return Cartesian{NoDatum}
@@ -409,7 +409,7 @@ function gpkgmetadata(db::SQLite.DB, layer::Int)
     """, [table_name])
   geom_info = first(geom_result)
   geom_column = geom_info.column_name
-  srs_id = Int32(geom_info.srs_id)
+  srs_id = geom_info.srs_id
   crs_type = get_crs_from_srid(db, srs_id)
   
   return table_name, geom_column, crs_type
