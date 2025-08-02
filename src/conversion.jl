@@ -128,5 +128,8 @@ function togeometry(::GI.MultiPolygonTrait, geom, crs)
   Multi([topolygon(g, CRS) for g in GI.getgeom(geom)])
 end
 
+# Handle geometries that are already Meshes.jl types - return as-is
+geom2meshes(geom::Geometry, crs) = geom
+
 geom2meshes(geom, crs=GI.crs(geom)) = geom2meshes(GI.geomtrait(geom), geom, crs)
 geom2meshes(trait, geom, crs) = togeometry(trait, geom, crs)
