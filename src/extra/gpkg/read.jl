@@ -2,6 +2,191 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# Main entry point
+function gpkgread(fname::String; layer::Int=1, kwargs...)
+  db = SQLite.DB(fname)
+  
+  # 1. Read metadata to extract names of tables and CRS type
+  table_name, geom_column, crs_type = gpkgmetadata(db, layer)
+  
+  # 2. Get all column names from the table
+  columns_result = DBInterface.execute(db, "PRAGMA table_info(\"$table_name\")")
+  all_columns = [row.name for row in columns_result]
+  
+  # Filter out geometry column to get only attribute columns
+  attr_columns = filter(col -> col != geom_column, all_columns)
+  
+  # 3. Execute queries to get attribute and geometry data separately
+  if !isempty(attr_columns)
+    # Build query for attribute columns only
+    attr_columns_str = join(["\"$col\"" for col in attr_columns], ", ")
+    table_result = DBInterface.execute(db, "SELECT $attr_columns_str FROM \"$table_name\"")
+    table = gpkgreadtable(table_result, geom_column)
+  else
+    # No attribute columns, only geometry
+    table = nothing
+  end
+  
+  geom_result = DBInterface.execute(db, "SELECT \"$geom_column\" FROM \"$table_name\"")
+  
+  # 4. Read geometries given the database object, the appropriate table name and CRS type
+  geoms = gpkgreadgeoms(geom_result, geom_column, crs_type)
+  
+  close(db)
+  
+  # 5. Combine attributes with geoms into a final geotable
+  if isnothing(table) || isempty(table)
+    return georef(nothing, geoms)
+  else
+    return georef(table, geoms)
+  end
+end
+
+function gpkgmetadata(db::SQLite.DB, layer::Int)
+  # Get feature table names
+  contents_result = DBInterface.execute(db,
+    """
+    SELECT table_name, data_type
+    FROM gpkg_contents
+    WHERE data_type = 'features'
+    ORDER BY table_name
+    """)
+  
+  # Use Iterators.drop to get the requested layer
+  rows = Tables.rows(contents_result)
+  layer_iter = Iterators.drop(rows, layer - 1)
+  
+  # Check if the layer exists using iterate
+  state = iterate(layer_iter)
+  if isnothing(state)
+    # Count total layers for better error message
+    layer_count = 0
+    for _ in Tables.rows(DBInterface.execute(db,
+      """
+      SELECT table_name, data_type
+      FROM gpkg_contents
+      WHERE data_type = 'features'
+      ORDER BY table_name
+      """))
+      layer_count += 1
+    end
+    
+    if layer_count == 0
+      error("No vector feature tables found in GeoPackage")
+    else
+      error("Layer $layer not found. GeoPackage contains $layer_count feature layers")
+    end
+  else
+    table_name = state[1].table_name
+  end
+  
+  # Get geometry column information
+  geom_result = DBInterface.execute(db,
+    """
+    SELECT column_name, srs_id
+    FROM gpkg_geometry_columns
+    WHERE table_name = ?
+    """, [table_name])
+  geom_info = first(geom_result)
+  geom_column = geom_info.column_name
+  srs_id = geom_info.srs_id
+  crs_type = get_crs_from_srid(db, srs_id)
+  
+  return table_name, geom_column, crs_type
+end
+
+function gpkgreadtable(table_result, geom_column::String)
+  # Use Tables.columns interface for better performance
+  cols = Tables.columns(table_result)
+  names = Tables.columnnames(cols)
+  
+  if isempty(names)
+    return nothing
+  end
+  
+  # Create NamedTuple from columns directly
+  return NamedTuple{Tuple(names)}([
+    Tables.getcolumn(cols, name) for name in names
+  ])
+end
+
+function gpkgreadgeoms(data_result, geom_column::String, crs_type)
+  geometries = Geometry[]
+  
+  # Use Tables.rows interface
+  for row in Tables.rows(data_result)
+    # Use Tables.getcolumn for accessing column values
+    blob = Tables.getcolumn(row, Symbol(geom_column))
+    if !ismissing(blob) && !isnothing(blob)
+      geom, _ = parse_gpb(blob, crs_type)
+      if !isnothing(geom)
+        push!(geometries, geom)
+      end
+    end
+  end
+  
+  return geometries
+end
+
+# Get CRS from SRID according to GeoPackage specification
+# SRID possibilities:
+#  0: Undefined geographic coordinate reference system
+# -1: Undefined Cartesian coordinate reference system  
+#  1-32766: Reserved for OGC use
+#  32767-65535: Reserved for GeoPackage use
+#  >65535: User-defined coordinate reference systems
+function get_crs_from_srid(db::SQLite.DB, srid::Integer)
+  # Handle special cases per GeoPackage spec
+  if srid == 0
+    # Undefined geographic coordinate reference system - use WGS84 as default
+    return LatLon{WGS84Latest}
+  elseif srid == -1
+    # Undefined Cartesian coordinate reference system
+    return Cartesian{NoDatum}
+  end
+  
+  # Query the database for the organization and organization_coordsys_id
+  srs_result = DBInterface.execute(db,
+    """
+    SELECT organization, organization_coordsys_id
+    FROM gpkg_spatial_ref_sys
+    WHERE srs_id = ?
+    """, [srid])
+  
+  # Process first row directly (forward-only iterator)
+  org_info = nothing
+  for row in srs_result
+    org_info = row
+    break
+  end
+  
+  if isnothing(org_info)
+    return Cartesian{NoDatum}
+  end
+  
+  # Handle different CRS organizations
+  org = ismissing(org_info.organization) ? "" : uppercase(org_info.organization)
+  coord_id = org_info.organization_coordsys_id
+  
+  if org == "EPSG"
+    return CoordRefSystems.get(EPSG{coord_id})
+  elseif org == "ESRI"
+    return CoordRefSystems.get(ESRI{coord_id})
+  else
+    # NONE organization indicates undefined/custom CRS
+    # Also handles empty organization names and other organizations (custom authorities)
+    # Use Cartesian as fallback for all undefined/custom cases
+    return Cartesian{NoDatum}
+  end
+end
+
+# Parse GeoPackage Binary (GPB) format - combines header and WKB geometry
+function parse_gpb(blob::Vector{UInt8}, crs_type)
+  header, offset = parse_gpb_header(blob)
+  geometry = parse_wkb_geometry(blob, offset, crs_type)
+  return geometry, header.srs_id
+end
+
 # GeoPackage Binary Header structure
 struct GeoPackageBinaryHeader
   magic::UInt16
@@ -66,6 +251,38 @@ function parse_gpb_header(blob::Vector{UInt8})
   return header, position(io)
 end
 
+function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
+  io = IOBuffer(blob[offset+1:end])
+  
+  byte_order = read(io, UInt8)
+  read_value = byte_order == 0x01 ? ltoh : ntoh
+  
+  wkb_type = read_value(read(io, UInt32))
+  
+  base_type = wkb_type & 0x0FFFFFFF
+  has_z = (wkb_type & WKB_Z) != 0
+  has_m = (wkb_type & WKB_M) != 0
+  
+  # Create parse_coords closure with lambda syntax
+  parse_coords = io -> read_coordinate_values(io, byte_order, has_z, has_m)
+
+  if base_type == WKB_POINT
+    return parse_wkb_point(io, parse_coords, crs_type)
+  elseif base_type == WKB_LINESTRING
+    return parse_wkb_linestring(io, parse_coords, crs_type)
+  elseif base_type == WKB_POLYGON
+    return parse_wkb_polygon(io, parse_coords, crs_type)
+  elseif base_type == WKB_MULTIPOINT
+    return parse_wkb_multipoint(io, parse_coords, crs_type)
+  elseif base_type == WKB_MULTILINESTRING
+    return parse_wkb_multilinestring(io, parse_coords, crs_type)
+  elseif base_type == WKB_MULTIPOLYGON
+    return parse_wkb_multipolygon(io, parse_coords, crs_type)
+  else
+    error("Unsupported WKB geometry type: $base_type")
+  end
+end
+
 function read_coordinate_values(io::IOBuffer, byte_order::UInt8, has_z::Bool, has_m::Bool)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
@@ -87,67 +304,6 @@ function read_coordinate_values(io::IOBuffer, byte_order::UInt8, has_z::Bool, ha
   return coords
 end
 
-function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
-  io = IOBuffer(blob[offset+1:end])
-  
-  byte_order = read(io, UInt8)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  
-  wkb_type = read_value(read(io, UInt32))
-  
-  base_type = wkb_type & 0x0FFFFFFF
-  has_z = (wkb_type & WKB_Z) != 0
-  has_m = (wkb_type & WKB_M) != 0
-  
-  # Create parse_coords closure that captures byte_order, has_z, has_m
-  parse_coords = function(io_inner)
-    return read_coordinate_values(io_inner, byte_order, has_z, has_m)
-  end
-
-  if base_type == WKB_POINT
-    return parse_wkb_point(io, parse_coords, crs_type)
-  elseif base_type == WKB_LINESTRING
-    return parse_wkb_linestring(io, parse_coords, crs_type)
-  elseif base_type == WKB_POLYGON
-    return parse_wkb_polygon(io, parse_coords, crs_type)
-  elseif base_type == WKB_MULTIPOINT
-    return parse_wkb_multipoint(io, parse_coords, crs_type)
-  elseif base_type == WKB_MULTILINESTRING
-    return parse_wkb_multilinestring(io, parse_coords, crs_type)
-  elseif base_type == WKB_MULTIPOLYGON
-    return parse_wkb_multipolygon(io, parse_coords, crs_type)
-  else
-    error("Unsupported WKB geometry type: $base_type")
-  end
-end
-
-function create_point_from_coords(coords, crs_type)
-  x, y = coords[1], coords[2]
-  
-  if isnan(x) && isnan(y)
-    return nothing
-  end
-  
-  # Determine CRS characteristics using CoordRefSystems.jl
-  # For geographic coordinate systems (LatLon family)
-  if crs_type <: LatLon
-    # WKB stores geographic coordinates as x=longitude, y=latitude
-    # LatLon constructor expects (latitude, longitude) order
-    return Point(crs_type(y, x))  # LatLon(lat, lon) from WKB(x=lon, y=lat)
-  elseif crs_type <: LatLonAlt
-    # LatLonAlt always expects (lat, lon, alt)
-    return Point(crs_type(y, x, coords[3]))
-  else
-    # For projected coordinate systems
-    # Projected systems always have 2 coordinates. If file has Z, use Cartesian
-    if length(coords) >= 3
-      return Point(Cartesian(x, y, coords[3]))
-    else
-      return Point(crs_type(x, y))
-    end
-  end
-end
-
 function create_crs_coord_from_buffer(buff, crs_type)
   if crs_type <: LatLon
     return crs_type(buff[2], buff[1])  # LatLon(lat, lon) from WKB(x=lon, y=lat)
@@ -158,15 +314,23 @@ function create_crs_coord_from_buffer(buff, crs_type)
   end
 end
 
-function parse_wkb_points(io::IOBuffer, n::Int, parse_coords::Function, crs_type)
-  # Read n chunks of coordinates and convert them to crs_type objects  
-  coords_vector = map(1:n) do _
-    buff = parse_coords(io)
-    create_crs_coord_from_buffer(buff, crs_type)
+function create_point_from_coords(coords, crs_type)
+  if isnan(coords[1]) && isnan(coords[2])
+    return nothing
   end
   
-  # Return Point.(coords)
-  return Point.(coords_vector)
+  # Use create_crs_coord_from_buffer for consistency
+  coord = create_crs_coord_from_buffer(coords, crs_type)
+  return Point(coord)
+end
+
+function parse_wkb_points(io::IOBuffer, n::Int, parse_coords::Function, crs_type::Type{<:CRS})
+  # Read n chunks of coordinates and convert them to points  
+  map(1:n) do _
+    buffer = parse_coords(io)
+    coords = create_crs_coord_from_buffer(buffer, crs_type)
+    Point(coords)
+  end
 end
 
 function parse_wkb_point(io::IOBuffer, parse_coords::Function, crs_type)
@@ -227,14 +391,11 @@ function parse_wkb_multipoint(io::IOBuffer, parse_coords::Function, crs_type)
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
     # Parse the individual geometry's Z/M flags from its own header
-    inner_base_type = wkb_type_inner & 0x0FFFFFFF
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    # Create inner parse_coords for this specific point
-    inner_parse_coords = function(io_inner)
-      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
-    end
+    # Create inner parse_coords with lambda syntax
+    inner_parse_coords = io -> read_coordinate_values(io, byte_order_inner, inner_has_z, inner_has_m)
     
     # Use the same point creation logic as standalone points
     parse_wkb_point(io, inner_parse_coords, crs_type)
@@ -256,14 +417,11 @@ function parse_wkb_multilinestring(io::IOBuffer, parse_coords::Function, crs_typ
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
     # Parse the individual geometry's Z/M flags from its own header
-    inner_base_type = wkb_type_inner & 0x0FFFFFFF
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    # Create inner parse_coords for this specific linestring
-    inner_parse_coords = function(io_inner)
-      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
-    end
+    # Create inner parse_coords with lambda syntax
+    inner_parse_coords = io -> read_coordinate_values(io, byte_order_inner, inner_has_z, inner_has_m)
     
     parse_wkb_linestring(io, inner_parse_coords, crs_type; is_ring=false)
   end
@@ -283,219 +441,15 @@ function parse_wkb_multipolygon(io::IOBuffer, parse_coords::Function, crs_type)
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
     # Parse the individual geometry's Z/M flags from its own header
-    inner_base_type = wkb_type_inner & 0x0FFFFFFF
     inner_has_z = (wkb_type_inner & WKB_Z) != 0
     inner_has_m = (wkb_type_inner & WKB_M) != 0
     
-    # Create inner parse_coords for this specific polygon
-    inner_parse_coords = function(io_inner)
-      return read_coordinate_values(io_inner, byte_order_inner, inner_has_z, inner_has_m)
-    end
+    # Create inner parse_coords with lambda syntax
+    inner_parse_coords = io -> read_coordinate_values(io, byte_order_inner, inner_has_z, inner_has_m)
     
     parse_wkb_polygon(io, inner_parse_coords, crs_type)
   end
   
   # Create Multi geometry - simplified approach
   return Multi(polygons)
-end
-
-# Parse GeoPackage Binary (GPB) format - combines header and WKB geometry
-function parse_gpb(blob::Vector{UInt8}, crs_type)
-  header, offset = parse_gpb_header(blob)
-  geometry = parse_wkb_geometry(blob, offset, crs_type)
-  return geometry, header.srs_id
-end
-
-# Get CRS from SRID according to GeoPackage specification
-# SRID possibilities:
-#  0: Undefined geographic coordinate reference system
-# -1: Undefined Cartesian coordinate reference system  
-#  1-32766: Reserved for OGC use
-#  32767-65535: Reserved for GeoPackage use
-#  >65535: User-defined coordinate reference systems
-function get_crs_from_srid(db::SQLite.DB, srid::Integer)
-  # Handle special cases per GeoPackage spec
-  if srid == 0
-    # Undefined geographic coordinate reference system - use WGS84 as default
-    return LatLon{WGS84Latest}
-  elseif srid == -1
-    # Undefined Cartesian coordinate reference system
-    return Cartesian{NoDatum}
-  end
-  
-  # Query the database for the organization and organization_coordsys_id
-  srs_result = DBInterface.execute(db,
-    """
-    SELECT organization, organization_coordsys_id
-    FROM gpkg_spatial_ref_sys
-    WHERE srs_id = ?
-    """, [srid])
-  
-  # Process first row directly (forward-only iterator)
-  org_info = nothing
-  for row in srs_result
-    org_info = row
-    break
-  end
-  
-  if isnothing(org_info)
-    return Cartesian{NoDatum}
-  end
-  
-  # Handle different CRS organizations
-  org = ismissing(org_info.organization) ? "" : uppercase(org_info.organization)
-  coord_id = org_info.organization_coordsys_id
-  
-  if org == "EPSG"
-    return CoordRefSystems.get(EPSG{coord_id})
-  elseif org == "ESRI"
-    return CoordRefSystems.get(ESRI{coord_id})
-  elseif org == "NONE" || org == ""
-    # NONE organization indicates undefined/custom CRS
-    return Cartesian{NoDatum}
-  else
-    # Other organizations (custom authorities) - use Cartesian as fallback
-    # This branch is reachable for custom organization names
-    return Cartesian{NoDatum}
-  end
-end
-
-function gpkgreadtable(table_result, geom_column::String)
-  # Get the first row to determine structure
-  row_iter = Tables.rows(table_result)
-  first_row = nothing
-  for row in row_iter
-    first_row = row
-    break
-  end
-  
-  if isnothing(first_row)
-    return nothing
-  end
-  
-  # Get attribute names from the first row (geometry column already excluded)
-  attr_names = propertynames(first_row)
-  if isempty(attr_names)
-    return nothing
-  end
-  
-  # Collect all rows in a single pass
-  rows = Vector{Vector{Any}}()
-  for row in Tables.rows(table_result)
-    push!(rows, [getproperty(row, name) for name in attr_names])
-  end
-  
-  if isempty(rows)
-    return nothing
-  end
-  
-  # Create a named tuple of vectors (Tables.jl compatible)
-  columns = NamedTuple{Tuple(attr_names)}([
-    [row[i] for row in rows] for i in 1:length(attr_names)
-  ])
-  
-  return columns
-end
-
-function gpkgreadgeoms(data_result, geom_column::String, crs_type)
-  geometries = Geometry[]
-  geom_sym = Symbol(geom_column)
-  
-  for row in data_result
-    blob = getproperty(row, geom_sym)
-    if !ismissing(blob) && !isnothing(blob)
-      geom, _ = parse_gpb(blob, crs_type)
-      if !isnothing(geom)
-        push!(geometries, geom)
-      end
-    end
-  end
-  
-  return geometries
-end
-
-function gpkgmetadata(db::SQLite.DB, layer::Int)
-  # Get feature table names
-  contents_result = DBInterface.execute(db,
-    """
-    SELECT table_name, data_type
-    FROM gpkg_contents
-    WHERE data_type = 'features'
-    ORDER BY table_name
-    """)
-  # Count total layers and find the requested one without allocating an array
-  table_name = ""  # Initialize with correct type to avoid Union{Nothing,String}
-  layer_count = 0
-  
-  for row in contents_result
-    layer_count += 1
-    if layer_count == layer
-      table_name = row.table_name
-    end
-  end
-  
-  if layer_count == 0
-    error("No vector feature tables found in GeoPackage")
-  end
-  
-  if layer > layer_count
-    error("Layer $layer not found. GeoPackage contains $layer_count feature layers")
-  end
-  
-  if table_name == ""
-    error("Failed to retrieve table name for layer $layer")
-  end
-  
-  # Get geometry column information
-  geom_result = DBInterface.execute(db,
-    """
-    SELECT column_name, srs_id
-    FROM gpkg_geometry_columns
-    WHERE table_name = ?
-    """, [table_name])
-  geom_info = first(geom_result)
-  geom_column = geom_info.column_name
-  srs_id = geom_info.srs_id
-  crs_type = get_crs_from_srid(db, srs_id)
-  
-  return table_name, geom_column, crs_type
-end
-
-function gpkgread(fname::String; layer::Int=1, kwargs...)
-  db = SQLite.DB(fname)
-  
-  # 1. Read metadata to extract names of tables and CRS type
-  table_name, geom_column, crs_type = gpkgmetadata(db, layer)
-  
-  # 2. Get all column names from the table
-  columns_result = DBInterface.execute(db, "PRAGMA table_info(\"$table_name\")")
-  all_columns = [row.name for row in columns_result]
-  
-  # Filter out geometry column to get only attribute columns
-  attr_columns = filter(col -> col != geom_column, all_columns)
-  
-  # 3. Execute queries to get attribute and geometry data separately
-  if !isempty(attr_columns)
-    # Build query for attribute columns only
-    attr_columns_str = join(["\"$col\"" for col in attr_columns], ", ")
-    table_result = DBInterface.execute(db, "SELECT $attr_columns_str FROM \"$table_name\"")
-    table = gpkgreadtable(table_result, geom_column)
-  else
-    # No attribute columns, only geometry
-    table = nothing
-  end
-  
-  geom_result = DBInterface.execute(db, "SELECT \"$geom_column\" FROM \"$table_name\"")
-  
-  # 4. Read geometries given the database object, the appropriate table name and CRS type
-  geoms = gpkgreadgeoms(geom_result, geom_column, crs_type)
-  
-  close(db)
-  
-  # 5. Combine attributes with geoms into a final geotable
-  if isnothing(table) || isempty(table)
-    return georef(nothing, geoms)
-  else
-    return georef(table, geoms)
-  end
 end
