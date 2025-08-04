@@ -160,12 +160,19 @@ function get_crs_from_srid(db::SQLite.DB, srid::Integer)
     break
   end
   
+  # According to GeoPackage spec, this should not happen in compliant files
+  # but handle gracefully for malformed GeoPackages
   if isnothing(org_info)
+    @warn "SRID $srid not found in gpkg_spatial_ref_sys table. This violates GeoPackage specification."
     return Cartesian{NoDatum}
   end
   
-  # Extract organization name - check for both nothing and missing
+  # Extract organization name - spec requires organization to be NOT NULL
+  # but handle malformed files gracefully
   has_org_name = !isnothing(org_info.organization) && !ismissing(org_info.organization)
+  if !has_org_name
+    @warn "Missing organization for SRID $srid. This violates GeoPackage specification (organization is NOT NULL)."
+  end
   org_name = has_org_name ? uppercase(org_info.organization) : ""
   
   # The coord_id should always be present according to the spec
