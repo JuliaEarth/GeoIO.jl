@@ -34,32 +34,25 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   
   geom_result = DBInterface.execute(db, "SELECT \"$geom_column\" FROM \"$table_name\"")
   
-  # 4. Read geometries given the database object, the appropriate table name and CRS type
-  geoms, invalid_indices = gpkgreadgeoms(geom_result, geom_column, crs_type)
+  # 4. Read geometries (including missing/nothing values for asgeotable to handle)
+  geoms = gpkgreadgeoms(geom_result, geom_column, crs_type)
   
   close(db)
   
-  # 5. Filter table to only include rows with valid geometries
-  if !isempty(invalid_indices) && !isnothing(table)
-    # Filter out invalid rows from the table
-    valid_indices = setdiff(1:length(Tables.rows(table)), invalid_indices)
-    if !isempty(valid_indices)
-      # Create filtered table with only valid rows
-      cols = Tables.columns(table)
-      names = Tables.columnnames(cols)
-      filtered_cols = NamedTuple{names}([
-        [Tables.getcolumn(cols, name)[i] for i in valid_indices]
-        for name in names
-      ])
-      table = filtered_cols
-    end
-  end
-  
-  # 6. Combine attributes with geoms into a final geotable
-  if isnothing(table) || isempty(table)
-    return georef(nothing, geoms)
+  # 5. Combine attributes with geoms into a Tables.jl table
+  # asgeotable() will handle missing/nothing geometries automatically
+  if isnothing(table)
+    # Only geometry column
+    return (geometry=geoms,)
   else
-    return georef(table, geoms)
+    # Combine attribute columns with geometry column
+    cols = Tables.columns(table)
+    names = Tables.columnnames(cols)
+    combined_cols = NamedTuple{(names..., :geometry)}([
+      [Tables.getcolumn(cols, name) for name in names]...,
+      geoms
+    ])
+    return combined_cols
   end
 end
 
@@ -105,26 +98,28 @@ end
 # This function is no longer needed - table_result is already a valid Tables.jl table
 
 function gpkgreadgeoms(geom_result, geom_column::String, crs_type)
-  geometries = Geometry[]
-  invalid_indices = Int[]
+  geometries = Union{Geometry,Missing,Nothing}[]
   
   # Use Tables.rows interface
-  for (i, row) in enumerate(Tables.rows(geom_result))
+  for row in Tables.rows(geom_result)
     # Use Tables.getcolumn for accessing column values
     blob = Tables.getcolumn(row, Symbol(geom_column))
-    if ismissing(blob) || isnothing(blob)
-      push!(invalid_indices, i)
+    if ismissing(blob)
+      push!(geometries, missing)
+    elseif isnothing(blob)
+      push!(geometries, nothing)
     else
       try
         geom = parse_gpb(blob, crs_type)
         push!(geometries, geom)
       catch
-        push!(invalid_indices, i)
+        # If parsing fails, treat as missing geometry
+        push!(geometries, missing)
       end
     end
   end
   
-  return geometries, invalid_indices
+  return geometries
 end
 
 # Get CRS from SRID according to GeoPackage specification
@@ -175,8 +170,21 @@ function get_crs_from_srid(db::SQLite.DB, srid::Integer)
   end
   org_name = has_org_name ? uppercase(org_info.organization) : ""
   
-  # The coord_id should always be present according to the spec
+  # Extract coordinate system ID - spec requires organization_coordsys_id to be NOT NULL
+  # but handle malformed files gracefully
+  has_coord_id = !isnothing(org_info.organization_coordsys_id) && !ismissing(org_info.organization_coordsys_id)
+  if !has_coord_id
+    @warn "Missing organization_coordsys_id for SRID $srid. This violates GeoPackage specification (organization_coordsys_id is NOT NULL)."
+    return Cartesian{NoDatum}
+  end
   coord_id = org_info.organization_coordsys_id
+  
+  # According to GeoPackage spec, when organization is missing, it often indicates
+  # undefined CRS rather than defaulting to EPSG
+  if !has_org_name && has_coord_id
+    @warn "SRID $srid has organization_coordsys_id ($coord_id) but missing organization. Treating as undefined CRS."
+    return Cartesian{NoDatum}
+  end
   
   if org_name == "EPSG"
     return CoordRefSystems.get(EPSG{coord_id})
@@ -411,35 +419,18 @@ function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, crs_type)
   # Determine coordinate dimensionality from CRS type once
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all points
+  # Parse all points by reusing existing point parsing logic
   points = map(1:num_points) do _
-    # Read WKB header for each sub-geometry
+    # Each point has its own header, but we can reuse the parsing logic
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
-    # Read coordinates based on CRS dimensionality, ignoring WKB Z/M flags
-    buff = read_coords_from_buffer(io, byte_order_inner, ndims)
+    # Create parse_coords closure for this point
+    parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
     
-    # Skip any extra coordinates in WKB that we don't need
-    remaining_dims = 0
-    if ndims == 2
-      # We read 2D, skip Z and/or M if present in WKB
-      if (wkb_type_inner & WKB_Z) != 0
-        remaining_dims += 1
-      end
-      if (wkb_type_inner & WKB_M) != 0
-        remaining_dims += 1
-      end
-    end
-    
-    # Skip remaining coordinates
-    for _ in 1:remaining_dims
-      read_value_inner(read(io, Float64))
-    end
-    
-    coord = create_crs_coord(buff, crs_type)
-    Point(coord)
+    # Reuse existing point parsing function
+    parse_wkb_point(io, parse_coords, crs_type)
   end
   
   return Multi(points)
@@ -451,16 +442,17 @@ function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, crs_type)
   # Determine coordinate dimensionality from CRS type once
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all linestrings
+  # Parse all linestrings by reusing existing linestring parsing logic
   lines = map(1:num_lines) do _
-    # Read WKB header for each sub-geometry
+    # Each linestring has its own header, but we can reuse the parsing logic
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
-    # Create parse_coords for consistent coordinate reading
+    # Create parse_coords closure for this linestring
     parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
     
+    # Reuse existing linestring parsing function
     parse_wkb_linestring(io, parse_coords, crs_type; is_ring=false)
   end
   
@@ -473,14 +465,14 @@ function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, crs_type)
   # Determine coordinate dimensionality from CRS type once
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all polygons
+  # Parse all polygons by reusing existing polygon parsing logic
   polygons = map(1:num_polygons) do _
-    # Read WKB header for each sub-geometry
+    # Each polygon has its own header, but we can reuse the parsing logic
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
     wkb_type_inner = read_value_inner(read(io, UInt32))
     
-    # Create parse_coords for consistent coordinate reading
+    # Create parse_coords closure for this polygon
     parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
     
     parse_wkb_polygon(io, parse_coords, crs_type)
