@@ -201,8 +201,7 @@ end
 # Parse GeoPackage Binary (GPB) format - combines header and WKB geometry
 function parse_gpb(blob::Vector{UInt8}, crs_type)
   header, offset = parse_gpb_header(blob)
-  geometry = parse_wkb_geometry(blob, offset, crs_type)
-  return geometry
+  parse_wkb_geometry(blob, offset, crs_type)
 end
 
 # GeoPackage Binary Header structure
