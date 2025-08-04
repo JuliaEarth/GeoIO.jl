@@ -70,13 +70,12 @@ function gpkgmetadata(db::SQLite.DB, layer::Int)
   rows = Tables.rows(contents_result)
   layer_iter = Iterators.drop(rows, layer - 1)
   
-  # Try to get the first row
-  first_row = nothing
-  try
-    first_row = first(layer_iter)
-  catch
+  # Use iterate to get the first row
+  state = iterate(layer_iter)
+  if isnothing(state)
     error("Layer $layer not found in GeoPackage")
   end
+  first_row = state[1]
   
   table_name = first_row.table_name
   
@@ -87,7 +86,12 @@ function gpkgmetadata(db::SQLite.DB, layer::Int)
     FROM gpkg_geometry_columns
     WHERE table_name = ?
     """, [table_name])
-  geom_info = first(geom_result)
+  # Get geometry column information using iterate
+  geom_state = iterate(Tables.rows(geom_result))
+  if isnothing(geom_state)
+    error("No geometry column found for table $table_name")
+  end
+  geom_info = geom_state[1]
   geom_column = geom_info.column_name
   srs_id = geom_info.srs_id
   crs_type = get_crs_from_srid(db, srs_id)
@@ -109,13 +113,9 @@ function gpkgreadgeoms(geom_result, geom_column::String, crs_type)
     elseif isnothing(blob)
       push!(geometries, nothing)
     else
-      try
-        geom = parse_gpb(blob, crs_type)
-        push!(geometries, geom)
-      catch
-        # If parsing fails, treat as missing geometry
-        push!(geometries, missing)
-      end
+      # Valid blob data - parse the geometry
+      geom = parse_gpb(blob, crs_type)
+      push!(geometries, geom)
     end
   end
   
