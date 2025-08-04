@@ -73,27 +73,32 @@ end
 
 _extractvals(gtb) = _extractvals(domain(gtb), values(gtb), values(gtb, 0))
 _extractvals(dom::Domain, etable, vtable) = dom, etable, vtable
-function _extractvals(dom::SubDomain, etable, vtable)
-  pdom = parent(dom)
-  pind = parentindices(dom)
-  nelm = nelements(pdom)
+function _extractvals(subdom::SubDomain, etable, vtable)
+  dom = parent(subdom)
 
-  cols = isnothing(etable) ? [] : Tables.columns(etable)
-  vars = Tables.columnnames(cols)
-  pairs = map(vars) do var
-    col = Tables.getcolumn(cols, var)
-    val = fill(NaN, nelm)
-    val[pind] .= col
-    var => val
+  newtable = if isnothing(etable)
+    nothing
+  else
+    inds = parentindices(subdom)
+    nelems = nelements(dom)
+
+    cols = Tables.columns(etable)
+    names = Tables.columnnames(cols)
+    pairs = map(names) do name
+      x = Tables.getcolumn(cols, name)
+      y = fill(NaN, nelems)
+      y[inds] .= x
+      name => y
+    end
+
+    mask = uniquename(names, :mask)
+    maskcol = zeros(UInt8, nelems)
+    maskcol[inds] .= 1
+
+    (; pairs..., mask => maskcol)
   end
 
-  maskvar = uniquename(vars, :mask)
-  maskval = zeros(UInt8, nelm)
-  maskval[pind] .= 1
-
-  etable′ = (; pairs..., maskvar => maskval)
-
-  pdom, etable′, nothing
+  dom, newtable, nothing
 end
 
 _vtktype(::Type{<:Segment}) = VTKCellTypes.VTK_LINE

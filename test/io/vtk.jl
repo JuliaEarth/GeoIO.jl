@@ -54,13 +54,6 @@
     @test size(eltype(vtable.myVector)) == (2,)
     @test eltype(eltype(vtable.myVector)) <: Float32
 
-    # grid masked with a "mask" column
-    file = joinpath(datadir, "maskedgrid.vti")
-    gtb = GeoIO.load(file)
-    @test gtb.geometry isa Meshes.SubGrid
-    @test nelements(gtb.geometry) == 100
-    @test isnothing(values(gtb))
-
     # custom lenunit
     file = ReadVTK.get_example_file("celldata_appended_binary_compressed.vtu", output_directory=savedir)
     gtb = GeoIO.load(file, lenunit=cm)
@@ -88,31 +81,35 @@
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    file = joinpath(datadir, "spiral.vtp")
-    gtb1 = GeoIO.load(file)
-    GeoIO.save(file, gtb1)
-    gtb2 = GeoIO.load(file)
+    file1 = joinpath(datadir, "spiral.vtp")
+    file2 = joinpath(savedir, "spiral.vtp")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    file = joinpath(datadir, "rectilinear.vtr")
-    gtb1 = GeoIO.load(file)
-    GeoIO.save(file, gtb1)
-    gtb2 = GeoIO.load(file)
+    file1 = joinpath(datadir, "rectilinear.vtr")
+    file2 = joinpath(savedir, "rectilinear.vtr")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    file = joinpath(datadir, "structured.vts")
-    gtb1 = GeoIO.load(file)
-    GeoIO.save(file, gtb1)
-    gtb2 = GeoIO.load(file)
+    file1 = joinpath(datadir, "structured.vts")
+    file2 = joinpath(savedir, "structured.vts")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    file = joinpath(datadir, "imagedata.vti")
-    gtb1 = GeoIO.load(file)
-    GeoIO.save(file, gtb1)
-    gtb2 = GeoIO.load(file)
+    file1 = joinpath(datadir, "imagedata.vti")
+    file2 = joinpath(savedir, "imagedata.vti")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 

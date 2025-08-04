@@ -1,0 +1,1151 @@
+#+title: Geo Package
+
+ <2025-07-18 Fri 11:00>
+* Implementation Plan
+
+- load implementation consists of SQLite.jl simple SELECT statements that convert
+  1. the table of attributes stored in the database into a Tables.jl table
+  2. the geometries and spatial_ref_sys into a vector of geometries geoms from Meshes.jl
+  _results in a /geotable = georef(table, geoms)/ call to combine these two objects into a GeoTable_
+
+- the save implementation consists of SQLite CREATE TABLE statements
+  1. the /values(geotable)/ as a SQLite attribute table
+  2. the /domain(geotable)/ as SQLite geometries, enabling R-Tree for non-trivial amount of vector data
+
+_Remarks_
+- Important for GeoPackages to contain the following extensions
+  - R-tree Spatial Indexes for saving non-trival amount of vector data
+  - WKT for Coordinate Reference Systems due to weaknesses in the original standard for encoding coordinate reference systems
+
+
+_Warmup_
+
+ 1. parse bytes and SQLite database header
+    - first 16 bytes are 'SQLite format 3'
+    - "GPKG" in ASCII in /application_id/ and /user_version/
+
+
+ 1. execute PRAGMA integrity_check and foreign_key_check
+
+ 2. read _gpkg_spatial_ref_sys_
+    - shall contain at minimum
+      - /srs_name/: any
+      - /srs_id/: 4326 | -1 | 0
+      - /organization/: 4326 | -1 | 0
+      - /organization_coordsys_id/: 4326 | -1 | 0
+      - /definition/: any | undefined | undefined
+      - /description/: any
+
+    - extension for WKT for Coordinate Reference Systems
+      - parse WKT encoded simple features geometry from column /definition_12_063/
+        - takes priority over definition column
+
+ 3. read _gpkg_contents_
+    - values in /srs_id/ column reference values in gpkg_spatial_ref_sys table /srs_id/ column
+    - /table_name/ column value contains the name of a SQLite table
+    - /data_type/ specifies type of content in table referenced in /table_name/
+      - "features" vector features
+
+ 4. read _gpkg_geometry_column_
+    - /srs_id/ value is an /srs_id/ column from gpkg_spatial_ref_sys table
+    - values of /table_name/ column references values in gpkg_contents /table_name/
+      - for rows wth a "features" /data_type/
+    - the /z/ and /m/ value is one of 0 , 1, or 2
+      - meaning either z/m values prohibited, mandatory, or optional respectively
+    - /column_name/ column value in is one of the uppercase core geometry types or *extensions
+      - GEOMETRY
+        _subtypes are_
+        - POINT
+        - *CURVE
+          _subtypes are_
+          - *LINESTRING
+          - *CIRCULARSTRING
+          - *COMPOUNDCURVE
+        - SURFACE
+          _subtype is_
+          - *CURVEPOLYGON
+            _subtype is_
+            - POLYGON
+        - GEOMETRYCOLLECTION
+          _subtypes are_
+          - MULTIPOINT
+          - *MULTICURVE
+            _subtype is_
+            - MULTILINESTRING
+          - *MULTISURFACE
+            _subtype is_
+            - MULTIPOLYGON
+
+              /Non-linear Geometry types not really commonly supported/
+
+      - given /column_name/ and /table_name/ declared SQL type of the feature table geometry is specified by /geometry_type_name/ column also specifying the /srs_id/ of feature table
+      -  feature table geometries are stored in geopackagebinary format
+        - read blob to infer header and geometry
+          - handle Standard, Extended, ISO WKB Geometry
+            - test for empty gpkgbinary and axis order
+
+ 5. read _gpkg_extensions_ table
+    - /table_name/ column references values in gpkg_contents /table_name/ column
+      - these reference new tables required by that extension or be NULL
+    - /column_name/ column value the name of the column in the table specified by the /table_name/ column value for that row, or be NULL
+    - /extension_name/ column value is a unique case sensitve value
+      - forms <author>_<extension_name>
+    - /scope/ column value indicates whether extension affects reads and/or writes
+
+
+
+
+
+ _Happy Testing_
+ 1. Reads in the *.gpkg into GeoTables smoothly
+    1. Reads GeoPackageBinary
+       1. Standard, ISO, Extended WKB
+ 2. Save recreates the OGC GeoPackage Spec Requirements
+    1. Core Requirements
+    2. Features Requirements
+    3. Attributes Requirements
+    4. Extensions Requirements
+       a. R-Tree Spatial Indexes (write)
+       b. WKT for SRS (write)
+ 3. can load/save all '*.gpkg' files from GADM and GeoBR
+
+**simple features**
+    - points.gpkg
+    - lines.gpkg
+    - polygon.gpkg
+    - multi.gpkg
+
+**non-spatial**
+    - attributes.gpkg
+        /includes attributes, vector features, and feature attributes/
+      - rivers.gpkg
+
+**Z-dimension Coordinate{{x,y},z}**
+- gdal_sample.gpkg
+
+ **non-trivial amount of vector features**
+ - rivers.gpkg
+
+_UnHappy Testing_
+
+- empty geopackage
+  - IEEE-754 quiet NaN value Point Geometry
+- gdal_sample.gpkg
+  - wkbUnknown
+  - wkbGeometryCollection
+  - CoordRefSystems Conversion Error
+    - UTM Zone <--> Cartesian
+
+
+
+
+
+
+
+* Reading
+
+
+** Table
+ - generally speaking a table is any object that can be structured into rows cotaining measurements and columns representing variables.
+   - formalized in _Tables.js_
+     - the definition is independent of the machine representation
+       - and various representations can co-exist in the language
+*** Julia Representation
+- the choice of table representation is a function of the application
+
+- Julia has two built-in table representations
+  1. named Tuple of Vectors
+  2. Vector of named Tuples
+#+begin_src julia
+coltable = (
+  NAME=["John", "Mary", "Paul", "Anne", "Kate"],
+  AGE=[34, 12, 23, 39, 28],
+  HEIGHT=[1.78, 1.56, 1.70, 1.80, 1.72],
+  GENDER=["male", "female", "male", "female", "female"]
+)
+
+rowtable = [
+  (NAME="John", AGE=34, HEIGHT=1.78, GENDER="male"),
+  (NAME="Mary", AGE=12, HEIGHT=1.56, GENDER="female"),
+  (NAME="Paul", AGE=23, HEIGHT=1.70, GENDER="male"),
+  (NAME="Anne", AGE=39, HEIGHT=1.80, GENDER="female"),
+  (NAME="Kate", AGE=28, HEIGHT=1.72, GENDER="female")
+]
+#+end_src
+
+- The most widely used table representation
+  - is formalized by _DataFrames.jl_
+    #+begin_src julia
+using DataFrames
+
+df = DataFrame(
+  NAME=["John", "Mary", "Paul", "Anne", "Kate"],
+  AGE=[34, 12, 23, 39, 28],
+  HEIGHT=[1.78, 1.56, 1.70, 1.80, 1.72],
+  GENDER=["male", "female", "male", "female", "female"]
+)
+
+df[1, :] # Row 1 slice
+df[:,"NAME"] # NAME column
+df[1:3, ["NAME","AGE"]] # Row 1-3 slice only NAME and AGE columns
+df.HEIGHT # same as [:, "HEIGHT"]
+df."HEIGHT" # this as well ^
+    #+end_src
+
+- other table representations
+  _CSV.jl_ _XLSX.jl_
+- Also Julia Databases
+  _Redis.jl_ _MySQL.jl_ _ODBC.jl_
+
+  **We care most about _SQLite.jl_ though for GeoPackage's SQLite container**
+
+*** Tables.jl
+- Tables provides two powerful APIs for predictably accessing data from any table-like source
+
+  #+begin_src julia
+# access data of input table 'x' row by row
+rows = Tables.row(x) # returns a row iterator
+
+# we can iterate
+for row in rows
+    # getting all all values in the row
+    # not the most efficient way
+    rowvalues = [Tables.getcolumn(row, col) for col in Tables.columnnames(row)]
+end
+
+# access data of input table 'x' column by column
+columns = Tables.columns(x) # returns object where entire columns can be accessed
+# we can iterate each column
+for col in Tables.columnnames(columns)
+    # get column by column name
+    # a column is an indexable collection
+    # support length(column) and column[i]
+    column = Tables.getcolumn(columns, col)
+end
+
+
+
+  #+end_src
+
+**** Types
+1. _AbstractRow_
+   - An abstract type that custom row type may subtype for useful default behavior (indexing, iteration, property-access)
+
+     **should not use it for dispatch**
+
+     _**Tables.jl interface objects are not required to subtype but only implement the required interface methods**_
+     - Tables.getcolumn(row, i::Int) --Default--Defn--> getfield(row, i)
+       - retrieves a column value by index
+     - Tables.getcolumn(row, nm::Symbol) --Default--Defn--> getproperty(row, nm)
+       - retrieves a column value by name
+     - Tables.columnnames(row) --Default--Defn--> propertnames(row)
+       - return column names for a row as a 1-based indexable collection
+   - represents the expected /eltype/ of the iterator returned from Tables.rows(table)
+   - returns an iterator of elements
+        **Optional Methods**
+     - Tables.getcolumn(row, ::Type{T}, i::Int, nm::Symbol)
+       - Tables.getcolumn*(row, nm)
+         - Given a column element type T, index i, and column name nm, retrieve the column value.
+           **Provides a type-stable or even constant-prop-able mechanism for efficiency**
+
+   - subtypes must overload all required methods
+2. _Schema(names, type)_
+   - creates object that holds the column names and types for an AbstractRow iterator returned from a Tables.rows or an AbstractColumns object from Tables.columns
+     - convenient structural type for code generation
+   - call Tables.schema on the result of Tables.rows or Tables.columns
+   - to access names, one can call sch.names to return a collection of symbols (Tuple or Vector) to access column element types
+   - to access column element types, one can similary call sch.types which will return a collection of types
+     #+begin_src julia
+struct Schema{names, types}
+    storednames::Union{Nothing, Vector{Symbol}}
+    storedtypes::Union{Nothing, Vector{Type}}
+end
+     #+end_src
+- encoding names and types as /type parameters/ allow convenient use of the type in generated functions and other optimization use-cases
+
+**** Functions
+1. _Tables.rows_
+   - access data of input source table row by by returning an AbstractRow-Compatible iterator
+   - Tables.Schema of an AbstractRow iterator can be queried via Tables.schema(rows)
+     - which may return nothing if the schema is unknown
+
+   - column names can always be queried by calling Tables.getcolumn() with a column index or name
+
+
+   
+*** SQLite Representation
+  - create a new database
+        > sqlite3 test.db
+    - will create a new database named "test.db"
+    - each open SQLite database is represented by a pointer to an instance of the opaque structure named "sqlite3"
+    - the first 100 bytes of the database file comprise the database file header
+      **every valid SQLite database file begins with the following 16 bytes in hex**
+      _53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00_
+      -  corresponds to the UTF-8 string "SQLite format 3" inclduing the the null terminator character at the end
+
+
+  - SQLite provides the freedom to store conent in any desired format, regardless of declared datatype of the column
+    - Everything is passed around inside the SQL language implemented by SQLite as "sqlite3_value" objects so the underlying datatype does not really matter.
+
+  - Each column in an SQLite 3 database is assigned one of the following type affinities:
+          TEXT
+          NUMERIC
+          INTEGER
+          REAL
+          BLOB
+    - No BOOLEAN datatype or DATETIME datatype
+
+- PRIMARY KEYs are allowed to be NULL
+  - add a NOT NULL constraint on each column of the PRIMARY KEY
+
+**** SQL Tables
+- Each ordinary SQL table in the database schema is represented on-disk by a table b-tree
+  - SQLite uses two variants of b-trees,
+    1. "Table b-trees" that use a 64-bit signed integer key and store all data in leaves
+    2. "Index b-trees" use arbitrary keys and store no data all
+- Each entry in the table b-tree corresponds to a row of the SQL table
+  - _rowid_ being the 64-bit signed integer key for each entry
+- the content of each SQL table row is stored in the database file by first combining the values in the various columns into a byte array in the record format, then  storing that byte array as the payload in an entry in the table b-tree
+
+
+**** STRICT Tables
+**Rigid Type Enforcment can help to prevent application bugs in languages that lack a single top-level "VALUE" superclass**
+- in a _CREATE TABLE_ statement, if the _STRICT_ table option keyword is added
+  - then strict typing rules apply to that table
+    1. every column definition must specify a datatype for that column
+    2. the datatype must be one of the following
+       - INT, INTEGER, REAL, TEXT, BLOB, ANY
+    3. content other than ANY inserted into the column must be either NULL or type specified
+       - through type coercion, if it cannot be losslessly converted in the specified datatype, then a SQLITE_CONSTRAINT_DATATYPE error is raised
+    4. columns with ANY datatype can accept any kind of data, unless NOT NULL constraint, no type coercion occurs
+    5. columns that are part of the PRIMARY KEY are implicitly NOT NULL
+       - if a NULL value is inserted somehow then its converted to a unique integer
+    6. the _PRAGMA integrity_check_ and _PRAGMA quick_check_ commands check the type of the cotent of all columns in STRICT tables and show errors if anything is amiss
+
+
+**** Virtual Tables
+- a virtual table is an object that is registered with an open SQLite database connection.
+  - queries and updates on a virtual table invoke callback methods of the virtual table object instead of reading and writing on the database file
+**the virtual table mechanism allows an application to publish interfaces that are accessible from SQL statements as if they were tables**
+  - one cannot create a trigger on a virtual table
+  - one cannot create a additional indices on a virtual table
+  - one cannot run _ALTER TABLE ... ADD COLUMNS_ commands against a virtual table
+
+  - existing uses for virtual tables
+    - spatial indices using _R-Trees_
+    - enabling SQL manipulation of data in statistics packages like R
+  1. Usage
+    - creates a new table named tablename derived from class modulename
+      - modulename is registered for the virtual table by _sqlite3_create_module()_ interface
+        - the module name is registered on the database connection
+      - to create a temporary virtual table add the temp schema
+        #+begin_src sql
+    CREATE VIRTUAL TABLE tablename USING modulename(arg1, arg2, ...);
+
+
+    CREATE VIRTUAL TABLE temp.tablename USING module(arg1, ...);
+        #+end_src
+
+
+**** R*Tree Virtual Tables
+- R-Trees: a dynamic index structure for spatial searching, a special index designed for range queries
+  - most commonly used in geospatial systems where each entry is a rectangle with minimum and maximum X and Y coordinates
+    - given a query rectangle, it can find all entries contained in or overlapping the query rectangle
+    - also have use in time-domain range lookups
+      - it will quickly find all events that were active at any time during a given time interval
+- R*Tree: an efficient and robust access method for points and rectangles
+
+***** Using R*Tree module
+- implemented as a virtual table
+  - each R*Tree index is a virtual table with an odd number of columns between 3 and 11
+    - the first column is always a 64-bit signed integer primary key
+    - the other columns are pairs, one pair per dimension,
+      - containing the minimum and maximum values for that dimension
+    - doesn't R*Trees wider than 5 dimensions
+
+- in an rtree virtual table
+  - the first columns always has a type affinity of INTEGER
+  - the other data columns have a type affinity of REAL
+    - in an RTREE_I32 virtual table
+      - all columns have type affinity of INTEGER
+#+begin_src sql
+    CREATE VIRTUAL TABLE <name> USING rtree(<column-names>);
+#+end_src
+- the name is the name your application chooses for the R*Tree index
+- columnnames is a comma separated list of between 3 and 11 columns
+
+- the virtual /name/ table creates three shadow tables to store its content
+  - /name/ _node
+  - /name/ _rowid
+  - /name/ _parent
+    #+begin_src sql
+CREATE TABLE %_node(nodeno INTEGER PRIMARY KEY, data)
+CREATE TABLE %_parent(nodeno INTEGER PRIMARY KEY, parentnode)
+CREATE TABLE %_rowid(rowid INTEGER PRIMARY KEY, nodeno)
+    #+end_src
+
+    _xShadowName Method_
+    - virtual table implementations make use of real (non-virtual) database tables to store content
+    - this method allows SQLite to determine whether a certain real table is in fact a shadow or virtual table
+      _if all are true then its a shadow table_
+      1. the name of the table contains one or more "_" characters
+      2. the part of the name prior to the last "_" exactly matches the name of a virtual table that was created using CREATE VIRTUAL TABLE
+      3. the virtual table contains an xShadowName method
+      4. the xShadowName method returns true when its input is the part of the table name past the last "_" character
+
+    - shadow tables are read-only for ordinary SQL statements
+      - if _SQLITE_DBCONFIG_DEFENSIVE_ flag is set
+      - the whole is point is to protect content from being corrupted by hostile SQL
+    - best to simply ignore shadow tables and recognize that they hold your R*Tree index information
+      #+begin_src sql
+CREATE VIRTUAL TABLE demo_index USING rtree(
+   id,              -- Integer primary key
+   minX, maxX,      -- Minimum and maximum X coordinate
+   minY, maxY       -- Minimum and maximum Y coordinate
+);
+      #+end_src
+
+  - the INSERT, UPDATE, and DELETE commands work on an R*Tree index just like on regular tables
+    #+begin_src sql
+INSERT INTO demo_index VALUES
+  (28215, -80.781227, -80.604706, 35.208813, 35.297367),
+  (28216, -80.957283, -80.840599, 35.235920, 35.367825),
+  (28217, -80.960869, -80.869431, 35.133682, 35.208233),
+  (28226, -80.878983, -80.778275, 35.060287, 35.154446),
+  (28227, -80.745544, -80.555382, 35.130215, 35.236916),
+  (28244, -80.844208, -80.841988, 35.223728, 35.225471),
+  (28262, -80.809074, -80.682938, 35.276207, 35.377747),
+  (28269, -80.851471, -80.735718, 35.272560, 35.407925),
+  (28270, -80.794983, -80.728966, 35.059872, 35.161823),
+  (28273, -80.994766, -80.875259, 35.074734, 35.172836),
+  (28277, -80.876793, -80.767586, 35.001709, 35.101063),
+  (28278, -81.058029, -80.956375, 35.044701, 35.223812),
+  (28280, -80.844208, -80.841972, 35.225468, 35.227203),
+  (28282, -80.846382, -80.844193, 35.223972, 35.225655);
+    #+end_src
+    - The entries above are bounding boxes (longitude and latitude) for 14 zipcodes near Charlotte, NC.
+
+***** Querying an R*Tree Index
+- queries against the primary key are efficient in an R*Tree index as well as a ordinary SQLite table
+- R*Tree does range queries efficiently even if the R*Tree contains many entries
+  - also support overlapping queries
+#+begin_src sql
+ SELECT id FROM demo_index
+ WHERE minX<=-80.77470 AND maxX>=-80.77470
+   AND minY<=35.37785  AND maxY>=35.37785;
+
+SELECT A.id FROM demo_index AS A, demo_index AS B
+ WHERE A.maxX>=B.minX AND A.minX<=B.maxX
+   AND A.maxY>=B.minY AND A.minY<=B.maxY
+   AND B.id=28269;
+
+
+CREATE TABLE demo_data(
+  id INTEGER PRIMARY KEY,  -- primary key
+  objname TEXT,            -- name of the object
+  objtype TEXT,            -- object type
+  boundary BLOB            -- detailed boundary of object
+);
+
+SELECT objname FROM demo_data, demo_index
+ WHERE demo_data.id=demo_index.id
+   AND contained_in(demo_data.boundary, 35.37785, -80.77470)
+   AND minX<=-80.77470 AND maxX>=-80.77470
+   AND minY<=35.37785  AND maxY>=35.37785;
+#+end_src
+
+- r-tree tables can have auxiliary columns that store arbitrary data.
+  - columns are marked with "+" symbol before the column name
+  - comes after all of the coordinate boundary columns
+- RTREE table can have no more than 100 columns total
+
+- by combining location data and related information into the same table
+  - auxiliary columns can provide a cleaner model and reduce the need for joins
+#+begin_src sql
+CREATE VIRTUAL TABLE demo_index2 USING rtree(
+   id,              -- Integer primary key
+   minX, maxX,      -- Minimum and maximum X coordinate
+   minY, maxY,      -- Minimum and maximum Y coordinate
+   +objname TEXT,   -- name of the object
+   +objtype TEXT,   -- object type
+   +boundary BLOB   -- detailed boundary of object
+);
+
+SELECT objname FROM demo_index2
+ WHERE contained_in(boundary, 35.37785, -80.77470)
+   AND minX<=-80.77470 AND maxX>=-80.77470
+   AND minY<=35.37785  AND maxY>=35.37785;
+#+end_src
+- for auxiliary columns only the name of the column matters
+  -  the type affinity is ignored
+
+   // Current SQLite versions require PRAGMA trusted_schema = 1 to be
+        // able to use the RTree from triggers, which is only needed when
+        // modifying the RTree.
+
+
+
+
+
+**** the SELECT statement is used to query the database
+     - the result is zero or more rows of data
+       - where each row has a fixed number of columns
+     - this is the most complex command in SQL without a doubt
+
+***** Simple Select Processing
+- FROM, WHERE, GROUP BY, HAVING, DISTINCT/ALL
+- Two kinds of simple SELECT statments - aggregate and non-aggregate
+  - aggregate if statement contains a GROUP BY clause or one or more aggregate functions in the result set
+- Generation of the set of result rows
+  - Once the input data from the FROM clause has been filtered by the WHERE clause
+    - The set of result rows for the simple SELECT are calculated
+      - if **non-aggregate query** then each expression in the result expression list is evaluated for each row in the dataset filtered by the WHERE clause
+      - if **aggregate query without GROUP BY clause** then each aggregate expression in the result-set is evaluated once across the entire dataset
+        - each non-aggregate expression is evaluated once for an arbitrarily seleted row of the dataset, which the selected row is used for each non-aggregate expression
+      - if **aggregate query with a GROUP BY clause** the each of the expressions specified as part of the GROUP BY clause is evaluated for each row of the dataset according to the processing rules state below for ORDER BY expressions
+        - each row assinged to a "group" based on the results; rows for which the results of evaluating the GROUP BY expressions are the same get assigned to the same group
+        - if **HAVING** clause is specified, it is evaluated once for each group of rows as a boolean expression; if false, the group is discarded;
+          - if the HAVING clause is an aggregate expression, it is evaluated across all rows in the group
+          - if the HAVING clause is non-aggregate expression, it is evaluated with respect to an arbitrarily selected row from the group
+        - each group of input dataset rows contributes a single row to the set of result rows
+          - subject to filtering associated with the DISTINCT keyword, the number of rows returned by an aggregate query with a GROUP BY clause is the same as the number of groups of rows produced by applying the GROUP BY and HAVING clauses to the filtering input dataset
+  - Removal of duplicate rows
+    - if neither ALL or DISTINCT are present, then the behavior is as if ALL were specified
+    - if simple SELECT is SELECT DISTINCT then duplicate rows are removed from the set of result rows before it is returned
+      - values compared using IS DISTINCT FROM operator
+        - thus two NULl values are considered equal
+        - integer and floating points are equal if the same value
+        - BLOB affiniity is used for DISTINCT comparisons
+
+***** Compound Select Statements
+ - Two or more simple SELECT statements may be connectd together to form a compound SELECT using the UNION, UNION ALL, INTERSECT, or EXCEPT operator
+   - when three or more simple SELECTs are connected into a compound SELECT, they group from left to right
+ - as the components of a compound SELECT must be simple SELECT statements
+   - may not contain ORDER BY or LIMIT clauses
+     - these clauses may only occur at the end of the entire compound SELECT
+
+***** ORDER BY clause
+- Each ORDER BY expression is processed as follows:
+
+  1. If the ORDER BY expression is a constant integer K then the expression is considered an alias for the K-th column of the result set (columns are numbered from left to right starting with 1).
+
+  2. If the ORDER BY expression is an identifier that corresponds to the alias of one of the output columns, then the expression is considered an alias for that column.
+
+  3. Otherwise, if the ORDER BY expression is any other expression, it is evaluated and the returned value used to order the output rows. If the SELECT statement is a simple SELECT, then an ORDER BY may contain any arbitrary expressions. However, if the SELECT is a compound SELECT, then ORDER BY expressions that are not aliases to output columns must be exactly the same as an expression used as an output column.
+***** LIMIT clause
+- The LIMIT clause is used to place an upper bound on the number of rows returned by the entire SELECT statement
+  - any scalar expression may be used in the LIMIT clause
+- programmers are strongly encouraged to use the form of the LIMIT clause that uses the "OFFSET" keyword and avoid using a LIMIT clause with a comma-separated offset.
+
+
+****  SQLite.jl
+
+***** High-Level
+1. _DBInterface.execute()_
+   1. (db::SQLite.DB, sql::String, [params])
+   2. (stmt::SQLite.Stmt, [params])
+      - bind any params as Vector or Tuple or NamedTuple or Dict to sql statment
+        - return iterator of result rows
+          - supports _Tables.j-compatible sinks_
+      - _strict=true_ returns SQLite types specified
+
+      **iterator only supports single pass, forward-only iteration**
+      /SQLite.reset!(result)/ to re-execute statement reset iterator
+
+2. _SQLite.load!()_
+   1. (db::SQLite.DB, tablename::String; temp::Bool=false,ifnotexists::Bool=false, replace::Bool=false, on_conflict::Union{String, Nothing} = nothing, analyze::Bool=false)
+   2. (source, db, tablename; temp=false, ifnotexists=false, replace::Bool=false, on_conflict::Union{String, Nothing} = nothing, analyze::Bool=false)
+      - load a _Tables.jl_ input source into SQLite table
+        - temp: create temp SQLite table destroyed on automatically on close
+        - ifnotexists: errors if table already exists
+        - on_conflict: specify constraint conflict resoution algorithm
+        - replace: controls a INSERT INTO ... statement is generated or REPLACE INTO ...
+        - analyze: executes ANALYZE at the end of insert
+
+
+***** Types
+1. _SQLite.DB(file::AbstractString)_
+
+- will create a database if the file already doesn't exist
+  - represents a single connection to a SQLite db
+    - All other /SQLite.jl/ functions take a /SQLite.DB/ as the first argument as context
+ **create an in-memory temporary database call SQLite.DB() **
+ - automatically shutdown at the end of a Julia session
+
+
+#+begin_src julia
+using SQLite
+
+db = SQLite.DB("my_database.db")
+
+mem_db = SQLite.DB()
+
+#+end_src
+
+2. _SQLite.Stmt(db::DB, sql::AbstractSTring; register::Bool = true)_
+
+- constructs SQL statment in context of db::DB and Julia object construct a reference to statement
+  - sql is compiled not executed
+    - used for where the same statement is executed multiple times with different params bound as values
+
+- automatically closes out of scope or use .close!(db)
+
+**register keyword argument controls whether the Stmnt is registered in provided db**
+
+***** Functions
+3. _SQLite.bind!(stmt::SQLite.Stmt, values)_
+
+- bind values to params in a Stmt
+  - Vector or Tuple bound to SQL parameter by index order
+    - Dict or NamedTuple bound to named SQL parameters by key
+- bind a single value as a well
+
+  #+begin_src julia
+using SQLite
+
+source = SQLite.DB("geostats.gpkg")
+
+SQLite.bind!(stmt, name|index, val)
+  #+end_src
+
+  **it is not useful to evaluate exactly the same SQL statement more than once**
+  - one wants to evalute similar statments
+    - you might want to evaluate an INSERT statement multiple times though with different values to insert
+      - SQLite allows for statments to contain params which are bound to values prior to being evaluated
+        - values can be changed later and the same statment can be evaluted a 2nd time using new values
+#+begin_src julia
+
+DBInterface.execute(db, """CREATE TABLE sample_tile_pyramid (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  zoom_level INTEGER NOT NULL,
+  tile_column INTEGER NOT NULL,
+  tile_row INTEGER NOT NULL,
+  tile_data BLOB NOT NULL,
+  UNIQUE (zoom_level, tile_column, tile_row)
+)""")
+
+stmt_sql = "INSERT INTO sample_matrix_pyramid VALUES (NULL, 1, 1, 1, ?)"
+stmt = SQLite.Stmt(db, stmt_sql)
+
+for (i, blob_data) in enumerate(blob_values)
+
+    # Bind the blob_data to the first parameter (index 1)
+    SQLite.bind!(stmt, 1, blob_data)
+
+    # Execute the statement
+    # The execute! method on SQLite.Stmt will run the statement with the currently bound values.
+    SQLite.execute!(stmt)
+
+    # Reset the statement for the next execution. This is crucial when using bind! manually
+    # to clear previous bindings and prepare for new ones.
+    SQLite.reset!(stmt)
+end
+
+#+end_src
+
+4. _SQLite.createtable!()_
+   1. (db::SQLite.DBm table_name, schema::Tables.Schema, temp=false, ifnotexists=true)
+      - creates a table in db with table_name according to schema (Tables.Schema(names, types))
+        - names can be a vector or tuple of String/Symbol column names
+        - types is a vector or tuple of sqlite-compatible types (Int, Float64, String or unions of Missing)
+        - if temp=true the table will be created temporarily
+        - ifnotexists=true then no error is thrown if table already exists
+#+begin_src julia
+
+names::Vector{AbstractString} = ["srs_name","srs_id","organization","organization_coordsys_id","definition", "description"]
+types = [
+    String,
+    Int64,
+    String,
+    String,
+    String,
+    String
+]
+SQLite.createtable!(source, "gpkg_spatial_ref_sys", Tables.Schema(names, types))
+
+#+end_src
+
+
+5. _SQLite.drop!()_
+   1. (db, table; ifexists::Bool=true)
+      - drop the SQLite table from the db
+        - also bool for catching 'doesn't exist' error if true
+
+6. _SQLite.dropindex!()_
+   1. (db, index, ifexists::Bool=true)
+      - drop the SQLite index from the db
+
+7. _SQLite.createindex!()_
+   1. (db, table, index, cols; unique=true, ifnotexists=true)
+      - createas the SQLite index on the table using cols
+        - may be a single column or vector of columns
+        - unique specifies whether the index will be unique
+        - ifnotexists catches error if true
+
+8. _SQLite.removeduplicates!()_
+   1. (db, table, cols)
+
+9. _SQLite.tables()_
+   1. (db, sink=columntable)
+
+10. _SQLite.columns()_
+    1. (db, table, sink=columntable)
+
+11. _SQLite.indices_
+    1. (db, sink=columntable)
+
+12. _SQLite.enable_load_extension_
+    1. (db, enable::Bool=true)
+       - enables extension loading on SQLite db
+
+13. _SQLite.register()_
+    1. (db, func)
+    2. (db, init, step_func, final_func; nargs=-1, name=string(step), isdeterm=true)
+       - register a scalar or aggregate function with db
+
+14. _SQLite.sqlreturn()_
+    - this should never be called explicitly
+      - it is exported so that it can be overloaded when necessary
+   **SQLite.register uses sqlreturn to return your func's value to SQLite**
+   - maps the returned value to a native SQLite type or failing that
+     - serializes the julia value and stores it as a BLOB
+   - to change this behavior, define a new method for sqlreturn which calls a previously defined method for sqlreturn
+     #+begin_src julia
+# for example you would like BigInt to be stored as TEXT rather than a BLOB
+sqlreturn(context, val::BigInt) = sqlreturn(context, string(val))
+# used by regexp func, must return a 0 or 1
+sqlreturn(context, val::Bool) = sqlreturn(context, int(val))
+     #+end_src
+
+15. _SQLite.transaction()_
+    1. (db, mode="DEFERRED")
+    2. (func, db)
+       - begin a transaction in the specified mode, default="DEFERRED"
+         - or "IMMEDIATE" or "EXCLUSIVE"
+           - then a transaction of that mutable struct is started
+             - otherwise a savepoint is created whose name is mode converted to AbstractString
+        - func is executed within a transaction
+          - the transaction being committed upon successful execution
+
+
+16. _SQLite.commit()_
+    1. (db)
+    2. (db, name)
+       - commit a transaction or named savepoint
+
+17. _SQLite.rollback()_
+    1. (db)
+    2. (db, name)
+       - rollback transaction or named savepoint
+
+
+***** Macros
+
+14. _SQLite.@register_
+    @register db functino
+    - user facing macro for registering a simple func with no configs needed
+
+15. _SQLite.@sr_str_
+    sr"..."
+    - this string literal is used to escape all special characters in the string
+      - good for regex in a query
+
+
+*** GeoPackage Representation
+
+- what is a GeoPackage?
+  - its a database container, meaning it can be accessed and updated in a "native" storage format without format translations
+    - its standard defines a SQL database schema designed for use with SQLite software library
+
+- whats in a GeoPackage?
+  - vector geospatial features and / or tile matrix sets of earth images and raster maps at various scales
+    - vector features
+    - tile matrix sets of imagery and raster maps
+    - non-spatial attributes
+    - extensions
+  - more specfically it may contain one or many vector feature type records and/or one or many tile matrix pyramid tile images
+    - may also be empty with user data tables with no row record content
+    - geopackage metadata can describe geopackage data contents and identify external data synchronization sources and targets
+    - may contain spatial indexes on feature geometries and SQL triggers to maintain indexes and enforce content constraints
+
+_GeoPackage SQLite Configuration_ consists of the SQLite 3 software library and a set of compile and runtime configurations options
+_GeoPackage SQLite Extension_ is a SQLite loadable extension
+ - that MAY provide SQL functions to support spatial indexes and SQL triggers
+   - linked to a SQLite library with specified configuration requirements
+     - to provide SQL API access to a GeoPackage file.
+
+**** Requirements
+
+***** Core Requirements
+1. SQLite format 3, first 16 bytes
+2. contains a value of 0x47504B47 ("GPKG" in ASCII) in the "application_id" in SQLite database header
+   - contains an appropriate value in "user_version" field to indicate its version
+3. file extension name ".gpkg"
+4. contains only the tables, columns, and values & SQL views, constraints, and triggers specified in _Features_, _Tiles_, and _Attributes_
+   - extensions like RTree Spatial Indexes and WKT for CRS provide additional elements
+5. the columns of tables only be declared using one of the specified data types
+   - BOOLEAN, TINYINT, SMALLINT, MEDIUMINT, INT, INTEGER, FLOAT, DOUBLE, REAL, TEX, BLOB, <geometry_type_name>, DATE, DATETIME
+     - Core Geometry Types: /GEOMETRY/, /POINT/, _LINESTRING_, _POLYGON_, _MULTIPOINT_, _MULTILINESTRING_, _MULTIPOLYGON_, /GEOMETRYCOLLECTION/
+     - Extension Geometry Types: _CIRCULARSTRING_, _COMPOUNDCURVE_, _CURVEPOLYGON_, _MULTICURVE_, /CURVE/, /SURFACE/
+6. PRAGMA integrity_check returns ok
+7. PRAGMA foreign_key_check returns an empty result set indicating no invalid foreign key values
+8. provides SQL access to GeoPackage contents via sqlite3 software APIs
+9. include a _gpkg_spatial_ref_sys_ table
+   - the first component of the Standard SQL schema for accessing Simple Features
+   - the coordinate reference system it contains is referenced in also gpkg_contents and gpkg_geometry_columns
+10. _gpkg_spatial_ref_sys_ contains at minimum...
+    - an _srs_id_ of 4326  or -1 (undefined cartesian crs) or 0 (undefined for geographic crs)
+11. _gpkg_spatial_ref_sys_ contains records to define all the spatial reference systems used by features and tiles in a geopackage
+12. includes a _gpkg_contents_ table per its definition
+    - table_name, data_type, identifier, description, last_change, min_x, min_y, max_x, max_y, srs_id
+13. the table_name column value in _gpkg_contents_ contains the name of a SQLite table or view
+    - data_type specifies the type of content in the table
+      - "features" for _Features_ "tiles" for _Tiles_
+14. values in _gpkg_contents_ table _last_change_ column must contain format ISO 8601
+    - plus UTC hours, mins, seconds, and a decimal fraction of a second,
+      - '%Y-%m-%dT%H:%M:%fZ'
+15. values in _gpkg_contents_ table _srs_id_ column reference values in _gpkg_spatial_ref_sys_ table _srs_id_ column
+
+
+***** _Features Requirements_
+- Vector feature data represents geolocated entities including conceptual ones
+  - in GeoPackage, "simple features" are geolocated using a linear geometry
+- instantiable geometry types are restricted to 0, 1, and 2 dimensional geometric objects
+  - that exists in 2, 3, 4 dimensional coordinate space (R2, R3, R4)
+
+1. _gpkg_contents_ table contains a row with a lowercase data_type column value of "features"
+2. a GeoPackage stores feature table geometries with or without optional elevation (Z) and/or measure (M) values in SQL BLOBs
+   - using the GeoPackageBinary format and clause BLOB format
+     #+begin_src sql
+GeoPackageBinaryHeader {
+  byte[2] magic = 0x4750; --'GP'--
+  byte version;
+  byte flags;
+  int32 srs_id;
+  double[] envelope;
+}
+
+StandardGeoPackageBinary {
+  GeoPackageBinaryHeader header;
+  WKBGeometry geometry;
+}
+     #+end_src
+
+3. a GeoPackage stores feature table geometries with the basic simple feature geometry types
+4. a _gpkg_contents_ table row with a "features" data_type contains a _gpkg_geometry_columns_
+   - contains user data representing features
+     - table_name, column_name, geometry_type_name, srs_id, z, m
+5. _gpkg_geometry_columns_ table contains one row record for the geometry collection in each vector feature data table
+6. values of _gpkg_geometry_columns_ table_name column reference values in _gpkg_contents_ table_name column for rows with a data_type of "features"
+7. the column_name column value in _gpkg_geometry_columns_ row is one of the uppercase geometry type names
+8. the srs_id value in _gpkg_geometry_columns_ table row is an srs_id column value from the _gpkg_spatial_ref_sys_ table
+9. the z value in a _gpkg_geometry_columns_ is one of 0, 1, or 2
+10. the m value in gpkg_geometry_columns table row is one of 0, 1, or 2
+11. a GeoPackage may contain tables or views containing vector features
+    - every such feature table or view is structured consistently with...
+      #+begin_src sql
+CREATE TABLE sample_feature_table (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  geometry GEOMETRY,
+  text_attribute TEXT,
+  real_attribute REAL,
+  boolean_attribute BOOLEAN,
+  raster_or_photo BLOB
+);
+#+end_src
+- a feature table shall have only one geometry column
+- the declared SQL type of the geometry column in vector feature data table is specified by _geometry_type_name_ column
+  - for that column_name and table_name in the _gpkg_geometry_columns_ table
+- feature table geometry columns contain geometries of the type of assignable for the type
+  - specified for the column by the _gpkg_geometry_columns_ table _geometry_type_name_ uppercase column value
+- feature table geometry columns contain geometries with the _srs_id_
+  - specified by the _gpkg_geometry_columns_ table srs_id column value
+
+
+
+***** Skipping Tiles For Now...
+
+
+***** _Extensions Requirements_
+- a GeoPackage extension is a set of one or more requirements clauses that either profiles / extends existing requirements clauses or adds new ones
+  - existing examples: geometry types, SQL geometry functions, tile image formats...
+  - new examples: spatial indexes, triggers, additional tables, other BLOB column encodings, other SQL functions
+
+1. a GeoPackage may contain a table _gpkg_extensions_ and the extension cannot modify the definition or semantics of existing columns
+   - the _gpkg_extensions_ table in a GeoPackage us used to indicate an extension applies
+   - query the the _gpkg_extensions_ tables to determine if it has the required capabilities to read or write to tables with extensions
+     columns **table_name, column_name, extension_name, definition, scope**
+2. every extension is registered in a corresponding row in the _gpkg_extensions_ table
+   - the absenve of this table or rows in this table indicates its not an Extended GeoPackage
+3. Values of the _gpkg_extensions_ table_name column references values in the _gpkg_contents_ table_name, reference new tables required by that extension, or be NULL
+4. the column_name column value in a _gpkg_extensions_ row is the name of the column in the table specified by the table_name column value for that row, or be NULL
+5. each extension_name column value in a _gpkg_extensions_ row is a unique case sensitive value of the form <author>_<extension_name> where <author> is the person/organization that developed/maintains the extension
+
+6. the definition column value in a _gpkg_extension_ row contains a permalink to a document defining the extension
+7. the scope column value in a _gpkg_extensions_ row will be lowercase "read-write" for an extension that affects both readers and writers, or "write-only" if affects only writers
+
+****** RTree Spatial Indexes Requirements
+- provides a means to encode an R*Tree index for geometry values in a GeoPackage
+  - quick and efficient searches with basic envelope spatial criteria
+    - returns subsets of the rows in a feature table (with thousands or more rows)
+
+     extension name:   _gpkg_rtree_index_
+      - applies to columns specified in _gpkg_geometry_columns_ table
+      - write-only scope
+1. the "gpkg_rtree_index" name is used as a _gpkg_extensions_ table extension_name column value to specify the implementation of spatial indexes on a geometry column
+2. a GeoPackage that implements spatial indexes has a _gpkg_extensions_ table that contains a row for each spatially indexed column with extension_name "gpkg_rtree_index", the table_name of the table with spatially indexed column, the column_name of the spatially indexed column, and a scope of 'write-only'
+3. a GeoPackage implements spatial indexes on feature table geometry columns using the SQLite Virtual Table RTrees and triggers below
+  - <t>: the name of the feature table containing the geometry column
+  - <c>: the name of the geometry column in <t> that is being indexed
+  - <i>: the name of the integer primary key column in <t>
+
+    #+begin_src sql
+CREATE VIRTUAL TABLE rtree_<t>_<c> USING rtree(id, minx, maxx, miny, maxy)
+
+INSERT OR REPLACE INTO rtree_<t>_<c>
+  SELECT <i>, st_minx(<c>), st_maxx(<c>), st_miny(<c>), st_maxy(<c>) FROM <t>;
+
+    #+end_src
+
+
+****** WKT for Coordinate Reference Systems Requirements
+- this extension establishes a new column to contain values that conform to the new standard
+  - defines the structure and content of a text string implementation of the abstract model for coordinate reference sytstems.
+
+    extension name: _gpkg_crs_wkt_
+    - applies to _gpkg_spatial_ref_sys_ table
+    - read-write
+
+1. the _gpkg_spatial_ref_sys_ table has an additional column called _definition_12_063_
+   - Well-known Text representation of srs
+2. GeoPackages with a row in the _gpkg_extensions_ table with an extension_name of "gpkg_crs_wkt" is required
+3. values of the _definition_12_063_ column are constructed per the WKT syntax
+4. at least one definition column will be defined with a valid definition unless the value of the srs_id column is 0 or -1
+   - both columns should be defined
+     - if both the _definition_ and _definition_12_063_ columns are populated, then definition_12_063 takes priority
+
+   
+
+
+***** _Attributes Requirements_
+- non-spatial attribute data are sets or tuples or rows of observations that may not have an explicit geometry property, stored in user-defined attribute tables
+
+1. _gpkg_contents_ table contains a row with a data_type column value of "attributes" for each attributes data table/view
+2. a GeoPackage may contain tables or updatable views containing attribute sets
+   - every attribute table/view shall have a column with column type INTEGER and PRIMARY KEY AUTOINCREMENT column constraints
+     #+begin_src sql
+CREATE TABLE sample_attributes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  text_attribute TEXT,
+  real_attribute REAL,
+  boolean_attribute BOOLEAN,
+  raster_or_photo BLOB
+)
+INSERT INTO sample_attributes(text_attribute, real_attribute, boolean_attribute, raster_or_photo) VALUES (
+  "place",
+  1,
+  true,
+  "BLOB VALUE"
+)
+     #+end_src
+
+
+
+
+** Domain
+- geospatial requires a region of interest
+  - can cover the entire earth
+    - or any finite measure that can be discretized into smaller geometries (elements)
+      - formalized by _Meshes.jl_
+
+#+begin_src julia
+using GeoStats
+
+p = Point(1, 2)
+s = Segment((0, 2), (1, 3))
+t = Triangle((0, 0), (1, 0), (1, 1))
+b = Ball((2, 2), 1)
+
+geoms = [p, s, t, b]
+# 4-element Vector{Geometry{𝔼{2}, Cartesian2D{NoDatum, Quantity{Float64, 𝐋, Unitful.FreeUnits{(m,), 𝐋, nothing}}}}}:
+
+gset = GeometrySet(geoms) # geometry soup
+# compute the length of the Segment, the area of the Triangle and the area of the Ball
+length(s), area(t), area(b)
+# compute the measure of the geometries in the domain
+[measure(g) for g in gset]
+# 4-element Vector{Quantity{Float64}}:
+
+#+end_src
+
+- Main limitation of GIS software nowadays is lack of explicit representation of _topology_
+
+#+begin_src julia
+grid = CartesianGrid(10, 10)
+#10×10 CartesianGrid
+#├─ minimum: Point(x: 0.0 m, y: 0.0 m)
+#├─ maximum: Point(x: 10.0 m, y: 10.0 m)
+#└─ spacing: (1.0 m, 1.0 m)
+grid[1]
+#Quadrangle
+#├─ Point(x: 0.0 m, y: 0.0 m)
+#├─ Point(x: 1.0 m, y: 0.0 m)
+#├─ Point(x: 1.0 m, y: 1.0 m)
+#└─ Point(x: 0.0 m, y: 1.0 m)
+topo = topology(grid)
+# 10×10 GridTopology(aperiodic, aperiodic)
+#+end_src
+- this data structure can be used by advanced users who wish to design algorithms with neighborhood information
+
+- in computational geometry, a _CartesianGrid_ is a specific type of mesh
+  - it represents "flat" domains sampled regularly along each dimension
+  - to represent domains with curvature, we use _SimpleMesh_ domain
+#+begin_src julia
+# global vector of 2D points
+points = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (0.25, 0.5), (0.75, 0.5)]
+
+# connect the points into N-gons
+connec = connect.([(1, 2, 6, 5), (2, 4, 6), (4, 3, 5, 6), (3, 1, 5)])
+
+# 2D mesh made of N-gon elements
+mesh = SimpleMesh(points, connec)
+#4 SimpleMesh
+#  6 vertices
+#  ├─ Point(x: 0.0 m, y: 0.0 m)
+#  ├─ Point(x: 1.0 m, y: 0.0 m)
+#  ├─ Point(x: 0.0 m, y: 1.0 m)
+#  ├─ Point(x: 1.0 m, y: 1.0 m)
+#  ├─ Point(x: 0.25 m, y: 0.5 m)
+#  └─ Point(x: 0.75 m, y: 0.5 m)
+#  4 elements
+#  ├─ Quadrangle(1, 2, 6, 5)
+#  ├─ Triangle(2, 4, 6)
+#  ├─ Quadrangle(4, 3, 5, 6)
+#  └─ Triangle(3, 1, 5)
+
+
+# the connect function takes a tuple of indices and a geometry type, and produces a connectivity object.
+c = connect((1,2,3))
+# Triangle(1, 2, 3)
+
+# The SimpleMesh uses the materialize function above to construct geometries on the fly
+materialize(c, [Point(0, 0), Point(1, 0), Point(1, 1)])
+#Triangle
+#├─ Point(x: 0.0 m, y: 0.0 m)
+#├─ Point(x: 1.0 m, y: 0.0 m)
+#└─ Point(x: 1.0 m, y: 1.0 m)
+
+mesh[1]
+#Quadrangle
+#├─ Point(x: 0.0 m, y: 0.0 m)
+#├─ Point(x: 1.0 m, y: 0.0 m)
+#├─ Point(x: 0.75 m, y: 0.5 m)
+#└─ Point(x: 0.25 m, y: 0.5 m)
+#+end_src
+- the flexibility comes with a price.
+  - to construct a _SimpleMesh_ of connected geometries we need to explicitly create a vector of vertices, and connect these vertices into geometries using their indices in the vector
+  - geometries in a _SimpleMesh_ can be different types
+  - _SimpleMesh_ are often result of a geometric processing pipeline that is already stored in a file on disk
+
+
+
+
+** Data
+
+*** GeoStats Representation
+- _georef_ function in GeoStats.jl enables geospatial data to behave like tables but preserves topological information
+  #+begin_src julia
+using GeoStats
+
+df = DataFrame(
+  NAME=["John", "Mary", "Paul", "Anne"],
+  AGE=[34.0, 12.0, 23.0, 39.0]u"yr",
+  HEIGHT=[1.78, 1.56, 1.70, 1.80]u"m",
+  GENDER=["male", "female", "male", "female"]
+)
+
+grid = CartesianGrid(2, 2)
+
+geotable = georef(df, grid)
+# 4×5 GeoTable over 2×2 CartesianGrid
+
+  #+end_src
+
+- integrated with _Unitful.jl_ module
+- function combines any table with any domain into a geospatial data representation that adheres to the _Tables.jl_ interface
+  - called _GeoTable_, it has a special geometry column
+    #+begin_src julia
+names(geotable)
+#5-element Vector{String}:
+# "NAME"
+# "AGE"
+# "HEIGHT"
+# "GENDER"
+# "geometry"
+
+# GeoTable creates geometries on the fly depending on the data access pattern
+geotable[1,:]
+# (NAME = "John", AGE = 34.0 yr, HEIGHT = 1.78 m, GENDER = "male", geometry = Quadrangle((x: 0.0 m, y: 0.0 m), ..., (x: 0.0 m, y: 1.0 m)))
+geotable[1:3,["NAME","AGE"]]
+# returns a table view
+# 3×3 GeoTable over 3 view(::CartesianGrid, 1:3)
+geotable[:,"geometry"]
+#2×2 CartesianGrid
+#├─ minimum: Point(x: 0.0 m, y: 0.0 m)
+#├─ maximum: Point(x: 2.0 m, y: 2.0 m)
+#└─ spacing: (1.0 m, 1.0 m)
+
+# the GeoTable also provides an advanced method
+# for retrieving all rows that intersect with a given geometry:
+geotable[Segment((0, 0), (2, 0)), :]
+# 2×5 GeoTable over 2 view(::CartesianGrid, [1, 2])
+    #+end_src
+- very useful to narrow the region of interest and quickly discard all measurements that are outside of it.
+
+- GeoTable representation is general enough to accomodate both "raster" and "vector" data in traditional GIS
+  - we can create very large rasters because the CartesianGrid is lazy
+  - we can load vector geometries from files that store simple features using _GeoIO.jl_
+   #+begin_src julia
+  using GeoIO
+
+  georef(
+    (
+      R=rand(1000000),
+      G=rand(1000000),
+      B=rand(1000000)
+    ),
+    CartesianGrid(1000, 1000)
+  )
+  # 1000000×4 GeoTable over 1000×1000 CartesianGrid
+
+  GeoIO.load("data/countries.geojson")
+# 177×3 GeoTable over 177 GeometrySet
+
+   #+end_src
+
+
+*** GeoIO.jl module
+- enables loading and saving of geospatial data on disk in a variety of formats
+#+begin_src julia
+using GeoIO
+
+geotable = GeoIO.load("file.shp")
+
+GeoIO.save("file.gpkg", geotable)
+#+end_src
+- most GIS file formats do not preserve topological information, meaning the neighborhood information is lost as soon as geometries are saved to disk
+
+  #+begin_src julia
+using GeoIO
+
+earth = GeoIO.load("data/earth.tif")
+# 656100×2 GeoTable over 810×810 TransformedGrid
+
+fname = tempname() * ".geojson"
+
+GeoIO.save(fname, earth)
+
+GeoIO.load(fname)
+# 656100×2 GeoTable over 656100 GeometrySet
+
+  #+end_src
