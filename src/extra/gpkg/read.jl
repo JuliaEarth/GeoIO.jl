@@ -21,12 +21,9 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     # Build query for attribute columns only
     attr_columns_str = join(["\"$col\"" for col in attr_columns], ", ")
     table_result = DBInterface.execute(db, "SELECT $attr_columns_str FROM \"$table_name\"")
-    # Materialize the query result into a NamedTuple
     cols = Tables.columns(table_result)
     names = Tables.columnnames(cols)
-    table = NamedTuple{names}([
-      Tables.getcolumn(cols, name) for name in names
-    ])
+    table = NamedTuple{names}([Tables.getcolumn(cols, name) for name in names])
   else
     # No attribute columns, only geometry
     table = nothing
@@ -45,14 +42,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
     # Only geometry column
     return (geometry=geoms,)
   else
-    # Combine attribute columns with geometry column
-    cols = Tables.columns(table)
-    names = Tables.columnnames(cols)
-    combined_cols = NamedTuple{(names..., :geometry)}([
-      [Tables.getcolumn(cols, name) for name in names]...,
-      geoms
-    ])
-    return combined_cols
+    return (; zip(Tables.columnnames(table), Tables.columns(table))..., geometry=geoms)
   end
 end
 
@@ -108,10 +98,8 @@ function gpkgreadgeoms(geom_result, geom_column::String, crs_type)
   for row in Tables.rows(geom_result)
     # Use Tables.getcolumn for accessing column values
     blob = Tables.getcolumn(row, Symbol(geom_column))
-    if ismissing(blob)
-      push!(geometries, missing)
-    elseif isnothing(blob)
-      push!(geometries, nothing)
+    if ismissing(blob) || isnothing(blob)
+      push!(geometries, blob)  # Keep original missing/nothing value
     else
       # Valid blob data - parse the geometry
       geom = parse_gpb(blob, crs_type)
@@ -155,36 +143,12 @@ function get_crs_from_srid(db::SQLite.DB, srid::Integer)
     break
   end
   
-  # According to GeoPackage spec, this should not happen in compliant files
-  # but handle gracefully for malformed GeoPackages
   if isnothing(org_info)
-    @warn "SRID $srid not found in gpkg_spatial_ref_sys table. This violates GeoPackage specification."
-    return Cartesian{NoDatum}
+    error("SRID $srid not found in gpkg_spatial_ref_sys table")
   end
   
-  # Extract organization name - spec requires organization to be NOT NULL
-  # but handle malformed files gracefully
-  has_org_name = !isnothing(org_info.organization) && !ismissing(org_info.organization)
-  if !has_org_name
-    @warn "Missing organization for SRID $srid. This violates GeoPackage specification (organization is NOT NULL)."
-  end
-  org_name = has_org_name ? uppercase(org_info.organization) : ""
-  
-  # Extract coordinate system ID - spec requires organization_coordsys_id to be NOT NULL
-  # but handle malformed files gracefully
-  has_coord_id = !isnothing(org_info.organization_coordsys_id) && !ismissing(org_info.organization_coordsys_id)
-  if !has_coord_id
-    @warn "Missing organization_coordsys_id for SRID $srid. This violates GeoPackage specification (organization_coordsys_id is NOT NULL)."
-    return Cartesian{NoDatum}
-  end
+  org_name = uppercase(org_info.organization)
   coord_id = org_info.organization_coordsys_id
-  
-  # According to GeoPackage spec, when organization is missing, it often indicates
-  # undefined CRS rather than defaulting to EPSG
-  if !has_org_name && has_coord_id
-    @warn "SRID $srid has organization_coordsys_id ($coord_id) but missing organization. Treating as undefined CRS."
-    return Cartesian{NoDatum}
-  end
   
   if org_name == "EPSG"
     return CoordRefSystems.get(EPSG{coord_id})
@@ -283,7 +247,7 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   ndims = CoordRefSystems.ncoords(crs_type)
   
   # Create parse_coords closure that reads coordinates based on CRS dimensionality
-  parse_coords = io -> read_coords_from_buffer(io, byte_order, ndims)
+  parse_coords = io -> read_coords_from_buffer(io, read_value, ndims)
 
   if base_type == WKB_POINT
     return parse_wkb_point(io, parse_coords, crs_type)
@@ -292,19 +256,18 @@ function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
   elseif base_type == WKB_POLYGON
     return parse_wkb_polygon(io, parse_coords, crs_type)
   elseif base_type == WKB_MULTIPOINT
-    return parse_wkb_multipoint(io, byte_order, crs_type)
+    return parse_wkb_multipoint(io, read_value, crs_type)
   elseif base_type == WKB_MULTILINESTRING
-    return parse_wkb_multilinestring(io, byte_order, crs_type)
+    return parse_wkb_multilinestring(io, read_value, crs_type)
   elseif base_type == WKB_MULTIPOLYGON
-    return parse_wkb_multipolygon(io, byte_order, crs_type)
+    return parse_wkb_multipolygon(io, read_value, crs_type)
   else
     error("Unsupported WKB geometry type: $base_type")
   end
 end
 
 # Read coordinates from buffer based on CRS dimensionality
-function read_coords_from_buffer(io::IOBuffer, byte_order::UInt8, ndims::Int)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
+function read_coords_from_buffer(io::IOBuffer, read_value::Function, ndims::Int)
   
   if ndims == 2
     x = read_value(read(io, Float64))
@@ -412,68 +375,60 @@ function parse_wkb_polygon(io::IOBuffer, parse_coords::Function, crs_type)
 end
 
 
-function parse_wkb_multipoint(io::IOBuffer, byte_order::UInt8, crs_type)
-  num_points = Int(ltoh(read(io, UInt32)))
-  
-  # Determine coordinate dimensionality from CRS type once
+function parse_wkb_multipoint(io::IOBuffer, read_value::Function, crs_type)
+  num_points = Int(read_value(read(io, UInt32)))
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all points by reusing existing point parsing logic
   points = map(1:num_points) do _
-    # Each point has its own header, but we can reuse the parsing logic
+    # Read sub-geometry header
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
+    skip(io, 4)  # Skip wkb_type since we know it's a point
     
-    # Create parse_coords closure for this point
-    parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
+    # Create parse_coords closure for this sub-geometry
+    parse_coords = io -> read_coords_from_buffer(io, read_value_inner, ndims)
     
-    # Reuse existing point parsing function
+    # Call existing point parsing function
     parse_wkb_point(io, parse_coords, crs_type)
   end
   
   return Multi(points)
 end
 
-function parse_wkb_multilinestring(io::IOBuffer, byte_order::UInt8, crs_type)
-  num_lines = Int(ltoh(read(io, UInt32)))
-  
-  # Determine coordinate dimensionality from CRS type once
+function parse_wkb_multilinestring(io::IOBuffer, read_value::Function, crs_type)
+  num_lines = Int(read_value(read(io, UInt32)))
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all linestrings by reusing existing linestring parsing logic
   lines = map(1:num_lines) do _
-    # Each linestring has its own header, but we can reuse the parsing logic
+    # Read sub-geometry header
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
+    skip(io, 4)  # Skip wkb_type since we know it's a linestring
     
-    # Create parse_coords closure for this linestring
-    parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
+    # Create parse_coords closure for this sub-geometry
+    parse_coords = io -> read_coords_from_buffer(io, read_value_inner, ndims)
     
-    # Reuse existing linestring parsing function
-    parse_wkb_linestring(io, parse_coords, crs_type; is_ring=false)
+    # Call existing linestring parsing function
+    parse_wkb_linestring(io, parse_coords, crs_type)
   end
   
   return Multi(lines)
 end
 
-function parse_wkb_multipolygon(io::IOBuffer, byte_order::UInt8, crs_type)
-  num_polygons = Int(ltoh(read(io, UInt32)))
-  
-  # Determine coordinate dimensionality from CRS type once
+function parse_wkb_multipolygon(io::IOBuffer, read_value::Function, crs_type)
+  num_polygons = Int(read_value(read(io, UInt32)))
   ndims = CoordRefSystems.ncoords(crs_type)
   
-  # Parse all polygons by reusing existing polygon parsing logic
   polygons = map(1:num_polygons) do _
-    # Each polygon has its own header, but we can reuse the parsing logic
+    # Read sub-geometry header
     byte_order_inner = read(io, UInt8)
     read_value_inner = byte_order_inner == 0x01 ? ltoh : ntoh
-    wkb_type_inner = read_value_inner(read(io, UInt32))
+    skip(io, 4)  # Skip wkb_type since we know it's a polygon
     
-    # Create parse_coords closure for this polygon
-    parse_coords = io -> read_coords_from_buffer(io, byte_order_inner, ndims)
+    # Create parse_coords closure for this sub-geometry
+    parse_coords = io -> read_coords_from_buffer(io, read_value_inner, ndims)
     
+    # Call existing polygon parsing function
     parse_wkb_polygon(io, parse_coords, crs_type)
   end
   
