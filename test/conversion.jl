@@ -32,25 +32,6 @@
   chain = SHP.LineString{SHP.Point}(view(ps, 1:2))
   @test GeoIO.geom2meshes(chain) == Ring((2.2, 2.2))
 
-  # ArchGDAL.jl
-  ps = [(0, 0), (2.2, 2.2), (0.5, 2)]
-  outer = [(0, 0), (2.2, 2.2), (0.5, 2), (0, 0)]
-  point = AG.createpoint(1.0, 1.0)
-  chain = AG.createlinestring(ps)
-  poly = AG.createpolygon(outer)
-  multipoint = AG.createmultipoint(ps)
-  multichain = AG.createmultilinestring([ps, ps])
-  multipoly = AG.createmultipolygon([[outer], [outer]])
-  polyarea = PolyArea(outer[begin:(end - 1)])
-  @test GeoIO.geom2meshes(point) == Point(1.0, 1.0)
-  @test GeoIO.geom2meshes(chain) == Rope(points)
-  @test GeoIO.geom2meshes(poly) == polyarea
-  @test GeoIO.geom2meshes(multipoint) == Multi(points)
-  @test GeoIO.geom2meshes(multichain) == Multi([Rope(points), Rope(points)])
-  @test GeoIO.geom2meshes(multipoly) == Multi([polyarea, polyarea])
-  # degenerate chain with 2 equal points
-  chain = AG.createlinestring([(2.2, 2.2), (2.2, 2.2)])
-  @test GeoIO.geom2meshes(chain) == Ring((2.2, 2.2))
 
   # GeoJSON.jl
   points = Point.([LatLon(0.0f0, 0.0f0), LatLon(2.2f0, 2.2f0), LatLon(2.0f0, 0.5f0)])
