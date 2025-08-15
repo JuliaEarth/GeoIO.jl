@@ -22,8 +22,7 @@ function create_gpb_header(srs_id::Int32, geom::Geometry, envelope_type::Int=1)
     write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
   end
   
-  if envelope_type >= 2 && paramdim(geom) >= 3
-    bbox = boundingbox(geom)
+  if envelope_type >= 2 && length(CoordRefSystems.raw(coords(bbox.min))) >= 3
     write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[3])))
     write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[3])))
   end
@@ -31,9 +30,17 @@ function create_gpb_header(srs_id::Int32, geom::Geometry, envelope_type::Int=1)
   return take!(io)
 end
 
-function write_wkb_point(io::IOBuffer, point::Point)
+function write_coords(io::IOBuffer, point::Point, dim::Int)
   coords_pt = CoordRefSystems.raw(coords(point))
-  dim = length(coords_pt)
+  write(io, Float64(coords_pt[1]))
+  write(io, Float64(coords_pt[2]))
+  if dim >= 3
+    write(io, Float64(coords_pt[3]))
+  end
+end
+
+function write_wkb_point(io::IOBuffer, point::Point)
+  dim = CoordRefSystems.ncoords(typeof(coords(point)))
   
   write(io, UInt8(0x01))
   
@@ -43,17 +50,12 @@ function write_wkb_point(io::IOBuffer, point::Point)
   end
   write(io, UInt32(wkb_type))
   
-  write(io, Float64(coords_pt[1]))
-  write(io, Float64(coords_pt[2]))
-  
-  if dim >= 3
-    write(io, Float64(coords_pt[3]))
-  end
+  write_coords(io, point, dim)
 end
 
 function write_wkb_linestring(io::IOBuffer, rope::Rope)
   points = vertices(rope)
-  dim = paramdim(first(points))
+  dim = CoordRefSystems.ncoords(typeof(coords(first(points))))
   
   write(io, UInt8(0x01))
   
@@ -66,19 +68,13 @@ function write_wkb_linestring(io::IOBuffer, rope::Rope)
   write(io, UInt32(length(points)))
   
   for point in points
-    coords_pt = CoordRefSystems.raw(coords(point))
-    write(io, Float64(coords_pt[1]))
-    write(io, Float64(coords_pt[2]))
-    
-    if dim >= 3
-      write(io, Float64(coords_pt[3]))
-    end
+    write_coords(io, point, dim)
   end
 end
 
 function write_wkb_ring_as_linestring(io::IOBuffer, ring::Ring)
   points = vertices(ring)
-  dim = paramdim(first(points))
+  dim = CoordRefSystems.ncoords(typeof(coords(first(points))))
   
   write(io, UInt8(0x01))
   
@@ -88,38 +84,20 @@ function write_wkb_ring_as_linestring(io::IOBuffer, ring::Ring)
   end
   write(io, UInt32(wkb_type))
   
-  # Write count including the duplicate last point to close the ring
   write(io, UInt32(length(points) + 1))
   
-  # Write all points
   for point in points
-    coords_pt = CoordRefSystems.raw(coords(point))
-    write(io, Float64(coords_pt[1]))
-    write(io, Float64(coords_pt[2]))
-    
-    if dim >= 3
-      write(io, Float64(coords_pt[3]))
-    end
+    write_coords(io, point, dim)
   end
   
-  # Write first point again to close the ring
-  first_coords = CoordRefSystems.raw(coords(first(points)))
-  write(io, Float64(first_coords[1]))
-  write(io, Float64(first_coords[2]))
-  
-  if dim >= 3
-    write(io, Float64(first_coords[3]))
-  end
+  write_coords(io, first(points), dim)
 end
 
 function write_wkb_polygon(io::IOBuffer, poly::PolyArea)
   exterior_ring = boundary(poly)
-  
-  # For now, just handle simple polygons without holes
-  # TODO: Add proper hole support if needed
   all_rings = [exterior_ring]
   
-  dim = paramdim(first(vertices(exterior_ring)))
+  dim = CoordRefSystems.ncoords(typeof(coords(first(vertices(exterior_ring)))))
   
   write(io, UInt8(0x01))
   
@@ -136,22 +114,67 @@ function write_wkb_polygon(io::IOBuffer, poly::PolyArea)
     write(io, UInt32(length(points) + 1))
     
     for point in points
-      coords_pt = CoordRefSystems.raw(coords(point))
-      write(io, Float64(coords_pt[1]))
-      write(io, Float64(coords_pt[2]))
-      
-      if dim >= 3
-        write(io, Float64(coords_pt[3]))
-      end
+      write_coords(io, point, dim)
     end
     
-    first_coords = CoordRefSystems.raw(coords(first(points)))
-    write(io, Float64(first_coords[1]))
-    write(io, Float64(first_coords[2]))
-    
-    if dim >= 3
-      write(io, Float64(first_coords[3]))
-    end
+    write_coords(io, first(points), dim)
+  end
+end
+
+function write_wkb_multipoint(io::IOBuffer, multi::Multi)
+  parts = parent(multi)
+  dim = CoordRefSystems.ncoords(typeof(coords(first(parts))))
+  
+  write(io, UInt8(0x01))
+  
+  wkb_type = WKB_MULTIPOINT
+  if dim == 3
+    wkb_type |= WKB_Z
+  end
+  
+  write(io, UInt32(wkb_type))
+  write(io, UInt32(length(parts)))
+  
+  for part in parts
+    write_wkb_point(io, part)
+  end
+end
+
+function write_wkb_multilinestring(io::IOBuffer, multi::Multi)
+  parts = parent(multi)
+  dim = CoordRefSystems.ncoords(typeof(coords(first(parts))))
+  
+  write(io, UInt8(0x01))
+  
+  wkb_type = WKB_MULTILINESTRING
+  if dim == 3
+    wkb_type |= WKB_Z
+  end
+  
+  write(io, UInt32(wkb_type))
+  write(io, UInt32(length(parts)))
+  
+  for part in parts
+    write_wkb_linestring(io, part)
+  end
+end
+
+function write_wkb_multipolygon(io::IOBuffer, multi::Multi)
+  parts = parent(multi)
+  dim = CoordRefSystems.ncoords(typeof(coords(first(parts))))
+  
+  write(io, UInt8(0x01))
+  
+  wkb_type = WKB_MULTIPOLYGON
+  if dim == 3
+    wkb_type |= WKB_Z
+  end
+  
+  write(io, UInt32(wkb_type))
+  write(io, UInt32(length(parts)))
+  
+  for part in parts
+    write_wkb_polygon(io, part)
   end
 end
 
@@ -163,33 +186,19 @@ function write_wkb_geometry(io::IOBuffer, geom::Geometry)
   elseif geom isa PolyArea
     write_wkb_polygon(io, geom)
   elseif geom isa Ring
-    # Write Ring as closed LineString to match GDAL behavior
     write_wkb_ring_as_linestring(io, geom)
   elseif geom isa Multi
     parts = parent(geom)
     first_part = first(parts)
     
-    write(io, UInt8(0x01))
-    
     if first_part isa Point
-      wkb_type = WKB_MULTIPOINT
+      write_wkb_multipoint(io, geom)
     elseif first_part isa Rope
-      wkb_type = WKB_MULTILINESTRING
+      write_wkb_multilinestring(io, geom)
     elseif first_part isa PolyArea
-      wkb_type = WKB_MULTIPOLYGON
+      write_wkb_multipolygon(io, geom)
     else
       error("Unsupported multi-geometry type")
-    end
-    
-    if paramdim(first_part) == 3
-      wkb_type |= WKB_Z
-    end
-    
-    write(io, UInt32(wkb_type))
-    write(io, UInt32(length(parts)))
-    
-    for part in parts
-      write_wkb_geometry(io, part)
     end
   else
     error("Unsupported geometry type: $(typeof(geom))")
@@ -236,9 +245,6 @@ function get_srid_for_crs(db::SQLite.DB, crs)
     return Int32(-1)
   end
   
-  # For other CRS types, try to find or insert into gpkg_spatial_ref_sys
-  # For now, default to 4326 (WGS84) only for geographic systems
-  # TODO: Implement proper CRS registration in the database
   return Int32(4326)
 end
 
@@ -386,7 +392,14 @@ function gpkgwrite(fname::String, geotable; layer::String="features", kwargs...)
   """, [layer, layer, min_coords[1], min_coords[2], max_coords[1], max_coords[2], srs_id])
   
   geom_type = infer_geometry_type(geoms)
-  z_flag = paramdim(first(geoms)) >= 3 ? 1 : 0
+  first_geom = first(geoms)
+  z_flag = if first_geom isa Point
+    CoordRefSystems.ncoords(typeof(coords(first_geom))) >= 3 ? 1 : 0
+  else
+    # For non-Point geometries, get coordinate dimensionality from vertices
+    first_point = first(vertices(first_geom))
+    CoordRefSystems.ncoords(typeof(coords(first_point))) >= 3 ? 1 : 0
+  end
   
   DBInterface.execute(db, """
     INSERT OR REPLACE INTO gpkg_geometry_columns 
