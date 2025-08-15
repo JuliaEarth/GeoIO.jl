@@ -14,7 +14,6 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
   all_columns = [row.name for row in Tables.rows(columns_result)]
   
   # 3. Build vectors for each column by processing row by row
-  # This avoids calling Tables.columns() which causes memory issues
   
   # Get first row to determine column types
   table_result = DBInterface.execute(db, "SELECT * FROM \"$table_name\" LIMIT 1")
@@ -185,7 +184,6 @@ function get_crs_from_srid(db::SQLite.DB, srid::Integer, table_name::String, geo
     WHERE srs_id = ?
     """, [srid])
   
-  # Get the organization info using iterate (as suggested by maintainer)
   org_state = iterate(Tables.rows(srs_result))
   if isnothing(org_state)
     error("SRID $srid not found in gpkg_spatial_ref_sys table")
@@ -390,7 +388,6 @@ function parse_wkb_linestring(io::IOBuffer, parse_coords::Function, crs_type; is
   # Two-flag logic explained:
   # - is_ring: Semantic flag indicating this linestring is part of a polygon structure
   # - has_equal_ends: WKB format flag indicating if writer included duplicate closing point
-  # We need both because polygon rings should always return Ring regardless of WKB format variation
   if is_ring || has_equal_ends
     # Return a Ring, exclude duplicate last point if present
     if has_equal_ends
@@ -415,7 +412,6 @@ function parse_wkb_polygon(io::IOBuffer, parse_coords::Function, crs_type)
     parse_wkb_linestring(io, parse_coords, crs_type; is_ring=true)
   end
   
-  # Always use the second branch approach as suggested in review
   return PolyArea(exterior_ring, hole_rings...)
 end
 
