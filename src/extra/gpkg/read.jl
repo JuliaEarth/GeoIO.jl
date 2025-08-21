@@ -47,7 +47,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
       if ismissing(blob) || isnothing(blob)
         push!(column_data[col_symbol], blob)
       else
-        push!(column_data[col_symbol], parse_gpb(blob, crs_type))
+        push!(column_data[col_symbol], parse_wkb_geometry_from_blob(blob, crs_type))
       end
     else
       # Store attribute data as-is
@@ -72,7 +72,7 @@ function gpkgread(fname::String; layer::Int=1, kwargs...)
         if ismissing(blob) || isnothing(blob)
           push!(column_data[col_symbol], blob)
         else
-          push!(column_data[col_symbol], parse_gpb(blob, crs_type))
+          push!(column_data[col_symbol], parse_wkb_geometry_from_blob(blob, crs_type))
         end
       else
         # Store attribute data as-is
@@ -127,34 +127,15 @@ function gpkgmetadata(db::SQLite.DB, layer::Int)
     FROM gpkg_geometry_columns
     WHERE table_name = ?
     """, [table_name])
-  # Get geometry column information using iterate
-  geom_state = iterate(Tables.rows(geom_result))
-  if isnothing(geom_state)
-    error("No geometry column found for table $table_name")
-  end
-  geom_info = geom_state[1]
+  geom_info = first(Tables.rows(geom_result))
   geom_column = geom_info.column_name
   srs_id = geom_info.srs_id
-  crs_type = get_crs_from_srid(db, srs_id, table_name, geom_column)
   
-  return table_name, geom_column, crs_type
-end
-
-
-# Get CRS from SRID according to GeoPackage specification
-# Reference: https://www.geopackage.org/spec/#gpkg_spatial_ref_sys_cols
-# SRID possibilities:
-#  0: Undefined geographic coordinate reference system
-# -1: Undefined Cartesian coordinate reference system  
-#  1-32766: Reserved for OGC use (EPSG codes)
-#  32767-65535: Reserved for GeoPackage use
-#  >65535: User-defined coordinate reference systems
-function get_crs_from_srid(db::SQLite.DB, srid::Integer, table_name::String, geom_column::String)
+  # Get CRS from SRID according to GeoPackage specification
   # Handle special cases per GeoPackage spec
-  if srid == 0
-    # Undefined geographic coordinate reference system - use WGS84 as default
-    return LatLon{WGS84Latest}
-  elseif srid == -1
+  if srs_id == 0
+    crs_type = LatLon{WGS84Latest}
+  elseif srs_id == -1
     # Undefined Cartesian coordinate reference system - determine dimensionality from geometry_columns
     geom_cols_result = DBInterface.execute(db,
       """
@@ -167,48 +148,47 @@ function get_crs_from_srid(db::SQLite.DB, srid::Integer, table_name::String, geo
     if !isnothing(geom_state)
       z_flag = geom_state[1].z
       if z_flag == 1
-        return Cartesian{NoDatum,3}
+        crs_type = Cartesian{NoDatum,3}
       else
-        return Cartesian{NoDatum,2}
+        crs_type = Cartesian{NoDatum,2}
+      end
+    else
+      crs_type = Cartesian{NoDatum,2}
+    end
+  else
+    # Query the database for the organization and organization_coordsys_id
+    srs_result = DBInterface.execute(db,
+      """
+      SELECT organization, organization_coordsys_id
+      FROM gpkg_spatial_ref_sys
+      WHERE srs_id = ?
+      """, [srs_id])
+    
+    org_state = iterate(Tables.rows(srs_result))
+    if isnothing(org_state)
+      # SRID not found - use fallback to Cartesian (allowed by spec)
+      crs_type = Cartesian{NoDatum}
+    else
+      org_info = org_state[1]
+      
+      # Per GeoPackage spec, organization and organization_coordsys_id are NOT NULL
+      org_name = uppercase(org_info.organization)
+      coord_id = org_info.organization_coordsys_id
+      
+      if org_name == "EPSG"
+        crs_type = CoordRefSystems.get(EPSG{coord_id})
+      elseif org_name == "ESRI"
+        crs_type = CoordRefSystems.get(ESRI{coord_id})
+      else
+        # Per spec: other organizations or NONE
+        crs_type = Cartesian{NoDatum}
       end
     end
-    
-    return Cartesian{NoDatum,2}
   end
   
-  # Query the database for the organization and organization_coordsys_id
-  srs_result = DBInterface.execute(db,
-    """
-    SELECT organization, organization_coordsys_id
-    FROM gpkg_spatial_ref_sys
-    WHERE srs_id = ?
-    """, [srid])
-  
-  org_state = iterate(Tables.rows(srs_result))
-  if isnothing(org_state)
-    error("SRID $srid not found in gpkg_spatial_ref_sys table")
-  end
-  org_info = org_state[1]
-  
-  # Per GeoPackage spec, organization and organization_coordsys_id are NOT NULL
-  org_name = uppercase(org_info.organization)
-  coord_id = org_info.organization_coordsys_id
-  
-  if org_name == "EPSG"
-    return CoordRefSystems.get(EPSG{coord_id})
-  elseif org_name == "ESRI"
-    return CoordRefSystems.get(ESRI{coord_id})
-  else
-    # Per spec: other organizations or NONE
-    return Cartesian{NoDatum}
-  end
+  return table_name, geom_column, crs_type
 end
 
-# Parse GeoPackage Binary (GPB) format - combines header and WKB geometry
-function parse_gpb(blob::Vector{UInt8}, crs_type)
-  header, offset = parse_gpb_header(blob)
-  parse_wkb_geometry(blob, offset, crs_type)
-end
 
 # GeoPackage Binary Header structure
 struct GeoPackageBinaryHeader
@@ -274,12 +254,14 @@ function parse_gpb_header(blob::Vector{UInt8})
   return header, position(io)
 end
 
-function parse_wkb_geometry(blob::Vector{UInt8}, offset::Int, crs_type)
+# Parse GeoPackage Binary (GPB) format - combines header and WKB geometry
+function parse_wkb_geometry_from_blob(blob::Vector{UInt8}, crs_type)
+  header, offset = parse_gpb_header(blob)
   io = IOBuffer(blob[offset+1:end])
-  parse_wkb_geometry_from_io(io, crs_type)
+  parse_wkb_geometry(io, crs_type)
 end
 
-function parse_wkb_geometry_from_io(io::IOBuffer, crs_type)
+function parse_wkb_geometry(io::IOBuffer, crs_type)
   byte_order = read(io, UInt8)
   read_value = byte_order == 0x01 ? ltoh : ntoh
   
@@ -326,24 +308,6 @@ function read_coords_from_buffer(io::IOBuffer, read_value::Function, ndims::Int)
   end
 end
 
-# Skip WKB coordinates including any Z/M values that we ignore
-function skip_wkb_coords(io::IOBuffer, byte_order::UInt8, wkb_type::UInt32)
-  read_value = byte_order == 0x01 ? ltoh : ntoh
-  
-  # Always skip X and Y
-  read_value(read(io, Float64))  # x
-  read_value(read(io, Float64))  # y
-  
-  # Skip Z if present in WKB
-  if (wkb_type & WKB_Z) != 0
-    read_value(read(io, Float64))
-  end
-  
-  # Skip M if present in WKB (we never use it)
-  if (wkb_type & WKB_M) != 0
-    read_value(read(io, Float64))
-  end
-end
 
 # Convert coordinate buffer to CRS coordinates
 function create_crs_coord(buff::Tuple, crs_type::Type{<:CRS})
@@ -358,10 +322,6 @@ end
 
 function parse_wkb_point(io::IOBuffer, parse_coords::Function, crs_type)
   buff = parse_coords(io)
-  # Validate coordinates
-  if isnan(buff[1]) || isnan(buff[2])
-    error("Invalid coordinates: NaN values found")
-  end
   coord = create_crs_coord(buff, crs_type)
   return Point(coord)
 end
@@ -420,7 +380,9 @@ function parse_wkb_multipoint(io::IOBuffer, parse_coords::Function, crs_type)
   num_points = Int(ltoh(read(io, UInt32)))
   
   points = map(1:num_points) do _
-    parse_wkb_geometry_from_io(io, crs_type)
+    # Skip sub-geometry header (byte_order and wkb_type)
+    skip(io, 5)
+    parse_wkb_point(io, parse_coords, crs_type)
   end
   
   return Multi(points)
@@ -430,7 +392,9 @@ function parse_wkb_multilinestring(io::IOBuffer, parse_coords::Function, crs_typ
   num_lines = Int(ltoh(read(io, UInt32)))
   
   lines = map(1:num_lines) do _
-    parse_wkb_geometry_from_io(io, crs_type)
+    # Skip sub-geometry header (byte_order and wkb_type)
+    skip(io, 5)
+    parse_wkb_linestring(io, parse_coords, crs_type)
   end
   
   return Multi(lines)
@@ -440,7 +404,9 @@ function parse_wkb_multipolygon(io::IOBuffer, parse_coords::Function, crs_type)
   num_polygons = Int(ltoh(read(io, UInt32)))
   
   polygons = map(1:num_polygons) do _
-    parse_wkb_geometry_from_io(io, crs_type)
+    # Skip sub-geometry header (byte_order and wkb_type)
+    skip(io, 5)
+    parse_wkb_polygon(io, parse_coords, crs_type)
   end
   
   return Multi(polygons)
