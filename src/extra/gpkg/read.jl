@@ -2,6 +2,8 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+const DBInterface = SQLite.DBInterface
+
 # query SQLite.Table given *.gpkg filename; optionally specify quantity of tables and features query
 # default behavior for select statement is limit result to 1 feature geometry row and corresponding attributes row
 # limited to only 1 feature table to select geopackage binary geometry from.

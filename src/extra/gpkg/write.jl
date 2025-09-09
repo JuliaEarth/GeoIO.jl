@@ -1,3 +1,9 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
+
+const DBInterface = SQLite.DBInterface
+
 function gpkgwrite(fname, geotable; )
 
     db = SQLite.DB(fname)

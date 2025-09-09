@@ -100,3 +100,7 @@ const GPKG_1_4_VERSION = 10400
     wkbMultiPolygon25D = 0x80000006
     wkbGeometryCollection25D = 0x80000007
 end
+
+
+include("gpkg/read.jl")
+include("gpkg/write.jl")
