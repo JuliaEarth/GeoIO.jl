@@ -39,6 +39,7 @@ import PlyIO
 import CSV
 
 # Database Interfaces
+import DBInterface
 import SQLite
 
 # geostats formats
