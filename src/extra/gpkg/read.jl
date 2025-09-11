@@ -43,11 +43,11 @@ end
 # Requirement 10: must include a gpkg_spatial_ref_sys table
 # Requirement 13: must include a gpkg_contents table
 function hasgpkgmetadata(db)
-  stmt_sql =
+  sqlstmt =
     "SELECT COUNT(*) FROM sqlite_master WHERE " *
     "name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND " *
     "type IN ('table', 'view');"
-  tbcount = DBInterface.execute(db, stmt_sql) |> first |> only
+  tbcount = DBInterface.execute(db, sqlstmt) |> first |> only
   return (tbcount == 2)
 end
 
@@ -133,7 +133,7 @@ function gpkgmesh(db, ; layer=1)
               AND g.m IN (0, 1, 2)
                LIMIT $layer;
                """
-  tb = DBInterface.execute(db, stmt_sql)
+  tb = DBInterface.execute(db, sqlstmt)
   meshes = Geometry[]
   for (tn, cn, org, org_coordsys_id) in [(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]
     sqlstmt = "SELECT $cn FROM $tn;"
