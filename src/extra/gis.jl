@@ -66,7 +66,7 @@ function gistable(fname; layer, numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
   elseif endswith(fname, ".gpkg")
-    return gpkgread(fname; kwargs...)
+    return gpkgread(fname; layer, kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     return AG.getlayer(data, layer - 1)

@@ -5,11 +5,11 @@
 # query SQLite.Table given *.gpkg filename; optionally specify quantity of tables and features query
 # default behavior for select statement is limit result to 1 feature geometry row and corresponding attributes row
 # limited to only 1 feature table to select geopackage binary geometry from.
-function gpkgread(fname; ntables=1, nfeatures=1)
+function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   gpkgid(db)
-  geom = gpkgmesh(db, ; ntables=ntables, nfeatures=nfeatures)
-  attrs = gpkgmeshattrs(db, ; ntables=ntables, nfeatures=nfeatures)
+  geom = gpkgmesh(db, ; layer)
+  attrs = gpkgmeshattrs(db, ; layer)
   GeoTables.georef(attrs, geom)
 end
 
@@ -51,7 +51,7 @@ function hasgpkgmetadata(db)
   return (tbcount == 2)
 end
 
-function gpkgmeshattrs(db, ; ntables::Int=1, nfeatures=1)
+function gpkgmeshattrs(db, ; layer=1)
   sqlstmt =
     "SELECT c.table_name, c.identifier, " *
     "g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, " *
@@ -61,7 +61,7 @@ function gpkgmeshattrs(db, ; ntables::Int=1, nfeatures=1)
     "  FROM gpkg_geometry_columns g " *
     "  JOIN gpkg_contents c ON (g.table_name = c.table_name)" *
     "  WHERE " *
-    "  c.data_type = 'features' LIMIT $ntables"
+    "  c.data_type = 'features' LIMIT $layer"
   feature_tables = DBInterface.execute(db, sqlstmt)
   tb = []
   fields = "fid,"^10^5
@@ -73,7 +73,7 @@ function gpkgmeshattrs(db, ; ntables::Int=1, nfeatures=1)
     rp_attrs = join(ft_attrs, ", ")
     # keep the shortest set of attributes to avoid KeyError {Key} not found
     fields = length(fields) > length(rp_attrs) ? rp_attrs : fields # smelly hack, eval shortest common subset of fields instead
-    sqlstmt = "SELECT $fields from $tn LIMIT $nfeatures;"
+    sqlstmt = "SELECT $fields from $tn"
     if isone(nfeatures)
       rowvalues = DBInterface.execute(db, sqlstmt) |> first
       push!(tb, rowvalues)
@@ -86,9 +86,6 @@ function gpkgmeshattrs(db, ; ntables::Int=1, nfeatures=1)
   return tb
 end
 
-##############################################################################
-########### Features - Geometry Columns: Table Data Values ###################
-##############################################################################
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
 #------------------------------------------------------------------------------
 # # Requirement 21: a gpkg_contents table row with a "features" data_type
@@ -121,8 +118,8 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-#
-function gpkgmesh(db, ; ntables=1, nfeatures=1)
+
+function gpkgmesh(db, ; layer=1)
   sqlstmt = """
               SELECT g.table_name AS tn, g.column_name AS cn, c.srs_id as crs, g.z as elev, srs.organization as org, srs.organization_coordsys_id as org_coordsys_id,
               ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
@@ -134,12 +131,12 @@ function gpkgmesh(db, ; ntables=1, nfeatures=1)
               AND g.srs_id = c.srs_id
               AND g.z IN (0, 1, 2)
               AND g.m IN (0, 1, 2)
-               LIMIT $ntables;
+               LIMIT $layer;
                """
   tb = DBInterface.execute(db, stmt_sql)
-  meshes = Meshes.Geometry[]
+  meshes = Geometry[]
   for (tn, cn, org, org_coordsys_id) in [(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]
-    sqlstmt = "SELECT $cn FROM $tn LIMIT $nfeatures;"
+    sqlstmt = "SELECT $cn FROM $tn;"
     gpkgbinary = DBInterface.execute(db, sqlstmt)
     headerlen = 0
     for blob in gpkgbinary
@@ -211,41 +208,40 @@ function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
 
   if occursin("Multi", string(ewkbtype))
     elems::Vector = wkbmultigeometry(io, crs, zextent, bswap)
-    return Meshes.Multi(elems)
+    return Multi(elems)
   else
     elem = meshfromsf(io, crs, ewkbtype, zextent, bswap)
     return elem
   end
 end
 
-################################################################
 # Requirement 20: GeoPackage SHALL store feature table geometries
 #  with the basic simple feature geometry types
 # https://www.geopackage.org/spec140/index.html#geometry_types
-#
+
 function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   if isequal(ewkbtype, wkbPoint)
     elem = wkbcoordinate(io, zextent, bswap)
-    return Meshes.Point(crs(elem...))
+    return Point(crs(elem...))
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if first(elem) != last(elem)
-      return Meshes.Rope([Meshes.Point(crs(coords...)) for coords in elem]...)
+      return Rope([Point(crs(coords...)) for coords in elem]...)
     else
-      return Meshes.Ring([Meshes.Point(crs(coords...)) for coords in elem[2:end]]...)
+      return Ring([Point(crs(coords...)) for coords in elem[2:end]]...)
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)
     rings = map(elem) do ring
       coords = map(ring) do point
-        Meshes.Point(crs(point...))
+        Point(crs(point...))
       end
-      Meshes.Ring(coords)
+      Ring(coords)
     end
 
     outerring = first(rings)
-    holes = isone(length(rings)) ? rings[2:end] : Meshes.Ring[]
-    return Meshes.PolyArea(outerring, holes...)
+    holes = isone(length(rings)) ? rings[2:end] : Ring[]
+    return PolyArea(outerring, holes...)
   end
 end
 

@@ -2,23 +2,18 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-#############################################
-### https://www.geopackage.org/spec/#r2 #####
-# Requirement 2: contains "GPKG" in ASCII in 
+# According to https://www.geopackage.org/spec/#r2
+# a GeoPackage should contain "GPKG" in ASCII in 
 # "application_id" field of SQLite db header
-# Reminder: We have to set this (on-write) 
-# after there's some content,
-# so the database file is not zero length
-#
-const GP10_APPLICATION_ID = 74777363 #0x47503130
-const GP11_APPLICATION_ID = 119643780 # 0x47503131
-const GPKG_APPLICATION_ID = 1196444487 # 0x47504B47
+
+const GP10_APPLICATION_ID = Int(0x47503130)
+const GP11_APPLICATION_ID = Int(0x47503131)
+const GPKG_APPLICATION_ID = Int(0x47504B47)
 const GPKG_1_2_VERSION = 10200
 const GPKG_1_3_VERSION = 10300
 const GPKG_1_4_VERSION = 10400
 
-# List of well known binary geometry types.
-# These are used within the GeoPackageBinary SQL BLOBs
+# types used within the GeoPackageBinary SQL BLOBs
 @enum wkbGeometryType begin
   wkbUnknown = 0
   wkbPoint = 1

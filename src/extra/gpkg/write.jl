@@ -12,7 +12,6 @@ function gpkgwrite(fname, geotable;)
   # if there is an operating-system crash or power failure.
   # If the power never goes out and no programs ever crash
   # on you system then Synchronous = OFF is for you
-  ####################################################
 
   SQLite.transaction(db) do
     sqlstmt = """
@@ -44,15 +43,13 @@ function gpkgwrite(fname, geotable;)
     DBInterface.execute(sqlstmt)
   end
 
-  ############################################################
-  ### Requirement 11: Spatial Ref Sys Table Records ##########
-  ####### https://www.geopackage.org/spec/#r11 ###############
-  ### ########################################################
+
+  #  According to https://www.geopackage.org/spec/#r11
   # The gpkg_spatial_ref_sys table SHALL contain at a minimum
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
   # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  ############################################################
+  
   tb = [(
     srs_name="Undefined Cartesian SRS",
     srs_id=-1,
@@ -250,14 +247,14 @@ function writewkbgeom(io, geom)
     elseif wkbtype == wkbLineString || wkbtype == wkbLineString || wkbtype == wkbLineString25D
       coordlist = vertices(geom)
       write(io, htol(UInt32(wkbtype)))
-      if geom isa Meshes.Ring
+      if geom isa Ring
         write(io, htol(UInt32(length(coordlist) + 1)))
       else
         write(io, htol(UInt32(length(coordlist))))
       end
 
       _wkblinestring(io, wkbtype, coordlist)
-      if geom isa Meshes.Ring
+      if geom isa Ring
         points = CoordRefSystems.raw(coords(coordlist |> first))
         _wkbcoordinates(io, wkbtype, points)
       end

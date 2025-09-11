@@ -38,7 +38,7 @@ import PlyIO
 # CSV format
 import CSV
 
-# Database Interfaces
+# Database interfaces
 import DBInterface
 import SQLite
 
