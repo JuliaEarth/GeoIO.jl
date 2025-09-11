@@ -74,7 +74,7 @@ function gpkgmeshattrs(db, ; layer=1)
     # keep the shortest set of attributes to avoid KeyError {Key} not found
     fields = length(fields) > length(rp_attrs) ? rp_attrs : fields # smelly hack, eval shortest common subset of fields instead
     sqlstmt = "SELECT $fields from $tn"
-    if isone(nfeatures)
+    if isone(layer)
       rowvalues = DBInterface.execute(db, sqlstmt) |> first
       push!(tb, rowvalues)
     else
