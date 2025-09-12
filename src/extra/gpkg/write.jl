@@ -43,13 +43,12 @@ function gpkgwrite(fname, geotable;)
     DBInterface.execute(sqlstmt)
   end
 
-
   #  According to https://www.geopackage.org/spec/#r11
   # The gpkg_spatial_ref_sys table SHALL contain at a minimum
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
   # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  
+
   tb = [(
     srs_name="Undefined Cartesian SRS",
     srs_id=-1,
@@ -233,37 +232,30 @@ end
 
 function writewkbgeom(io, geom)
   wkbtype = paramdim(geom) < 3 ? _wkbtype(geom) : _wkbsetz(_wkbtype(geom))
-  write(io, one(UInt8))
-  if Int(wkbtype) > 3
-    write(io, htol(UInt32(wkbtype)))
-    write(io, htol(UInt32(length(geom |> parent))))
+  write(io, htol(one(UInt8)))
+  write(io, htol(Int32(wkbtype)))
+  _wkbgeom(io, wkbtype, geom)
+end
 
-    for ft in parent(geom)
-      writewkbgeom(io, ft)
-    end
+function writewkbsf(io, wkbtype, geom)
+  if wkbtype == wkbPolygon || wkbtype == wkbPolygonZ || wkbtype == wkbPolygon25D
+    _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
+  elseif wkbtype == wkbLineString || wkbtype == wkbLineString || wkbtype == wkbLineString25D
+    coordlist = vertices(geom)
+    _wkblinestring(io, wkbtype, coordlist)
+  elseif wkbtype == wkbPoint || wkbtype == wkbPointZ || wkbtype == wkbPoint25D
+    coordinates = CoordRefSystems.raw(coords(geom))
+    _wkbcoordinates(io, wkbtype, coordinates)
   else
-    if wkbtype == wkbPolygon || wkbtype == wkbPolygonZ || wkbtype == wkbPolygon25D
-      _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
-    elseif wkbtype == wkbLineString || wkbtype == wkbLineString || wkbtype == wkbLineString25D
-      coordlist = vertices(geom)
-      write(io, htol(UInt32(wkbtype)))
-      if geom isa Ring
-        write(io, htol(UInt32(length(coordlist) + 1)))
-      else
-        write(io, htol(UInt32(length(coordlist))))
-      end
+    @error "my hovercraft is full of eels: $wkbtype"
+  end
+end
 
-      _wkblinestring(io, wkbtype, coordlist)
-      if geom isa Ring
-        points = CoordRefSystems.raw(coords(coordlist |> first))
-        _wkbcoordinates(io, wkbtype, points)
-      end
-    elseif wkbtype == wkbPoint || wkbtype == wkbPointZ || wkbtype == wkbPoint25D
-      coordinates = CoordRefSystems.raw(coords(geom))
-      _wkbcoordinates(io, wkbtype, coordinates)
-    else
-      @error "my hovercraft is full of eels: $wkbtype"
-    end
+function _wkbgeom(io, wkbtype, geom)
+  if Int(wkbtype) > 3
+    _wkbmulti(io, wkbtype, geom)
+  else
+    writewkbsf(io, wkbtype, geom)
   end
 end
 
@@ -277,6 +269,7 @@ function _wkbcoordinates(io, wkbtype, coords)
 end
 
 function _wkblinestring(io, wkb_type, coord_list)
+  write(io, htol(Int32(length(coord_list))))
   for n_coords::Point in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
     _wkbcoordinates(io, wkb_type, coordinates)
@@ -284,12 +277,18 @@ function _wkblinestring(io, wkb_type, coord_list)
 end
 
 function _wkbpolygon(io, wkb_type, rings)
-  write(io, htol(wkb_type))
-  write(io, htol(length(rings)))
-
+  write(io, htol(Int32(length(rings))))
   for ring in rings
     coord_list = vertices(ring)
-    write(io, htol(UInt32(length(coord_list) + 1)))
     _wkblinestring(io, wkb_type, coord_list)
+  end
+end
+
+function _wkbmulti(io, wkbtype, geoms)
+  write(io, htol(Int32(length(geoms |> parent))))
+  for sf in geoms |> parent
+    write(io, one(UInt8))
+    write(io, Int32(Int(wkbMultiPolygon) - 3))
+    writewkbsf(io, wkbGeometryType(Int(wkbtype) - 3), sf)
   end
 end

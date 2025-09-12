@@ -2,42 +2,28 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-# query SQLite.Table given *.gpkg filename; optionally specify quantity of tables and features query
-# default behavior for select statement is limit result to 1 feature geometry row and corresponding attributes row
-# limited to only 1 feature table to select geopackage binary geometry from.
 function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
-  gpkgid(db)
+  assertgpkg(db)
   geom = gpkgmesh(db, ; layer)
   attrs = gpkgmeshattrs(db, ; layer)
   GeoTables.georef(attrs, geom)
 end
 
-function gpkgid(db)::Bool
+function assertgpkg(db)
   appid = DBInterface.execute(db, "PRAGMA application_id;") |> first |> only
   userversion = DBInterface.execute(db, "PRAGMA user_version;") |> first |> only
 
-  if !(hasgpkgmetadata(db))
-    @error "missing required metadata tables"
+  if !hasgpkgmetadata(db)
+    throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
 
   # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
   # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if (appid != GP10_APPLICATION_ID) && (appid != GP11_APPLICATION_ID) && (appid != GPKG_APPLICATION_ID)
-    @warn "application_id not recognized"
-    return false
-  elseif (appid == GPKG_APPLICATION_ID) && !(
-    (userversion >= GPKG_1_2_VERSION && userversion < GPKG_1_2_VERSION + 99) ||
-    (userversion >= GPKG_1_3_VERSION && userversion < GPKG_1_3_VERSION + 99) ||
-    (userversion >= GPKG_1_4_VERSION && userversion < GPKG_1_4_VERSION + 99)
-  )
-    @warn "application_id is valid but user version is not recognized"
-  elseif (DBInterface.execute(db, "PRAGMA integrity_check;") |> first |> only != "ok") ||
-         !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
-    @error "database integrity at risk or foreign key violation(s)"
-    return false
+  if (DBInterface.execute(db, "PRAGMA integrity_check;") |> first |> only != "ok") ||
+     !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
+    throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
-  return true
 end
 
 # Requirement 10: must include a gpkg_spatial_ref_sys table
@@ -48,7 +34,7 @@ function hasgpkgmetadata(db)
     "name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND " *
     "type IN ('table', 'view');"
   tbcount = DBInterface.execute(db, sqlstmt) |> first |> only
-  return (tbcount == 2)
+  (tbcount == 2)
 end
 
 function gpkgmeshattrs(db, ; layer=1)
@@ -118,7 +104,6 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-
 function gpkgmesh(db, ; layer=1)
   sqlstmt = """
               SELECT g.table_name AS tn, g.column_name AS cn, c.srs_id as crs, g.z as elev, srs.organization as org, srs.organization_coordsys_id as org_coordsys_id,
@@ -207,7 +192,7 @@ function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
   end
 
   if occursin("Multi", string(ewkbtype))
-    elems::Vector = wkbmultigeometry(io, crs, zextent, bswap)
+    elems = wkbmultigeometry(io, crs, zextent, bswap)
     return Multi(elems)
   else
     elem = meshfromsf(io, crs, ewkbtype, zextent, bswap)
@@ -218,7 +203,6 @@ end
 # Requirement 20: GeoPackage SHALL store feature table geometries
 #  with the basic simple feature geometry types
 # https://www.geopackage.org/spec140/index.html#geometry_types
-
 function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   if isequal(ewkbtype, wkbPoint)
     elem = wkbcoordinate(io, zextent, bswap)
