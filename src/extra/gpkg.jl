@@ -5,7 +5,6 @@
 # According to https://www.geopackage.org/spec/#r2
 # a GeoPackage should contain "GPKG" in ASCII in 
 # "application_id" field of SQLite db header
-
 const GP10_APPLICATION_ID = Int(0x47503130)
 const GP11_APPLICATION_ID = Int(0x47503131)
 const GPKG_APPLICATION_ID = Int(0x47504B47)
