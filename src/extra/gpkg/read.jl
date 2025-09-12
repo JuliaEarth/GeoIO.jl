@@ -29,25 +29,27 @@ end
 # Requirement 10: must include a gpkg_spatial_ref_sys table
 # Requirement 13: must include a gpkg_contents table
 function hasgpkgmetadata(db)
-  sqlstmt =
-    "SELECT COUNT(*) FROM sqlite_master WHERE " *
-    "name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND " *
-    "type IN ('table', 'view');"
+  sqlstmt ="""
+      SELECT COUNT(*) FROM sqlite_master WHERE 
+      name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
+      type IN ('table', 'view');
+    """
   tbcount = DBInterface.execute(db, sqlstmt) |> first |> only
   (tbcount == 2)
 end
 
 function gpkgmeshattrs(db, ; layer=1)
-  sqlstmt =
-    "SELECT c.table_name, c.identifier, " *
-    "g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, " *
-    "c.max_x, c.max_y, " *
-    "(SELECT type FROM sqlite_master WHERE lower(name) = " *
-    "lower(c.table_name) AND type IN ('table', 'view')) AS object_type " *
-    "  FROM gpkg_geometry_columns g " *
-    "  JOIN gpkg_contents c ON (g.table_name = c.table_name)" *
-    "  WHERE " *
-    "  c.data_type = 'features' LIMIT $layer"
+  sqlstmt = """
+    SELECT c.table_name, c.identifier, 
+    g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, 
+    c.max_x, c.max_y, 
+    (SELECT type FROM sqlite_master WHERE lower(name) = 
+    lower(c.table_name) AND type IN ('table', 'view')) AS object_type 
+      FROM gpkg_geometry_columns g 
+      JOIN gpkg_contents c ON (g.table_name = c.table_name)
+      WHERE 
+      c.data_type = 'features' LIMIT $layer
+    """
   feature_tables = DBInterface.execute(db, sqlstmt)
   tb = []
   fields = "fid,"^10^5
@@ -69,7 +71,7 @@ function gpkgmeshattrs(db, ; layer=1)
       end
     end
   end
-  return tb
+  tb
 end
 
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
@@ -173,7 +175,7 @@ function gpkgmesh(db, ; layer=1)
       end
     end
   end
-  return meshes
+  meshes
 end
 
 function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
@@ -193,10 +195,10 @@ function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
 
   if occursin("Multi", string(ewkbtype))
     elems = wkbmultigeometry(io, crs, zextent, bswap)
-    return Multi(elems)
+    Multi(elems)
   else
     elem = meshfromsf(io, crs, ewkbtype, zextent, bswap)
-    return elem
+    elem
   end
 end
 
@@ -206,13 +208,13 @@ end
 function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   if isequal(ewkbtype, wkbPoint)
     elem = wkbcoordinate(io, zextent, bswap)
-    return Point(crs(elem...))
+    Point(crs(elem...))
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if first(elem) != last(elem)
-      return Rope([Point(crs(coords...)) for coords in elem]...)
+      Rope([Point(crs(coords...)) for coords in elem]...)
     else
-      return Ring([Point(crs(coords...)) for coords in elem[2:end]]...)
+      Ring([Point(crs(coords...)) for coords in elem[2:end]]...)
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)
@@ -225,7 +227,7 @@ function meshfromsf(io, crs, ewkbtype, zextent, bswap)
 
     outerring = first(rings)
     holes = isone(length(rings)) ? rings[2:end] : Ring[]
-    return PolyArea(outerring, holes...)
+    PolyArea(outerring, holes...)
   end
 end
 
@@ -238,7 +240,7 @@ function wkbcoordinate(io, z, bswap)
     return x, y, z
   end
 
-  return x, y
+  x, y
 end
 
 function wkblinestring(io, z, bswap)
@@ -247,7 +249,7 @@ function wkblinestring(io, z, bswap)
   points = map(1:npoints) do _
     wkbcoordinate(io, z, bswap)
   end
-  return points
+  points
 end
 
 function wkbpolygon(io, z, bswap)
@@ -256,7 +258,7 @@ function wkbpolygon(io, z, bswap)
   rings = map(1:nrings) do _
     wkblinestring(io, z, bswap)
   end
-  return rings
+  rings
 end
 
 function wkbmultigeometry(io, crs, z, bswap)
@@ -267,5 +269,5 @@ function wkbmultigeometry(io, crs, z, bswap)
     ewkbtype = wkbGeometryType(read(io, UInt32))
     meshfromsf(io, crs, ewkbtype, z, bswap)
   end
-  return geomcollection
+  geomcollection
 end
