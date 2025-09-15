@@ -1,5 +1,4 @@
 
-
 @enum wkbGeometryType begin
   wkbUnknown = 0
   wkbPoint = 1

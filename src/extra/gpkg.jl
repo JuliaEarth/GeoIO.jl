@@ -8,5 +8,6 @@
 const GPKG_APPLICATION_ID = Int(0x47504B47)
 const GPKG_1_4_VERSION = 10400
 
+include("wkb.jl")
 include("gpkg/read.jl")
 include("gpkg/write.jl")
