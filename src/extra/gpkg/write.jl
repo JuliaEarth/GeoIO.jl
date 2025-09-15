@@ -14,33 +14,33 @@ function gpkgwrite(fname, geotable;)
   # on you system then Synchronous = OFF is for you
 
   SQLite.transaction(db) do
-    sqlstmt = """
-   CREATE TABLE gpkg_spatial_ref_sys (
-           srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
-           organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
-           definition  TEXT NOT NULL, description TEXT,
-           definition_12_063 TEXT NOT NULL
-   );
+    DBInterface.execute(
+      db,
+      """
+CREATE TABLE gpkg_spatial_ref_sys (
+        srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
+        organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
+        definition  TEXT NOT NULL, description TEXT,
+        definition_12_063 TEXT NOT NULL
+);
 
-   CREATE TABLE gpkg_contents (
-           table_name TEXT NOT NULL PRIMARY KEY,
-           data_type TEXT NOT NULL,
-           identifier TEXT UNIQUE,
-           description TEXT DEFAULT '',
-           last_change DATETIME NOT NULL DEFAULT
-           (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-           min_x DOUBLE, min_y DOUBLE,
-           max_x DOUBLE, max_y DOUBLE,
-           srs_id INTEGER,
-           CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
-           gpkg_spatial_ref_sys(srs_id)
-   );
-   """
-    DBInterface.execute(db, sqlstmt)
-    sqlstmt = SQLite.Stmt(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
-    DBInterface.execute(sqlstmt)
-    sqlstmt = SQLite.Stmt(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
-    DBInterface.execute(sqlstmt)
+CREATE TABLE gpkg_contents (
+        table_name TEXT NOT NULL PRIMARY KEY,
+        data_type TEXT NOT NULL,
+        identifier TEXT UNIQUE,
+        description TEXT DEFAULT '',
+        last_change DATETIME NOT NULL DEFAULT
+        (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        min_x DOUBLE, min_y DOUBLE,
+        max_x DOUBLE, max_y DOUBLE,
+        srs_id INTEGER,
+        CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
+        gpkg_spatial_ref_sys(srs_id)
+);
+"""
+    )
+    DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
+    DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
   end
 
   #  According to https://www.geopackage.org/spec/#r11
@@ -48,7 +48,6 @@ function gpkgwrite(fname, geotable;)
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
   # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-
   tb = [(
     srs_name="Undefined Cartesian SRS",
     srs_id=-1,
@@ -79,6 +78,7 @@ function gpkgwrite(fname, geotable;)
     definition_12_063=CoordRefSystems.wkt2(EPSG{4326})
   )]
   SQLite.load!(tb, db, "gpkg_spatial_ref_sys", replace=true)
+
   table = values(geotable)
   domain = GeoTables.domain(geotable)
   crs = GeoTables.crs(domain)

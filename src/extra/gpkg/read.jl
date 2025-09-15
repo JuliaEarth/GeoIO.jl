@@ -11,16 +11,13 @@ function gpkgread(fname; layer=1)
 end
 
 function assertgpkg(db)
-  appid = DBInterface.execute(db, "PRAGMA application_id;") |> first |> only
-  userversion = DBInterface.execute(db, "PRAGMA user_version;") |> first |> only
-
   if !hasgpkgmetadata(db)
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
 
   # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
   # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if (DBInterface.execute(db, "PRAGMA integrity_check;") |> first |> only != "ok") ||
+  if ((DBInterface.execute(db, "PRAGMA integrity_check;") |> first).integrity_check != "ok") ||
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
@@ -29,28 +26,32 @@ end
 # Requirement 10: must include a gpkg_spatial_ref_sys table
 # Requirement 13: must include a gpkg_contents table
 function hasgpkgmetadata(db)
-  sqlstmt ="""
-      SELECT COUNT(*) FROM sqlite_master WHERE 
-      name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
-      type IN ('table', 'view');
+  tbcount = DBInterface.execute(
+    db,
     """
-  tbcount = DBInterface.execute(db, sqlstmt) |> first |> only
-  (tbcount == 2)
+  SELECT COUNT(*) FROM sqlite_master WHERE 
+  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
+  type IN ('table', 'view');
+"""
+  ) |> first |> only
+  tbcount == 2
 end
 
 function gpkgmeshattrs(db, ; layer=1)
-  sqlstmt = """
-    SELECT c.table_name, c.identifier, 
-    g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, 
-    c.max_x, c.max_y, 
-    (SELECT type FROM sqlite_master WHERE lower(name) = 
-    lower(c.table_name) AND type IN ('table', 'view')) AS object_type 
-      FROM gpkg_geometry_columns g 
-      JOIN gpkg_contents c ON (g.table_name = c.table_name)
-      WHERE 
-      c.data_type = 'features' LIMIT $layer
+  feature_tables = DBInterface.execute(
+    db,
     """
-  feature_tables = DBInterface.execute(db, sqlstmt)
+SELECT c.table_name, c.identifier, 
+g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, 
+c.max_x, c.max_y, 
+(SELECT type FROM sqlite_master WHERE lower(name) = 
+lower(c.table_name) AND type IN ('table', 'view')) AS object_type 
+  FROM gpkg_geometry_columns g 
+  JOIN gpkg_contents c ON (g.table_name = c.table_name)
+  WHERE 
+  c.data_type = 'features' LIMIT $layer
+"""
+  )
   tb = []
   fields = "fid,"^10^5
   for query in feature_tables
@@ -107,26 +108,26 @@ end
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
 function gpkgmesh(db, ; layer=1)
-  sqlstmt = """
-              SELECT g.table_name AS tn, g.column_name AS cn, c.srs_id as crs, g.z as elev, srs.organization as org, srs.organization_coordsys_id as org_coordsys_id,
-              ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
-              FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
-              JOIN gpkg_contents c ON ( g.table_name = c.table_name )
-              WHERE c.data_type = 'features'
-              AND (SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) IS NOT NULL
-              AND g.srs_id = srs.srs_id
-              AND g.srs_id = c.srs_id
-              AND g.z IN (0, 1, 2)
-              AND g.m IN (0, 1, 2)
-               LIMIT $layer;
-               """
-  tb = DBInterface.execute(db, sqlstmt)
-  meshes = Geometry[]
-  for (tn, cn, org, org_coordsys_id) in [(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]
-    sqlstmt = "SELECT $cn FROM $tn;"
-    gpkgbinary = DBInterface.execute(db, sqlstmt)
+  tb = DBInterface.execute(
+    db,
+    """
+SELECT g.table_name AS tn, g.column_name AS cn, c.srs_id as crs, g.z as elev, srs.organization as org, srs.organization_coordsys_id as org_coordsys_id,
+( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
+FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+WHERE c.data_type = 'features'
+AND (SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) IS NOT NULL
+AND g.srs_id = srs.srs_id
+AND g.srs_id = c.srs_id
+AND g.z IN (0, 1, 2)
+AND g.m IN (0, 1, 2)
+ LIMIT $layer;
+ """
+  )
+  meshes = map([(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]) do (tn, cn, org, org_coordsys_id)
+    gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
-    for blob in gpkgbinary
+    submeshes = map(gpkgbinary) do blob
       io = IOBuffer(blob[1])
       seek(io, 3)
       flag = read(io, UInt8)
@@ -171,26 +172,25 @@ function gpkgmesh(db, ; layer=1)
       mesh = meshfromwkb(io, srs_id, org, org_coordsys_id, wkbtype, zextent, bswap)
 
       if !isnothing(mesh)
-        push!(meshes, mesh)
+        mesh
       end
     end
+    submeshes
   end
-  meshes
+  reduce(vcat, meshes)
 end
 
 function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
   if iszero(srs_id)
     crs = LatLon{WGS84Latest}
-  elseif isone(abs(srs_id))
-    crs = zextent ? Cartesian{NoDatum,3} : Cartesian{NoDatum,2}
-  else
+  elseif !isone(abs(srs_id))
     if org == "EPSG"
       crs = CoordRefSystems.get(EPSG{org_coordsys_id})
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{org_coordsys_id})
-    else
-      Cartesian{NoDatum}
     end
+  else
+    crs = Cartesian{NoDatum}
   end
 
   if occursin("Multi", string(ewkbtype))
