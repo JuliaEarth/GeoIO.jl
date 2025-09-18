@@ -9,7 +9,7 @@ function gpkgwrite(fname, geotable;)
   # Commits can be orders of magnitude faster with
   # Setting PRAGMA synchronous=OFF but,
   # can cause the database to go corrupt
-  # if there is an operating-system crash or power failure.
+  # if there is an operating system crash or power failure.
   # If the power never goes out and no programs ever crash
   # on you system then Synchronous = OFF is for you
 
@@ -36,6 +36,19 @@ CREATE TABLE gpkg_contents (
         srs_id INTEGER,
         CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
         gpkg_spatial_ref_sys(srs_id)
+);
+
+CREATE TABLE gpkg_geometry_columns (
+      table_name TEXT NOT NULL,
+      column_name TEXT NOT NULL,
+      geometry_type_name TEXT NOT NULL,
+      srs_id INTEGER NOT NULL,
+      z TINYINT NOT NULL,
+      m TINYINT NOT NULL,
+      CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+      CONSTRAINT uk_gc_table_name UNIQUE (table_name),
+      CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+      CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
 );
 """
     )
@@ -106,9 +119,11 @@ function _extracttablevals(db, table, domain, crs, geom)
     vcat(gpkgbinheader, take!(io))
   end
 
+  geomtype = _geomtype(geom)
+  GeomType = _sqlitetype(geomtype)
+
   table =
-    isone(length(table)) ? [(NamedTuple(table |> first)..., geom=gpkgbinary[1])] :
-    [(; t..., geom=g) for (t, g) in zip(table, gpkgbinary)]
+    isnothing(table) ? Symbol[] : [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
 
   SQLite.load!(table, db, replace=false) # autogenerates table name
   # replace=false controls whether an INSERT INTO ... statement is generated or a REPLACE INTO ....
@@ -116,7 +131,7 @@ function _extracttablevals(db, table, domain, crs, geom)
     (
       DBInterface.execute(
         db,
-        """ SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ("gpkg_contents", "gpkg_spatial_ref_sys") """
+        """ SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ("gpkg_contents", "gpkg_spatial_ref_sys", "gpkg_geometry_columns") """
       ) |> first
     ).name
 
@@ -128,7 +143,7 @@ function _extracttablevals(db, table, domain, crs, geom)
     data_type="features",
     identifier=tn,
     description="",
-    last_change=Dates.format(now(UTC), "yyyy-mm-ddTHH:MM:SSZ"),
+    last_change=Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
     min_x=mincoords[1],
     min_y=mincoords[2],
     max_x=maxcoords[1],
@@ -151,39 +166,12 @@ function _extracttablevals(db, table, domain, crs, geom)
   geomcolumns = [(
     table_name=tn,
     column_name="geom",
-    geometry_type_name=_geomtype(geom),
+    geometry_type_name=geomtype,
     srs_id=srid,
-    z=paramdim((geom |> first)) >= 2 ? 1 : 0,
+    z=paramdim((geom |> first)) > 2 ? 1 : 0,
     m=0
   )]
   SQLite.load!(geomcolumns, db, "gpkg_geometry_columns", replace=true)
-end
-
-function _geomtype(geoms::AbstractVector{<:Geometry})
-  if isempty(geoms)
-    return "GEOMETRY"
-  end
-  T = eltype(geoms)
-
-  if T <: Point
-    return "POINT"
-  elseif T <: Rope
-    return "LINESTRING"
-  elseif T <: Ring
-    return "LINESTRING"
-  elseif T <: PolyArea
-    return "POLYGON"
-  elseif T <: Multi
-    element_type = eltype(parent(first(geoms)))
-    if element_type <: Point
-      return "MULTIPOINT"
-    elseif element_type <: Rope
-      return "MULTILINESTRING"
-    elseif element_type <: PolyArea
-      return "MULTIPOLYGON"
-    end
-  end
-  return "GEOMETRY"
 end
 
 function _wkbtype(geometry)
@@ -214,7 +202,7 @@ function writegpkgheader(srs_id, geom)
   flagsbyte = UInt8(0x07 >> 1)
   write(io, flagsbyte)
 
-  write(io, htol(Int32(srs_id)))
+  write(io, htol(UInt32(srs_id)))
 
   bbox = boundingbox(geom)
   write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
@@ -233,7 +221,7 @@ end
 function writewkbgeom(io, geom)
   wkbtype = paramdim(geom) < 3 ? _wkbtype(geom) : _wkbsetz(_wkbtype(geom))
   write(io, htol(one(UInt8)))
-  write(io, htol(Int32(wkbtype)))
+  write(io, htol(UInt32(wkbtype)))
   _wkbgeom(io, wkbtype, geom)
 end
 
@@ -269,7 +257,7 @@ function _wkbcoordinates(io, wkbtype, coords)
 end
 
 function _wkblinestring(io, wkb_type, coord_list)
-  write(io, htol(Int32(length(coord_list))))
+  write(io, htol(UInt32(length(coord_list))))
   for n_coords::Point in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
     _wkbcoordinates(io, wkb_type, coordinates)
@@ -277,7 +265,7 @@ function _wkblinestring(io, wkb_type, coord_list)
 end
 
 function _wkbpolygon(io, wkb_type, rings)
-  write(io, htol(Int32(length(rings))))
+  write(io, htol(UInt32(length(rings))))
   for ring in rings
     coord_list = vertices(ring)
     _wkblinestring(io, wkb_type, coord_list)
@@ -285,10 +273,10 @@ function _wkbpolygon(io, wkb_type, rings)
 end
 
 function _wkbmulti(io, wkbtype, geoms)
-  write(io, htol(Int32(length(geoms |> parent))))
+  write(io, htol(UInt32(length(geoms |> parent))))
   for sf in geoms |> parent
     write(io, one(UInt8))
-    write(io, Int32(Int(wkbMultiPolygon) - 3))
+    write(io, UInt32(Int(wkbMultiPolygon) - 3))
     writewkbsf(io, wkbGeometryType(Int(wkbtype) - 3), sf)
   end
 end

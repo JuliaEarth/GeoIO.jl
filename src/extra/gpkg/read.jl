@@ -52,27 +52,26 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
   c.data_type = 'features' LIMIT $layer
 """
   )
-  tb = []
-  fields = "fid,"^10^5
-  for query in feature_tables
+  fields = nothing
+  tb = map(feature_tables) do query
     tn = query.table_name
     cn = query.column_name
     ft_attrs = SQLite.tableinfo(db, tn).name
     deleteat!(ft_attrs, findall(x -> isequal(x, cn), ft_attrs))
     rp_attrs = join(ft_attrs, ", ")
     # keep the shortest set of attributes to avoid KeyError {Key} not found
-    fields = length(fields) > length(rp_attrs) ? rp_attrs : fields # smelly hack, eval shortest common subset of fields instead
-    sqlstmt = "SELECT $fields from $tn"
-    if isone(layer)
-      rowvalues = DBInterface.execute(db, sqlstmt) |> first
-      push!(tb, rowvalues)
-    else
-      for rv in DBInterface.execute(db, sqlstmt)
-        push!(tb, NamedTuple(rv))
-      end
+    if isnothing(fields) || length(rp_attrs) < length(fields)
+      fields = rp_attrs
     end
+    rowvals = map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+      NamedTuple(rv)
+    end
+    rowvals
   end
-  tb
+  if isone(length(first(tb)))
+    return tb
+  end
+  vcat(tb...)
 end
 
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
@@ -128,14 +127,15 @@ AND g.m IN (0, 1, 2)
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
     submeshes = map(gpkgbinary) do blob
-      io = IOBuffer(blob[1])
+      gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
+      io = IOBuffer(gpkgbindata)
       seek(io, 3)
       flag = read(io, UInt8)
       # Note that Julia does not convert the endianness for you.
       # Use ntoh or ltoh for this purpose.
       bswap = isone(flag & 0x01) ? ltoh : ntoh
 
-      srs_id = bswap(read(io, UInt32))
+      srsid = bswap(read(io, UInt32))
 
       envelope = (flag & (0x07 << 1)) >> 1
       envelopedims = 0
@@ -169,7 +169,7 @@ AND g.m IN (0, 1, 2)
 
       zextent = isequal(envelopedims, 2)
 
-      mesh = meshfromwkb(io, srs_id, org, org_coordsys_id, wkbtype, zextent, bswap)
+      mesh = meshfromwkb(io, srsid, org, org_coordsys_id, wkbtype, zextent, bswap)
 
       if !isnothing(mesh)
         mesh
@@ -177,13 +177,14 @@ AND g.m IN (0, 1, 2)
     end
     submeshes
   end
-  reduce(vcat, meshes)
+  # efficient method for concatenating arrays of arrays 
+  reduce(vcat, meshes) # Future versions of Julia might change the reduce algorithm
 end
 
-function meshfromwkb(io, srs_id, org, org_coordsys_id, ewkbtype, zextent, bswap)
-  if iszero(srs_id)
+function meshfromwkb(io, srsid, org, org_coordsys_id, ewkbtype, zextent, bswap)
+  if iszero(srsid)
     crs = LatLon{WGS84Latest}
-  elseif !isone(abs(srs_id))
+  elseif !isone(abs(srsid))
     if org == "EPSG"
       crs = CoordRefSystems.get(EPSG{org_coordsys_id})
     elseif org == "ESRI"

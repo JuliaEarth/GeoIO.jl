@@ -1,5 +1,5 @@
 
-@enum wkbGeometryType begin
+@enum wkbGeometryType::UInt32 begin
   wkbUnknown = 0
   wkbPoint = 1
   wkbLineString = 2
@@ -79,4 +79,42 @@
   wkbMultiLineString25D = 0x80000005
   wkbMultiPolygon25D = 0x80000006
   wkbGeometryCollection25D = 0x80000007
+end
+
+abstract type WKBGeometry end
+
+struct WKBPoint <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBLineString <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBPolygon <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBMultiPoint <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBMultiLineString <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBMultiPolygon <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+struct WKBGeometryCollection <: WKBGeometry
+  data::Vector{UInt8}
+end
+
+function Base.getproperty(gpkg::WKBGeometry, sym::Symbol)
+  if sym == :data
+    return getfield(gpkg, :data)
+  else
+    return getfield(gpkg, sym)
+  end
 end
