@@ -123,8 +123,8 @@ function _extracttablevals(db, table, domain, crs, geom)
   GeomType = _sqlitetype(geomtype)
 
   table =
-    isnothing(table) ? Symbol[] : [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
-
+    isnothing(table) ? [(; geom=GeomType(g),) for (i, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+    [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
   SQLite.load!(table, db, replace=false) # autogenerates table name
   # replace=false controls whether an INSERT INTO ... statement is generated or a REPLACE INTO ....
   tn =
@@ -230,6 +230,9 @@ function writewkbsf(io, wkbtype, geom)
     _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
   elseif wkbtype == wkbLineString || wkbtype == wkbLineString || wkbtype == wkbLineString25D
     coordlist = vertices(geom)
+    if typeof(geom) <: Ring
+      return _wkblinearring(io, wkbtype, coordlist)
+    end
     _wkblinestring(io, wkbtype, coordlist)
   elseif wkbtype == wkbPoint || wkbtype == wkbPointZ || wkbtype == wkbPoint25D
     coordinates = CoordRefSystems.raw(coords(geom))
@@ -262,6 +265,15 @@ function _wkblinestring(io, wkb_type, coord_list)
     coordinates = CoordRefSystems.raw(coords(n_coords))
     _wkbcoordinates(io, wkb_type, coordinates)
   end
+end
+
+function _wkblinearring(io, wkb_type, coord_list)
+  write(io, htol(UInt32(length(coord_list) + 1)))
+  for n_coords::Point in coord_list
+    coordinates = CoordRefSystems.raw(coords(n_coords))
+    _wkbcoordinates(io, wkb_type, coordinates)
+  end
+  _wkbcoordinates(io, wkb_type, CoordRefSystems.raw(first(coord_list) |> coords))
 end
 
 function _wkbpolygon(io, wkb_type, rings)

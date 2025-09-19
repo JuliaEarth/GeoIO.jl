@@ -7,6 +7,9 @@ function gpkgread(fname; layer=1)
   assertgpkg(db)
   geom = gpkgmesh(db, ; layer)
   attrs = gpkgmeshattrs(db, ; layer)
+  if eltype(attrs) <: Nothing
+    return GeoTables.georef(nothing, geom)
+  end
   GeoTables.georef(attrs, geom)
 end
 
@@ -63,13 +66,10 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     if isnothing(fields) || length(rp_attrs) < length(fields)
       fields = rp_attrs
     end
-    rowvals = map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+    rowvals = length(fields) |> iszero ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
       NamedTuple(rv)
     end
     rowvals
-  end
-  if isone(length(first(tb)))
-    return tb
   end
   vcat(tb...)
 end
@@ -212,10 +212,10 @@ function meshfromsf(io, crs, ewkbtype, zextent, bswap)
     Point(crs(elem...))
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
-    if first(elem) != last(elem)
+    if length(elem) >= 2 && first(elem) != last(elem)
       Rope([Point(crs(coords...)) for coords in elem]...)
     else
-      Ring([Point(crs(coords...)) for coords in elem[2:end]]...)
+      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)
