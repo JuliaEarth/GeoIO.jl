@@ -126,7 +126,11 @@ AND g.m IN (0, 1, 2)
   meshes = map([(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]) do (tn, cn, org, org_coordsys_id)
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
-    submeshes = map(gpkgbinary) do blob
+    named_rows = map(NamedTuple, gpkgbinary)
+    gpkgblobs = filter(named_rows) do row
+        !ismissing(getfield(row, Symbol(cn)))
+    end
+    submeshes = map(gpkgblobs) do blob
       gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
       io = IOBuffer(gpkgbindata)
       seek(io, 3)
