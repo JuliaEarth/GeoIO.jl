@@ -123,12 +123,12 @@ AND g.m IN (0, 1, 2)
  LIMIT $layer;
  """
   )
-  meshes = map([(row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb]) do (tn, cn, org, org_coordsys_id)
+  meshes = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, org_coordsys_id)
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
     named_rows = map(NamedTuple, gpkgbinary)
     gpkgblobs = filter(named_rows) do row
-        !ismissing(getfield(row, Symbol(cn)))
+      !ismissing(getfield(row, Symbol(cn)))
     end
     submeshes = map(gpkgblobs) do blob
       gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
@@ -217,9 +217,9 @@ function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if length(elem) >= 2 && first(elem) != last(elem)
-      Rope([Point(crs(coords...)) for coords in elem]...)
+      splat(Rope)(Point(crs(coords...)) for coords in elem)
     else
-      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
+      splat(Ring)(Point(crs(coords...)) for coords in elem[1:(end - 1)])
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)

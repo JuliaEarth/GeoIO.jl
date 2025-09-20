@@ -261,7 +261,7 @@ end
 
 function _wkblinestring(io, wkb_type, coord_list)
   write(io, htol(UInt32(length(coord_list))))
-  for n_coords::Point in coord_list
+  for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
     _wkbcoordinates(io, wkb_type, coordinates)
   end
@@ -269,7 +269,7 @@ end
 
 function _wkblinearring(io, wkb_type, coord_list)
   write(io, htol(UInt32(length(coord_list) + 1)))
-  for n_coords::Point in coord_list
+  for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
     _wkbcoordinates(io, wkb_type, coordinates)
   end
