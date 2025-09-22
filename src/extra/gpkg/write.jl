@@ -61,36 +61,20 @@ CREATE TABLE gpkg_geometry_columns (
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
   # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  tb = [(
-    srs_name="Undefined Cartesian SRS",
-    srs_id=-1,
-    organization="NONE",
-    organization_coordsys_id=-1,
-    definition="undefined",
-    description="undefined geographic coordinate reference system",
-    definition_12_063="undefined"
-  )]
-  SQLite.load!(tb, db, "gpkg_spatial_ref_sys", replace=true)
-  tb = [(
-    srs_name="Undefined geographic SRS",
-    srs_id=0,
-    organization="NONE",
-    organization_coordsys_id=0,
-    definition="undefined",
-    description="undefined geographic coordinate reference system",
-    definition_12_063="undefined"
-  )]
-  SQLite.load!(tb, db, "gpkg_spatial_ref_sys", replace=true)
-  tb = [(
-    srs_name="WGS 84 geodectic",
-    srs_id=4326,
-    organization="EPSG",
-    organization_coordsys_id=4326,
-    definition=CoordRefSystems.wkt2(EPSG{4326}),
-    description="longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid",
-    definition_12_063=CoordRefSystems.wkt2(EPSG{4326})
-  )]
-  SQLite.load!(tb, db, "gpkg_spatial_ref_sys", replace=true)
+  stmt = SQLite.Stmt(
+    db,
+    """
+    INSERT INTO gpkg_spatial_ref_sys 
+    (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
+    VALUES 
+    ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+    ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+    ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
+    """
+  )
+  SQLite.transaction(db) do # execute do x closure
+    DBInterface.execute(stmt)
+  end # then "commit" the transaction after executing
 
   table = values(geotable)
   domain = GeoTables.domain(geotable)
@@ -98,6 +82,8 @@ CREATE TABLE gpkg_geometry_columns (
   geom = collect(domain)
 
   _extracttablevals(db, table, domain, crs, geom)
+
+  DBInterface.close!(db)
 end
 
 function _extracttablevals(db, table, domain, crs, geom)
@@ -202,7 +188,7 @@ function writegpkgheader(srs_id, geom)
   flagsbyte = UInt8(0x07 >> 1)
   write(io, flagsbyte)
 
-  write(io, htol(UInt32(srs_id)))
+  write(io, htol(Int32(srs_id)))
 
   bbox = boundingbox(geom)
   write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
@@ -226,19 +212,19 @@ function writewkbgeom(io, geom)
 end
 
 function writewkbsf(io, wkbtype, geom)
-  if wkbtype == wkbPolygon || wkbtype == wkbPolygonZ || wkbtype == wkbPolygon25D
+  if wkbtype == wkbPolygon || wkbtype == wkbPolygonZ
     _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
-  elseif wkbtype == wkbLineString || wkbtype == wkbLineString || wkbtype == wkbLineString25D
+  elseif wkbtype == wkbLineString || wkbtype == wkbLineString
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
       return _wkblinearring(io, wkbtype, coordlist)
     end
     _wkblinestring(io, wkbtype, coordlist)
-  elseif wkbtype == wkbPoint || wkbtype == wkbPointZ || wkbtype == wkbPoint25D
+  elseif wkbtype == wkbPoint || wkbtype == wkbPointZ
     coordinates = CoordRefSystems.raw(coords(geom))
     _wkbcoordinates(io, wkbtype, coordinates)
   else
-    @error "my hovercraft is full of eels: $wkbtype"
+    throw(ErrorException("Well-Known Binary Geometry not supported: $wkbtype"))
   end
 end
 

@@ -7,6 +7,7 @@ function gpkgread(fname; layer=1)
   assertgpkg(db)
   geom = gpkgmesh(db, ; layer)
   attrs = gpkgmeshattrs(db, ; layer)
+  DBInterface.close!(db)
   if eltype(attrs) <: Nothing
     return GeoTables.georef(nothing, geom)
   end
@@ -128,7 +129,7 @@ AND g.m IN (0, 1, 2)
     headerlen = 0
     named_rows = map(NamedTuple, gpkgbinary)
     gpkgblobs = filter(named_rows) do row
-      !ismissing(getfield(row, Symbol(cn)))
+      !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
     end
     submeshes = map(gpkgblobs) do blob
       gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
@@ -139,7 +140,7 @@ AND g.m IN (0, 1, 2)
       # Use ntoh or ltoh for this purpose.
       bswap = isone(flag & 0x01) ? ltoh : ntoh
 
-      srsid = bswap(read(io, UInt32))
+      srsid = bswap(read(io, Int32))
 
       envelope = (flag & (0x07 << 1)) >> 1
       envelopedims = 0
@@ -217,9 +218,9 @@ function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if length(elem) >= 2 && first(elem) != last(elem)
-      splat(Rope)(Point(crs(coords...)) for coords in elem)
+      Rope([Point(coords...) for coords in elem])
     else
-      splat(Ring)(Point(crs(coords...)) for coords in elem[1:(end - 1)])
+      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]])
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)
