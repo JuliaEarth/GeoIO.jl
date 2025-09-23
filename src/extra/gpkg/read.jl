@@ -218,9 +218,9 @@ function meshfromsf(io, crs, ewkbtype, zextent, bswap)
   elseif isequal(ewkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if length(elem) >= 2 && first(elem) != last(elem)
-      Rope([Point(coords...) for coords in elem])
+      Rope([Point(crs(coords...)) for coords in elem]...)
     else
-      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]])
+      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
     end
   elseif isequal(ewkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)

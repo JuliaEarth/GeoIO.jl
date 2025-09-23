@@ -61,19 +61,20 @@ CREATE TABLE gpkg_geometry_columns (
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
   # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  stmt = SQLite.Stmt(
-    db,
-    """
-    INSERT INTO gpkg_spatial_ref_sys 
-    (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
-    VALUES 
-    ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-    ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-    ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
-    """
-  )
   SQLite.transaction(db) do # execute do x closure
-    DBInterface.execute(stmt)
+    DBInterface.execute(
+      SQLite.Stmt(
+        db,
+        """
+        INSERT INTO gpkg_spatial_ref_sys 
+        (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
+        VALUES 
+        ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+        ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+        ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
+        """
+      )
+    )
   end # then "commit" the transaction after executing
 
   table = values(geotable)
@@ -94,10 +95,9 @@ function _extracttablevals(db, table, domain, crs, geom)
     srs = "EPSG"
     srid = 4326
   else
-    srs = string(CoordRefSystems.code(crs))
+    srs = string(CoordRefSystems.code(crs))[1:4]
     srid = parse(Int32, srs)
   end
-
   gpkgbinary = map(geom) do ft
     gpkgbinheader = writegpkgheader(srid, ft)
     io = IOBuffer()
@@ -137,11 +137,11 @@ function _extracttablevals(db, table, domain, crs, geom)
     srs_id=srid
   )]
   SQLite.load!(contents, db, "gpkg_contents", replace=true)
-  if srid != 4326
+  if srid != 4326 && srid != -1
     srstb = [(
       srs_name="",
       srs_id=srid,
-      organization=srs[1:4],
+      organization=srs,
       organization_coordsys_id=srid,
       definition=CoordRefSystems.wkt2(crs),
       description="",
@@ -180,7 +180,7 @@ function _wkbsetz(type::wkbGeometryType)
   # ISO WKB Flavour
 end
 
-function writegpkgheader(srs_id, geom)
+function writegpkgheader(srsid, geom)
   io = IOBuffer()
   write(io, [0x47, 0x50]) # 'GP' in ASCII
   write(io, zero(UInt8)) #  0 = version 1
@@ -188,7 +188,7 @@ function writegpkgheader(srs_id, geom)
   flagsbyte = UInt8(0x07 >> 1)
   write(io, flagsbyte)
 
-  write(io, htol(Int32(srs_id)))
+  write(io, htol(Int32(srsid)))
 
   bbox = boundingbox(geom)
   write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
