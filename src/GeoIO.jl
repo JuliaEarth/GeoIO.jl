@@ -45,6 +45,9 @@ import SQLite
 # Local Date and Time
 import Dates
 
+# Support for generating random numbers
+import Random
+
 # geostats formats
 import GslibIO
 

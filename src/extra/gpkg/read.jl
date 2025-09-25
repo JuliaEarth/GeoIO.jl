@@ -7,6 +7,9 @@ function gpkgread(fname; layer=1)
   assertgpkg(db)
   geom = gpkgmesh(db, ; layer)
   attrs = gpkgmeshattrs(db, ; layer)
+  DBInterface.execute(db, "PRAGMA optimize;")
+  # PRAGMA optimize command will normally only consider running ANALYZE
+  # on tables that have been previously queried by the same database connection
   DBInterface.close!(db)
   if eltype(attrs) <: Nothing
     return GeoTables.georef(nothing, geom)

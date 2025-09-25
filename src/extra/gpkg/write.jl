@@ -83,7 +83,9 @@ CREATE TABLE gpkg_geometry_columns (
   geom = collect(domain)
 
   _extracttablevals(db, table, domain, crs, geom)
-
+  DBInterface.execute(db, "PRAGMA optimize;")
+  # Applications with short-lived database connections should run "PRAGMA optimize;"
+  # just once, just in time prior to closing each database connection.
   DBInterface.close!(db)
 end
 
@@ -111,15 +113,42 @@ function _extracttablevals(db, table, domain, crs, geom)
   table =
     isnothing(table) ? [(; geom=GeomType(g),) for (i, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
-  SQLite.load!(table, db, replace=false) # autogenerates table name
-  # replace=false controls whether an INSERT INTO ... statement is generated or a REPLACE INTO ....
-  tn =
-    (
-      DBInterface.execute(
-        db,
-        """ SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ("gpkg_contents", "gpkg_spatial_ref_sys", "gpkg_geometry_columns") """
-      ) |> first
-    ).name
+  rows = Tables.rows(table)
+  sch = Tables.schema(rows)
+  columns = [
+    string(SQLite.esc_id(String(sch.names[i])), ' ', SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any))
+    for i in eachindex(sch.names)
+  ]
+  tn = "sqlitejl_" * Random.randstring(5)
+  DBInterface.execute(db, "CREATE TABLE $tn ($(join(columns, ',')));")
+  params = chop(repeat("?,", length(sch.names)))
+  columns = join(SQLite.esc_id.(string.(sch.names)), ",")
+  stmt = SQLite.Stmt(db, "INSERT INTO $tn ($columns) VALUES ($params)";)
+  handle = SQLite._get_stmt_handle(stmt)
+  SQLite.transaction(db) do
+    row = nothing
+    if row === nothing
+      state = iterate(rows)
+      state === nothing && return
+      row, st = state
+    end
+    while true
+      Tables.eachcolumn(sch, row) do val, col, _
+        SQLite.bind!(stmt, col, val)
+      end
+      r = GC.@preserve row SQLite.C.sqlite3_step(handle)
+      if r == SQLite.C.SQLITE_DONE
+        SQLite.C.sqlite3_reset(handle)
+      elseif r != SQLite.C.SQLITE_ROW
+        e = SQLite.sqliteexception(db, stmt)
+        SQLite.C.sqlite3_reset(handle)
+        throw(e)
+      end
+      state = iterate(rows, st)
+      state === nothing && break
+      row, st = state
+    end
+  end
 
   bbox = boundingbox(domain)
   mincoords = CoordRefSystems.raw(coords(bbox.min))
@@ -237,11 +266,11 @@ function _wkbgeom(io, wkbtype, geom)
 end
 
 function _wkbcoordinates(io, wkbtype, coords)
-  write(io, htol(Float64(coords[2])))
-  write(io, htol(Float64(coords[1])))
+  write(io, htol(coords[2]))
+  write(io, htol(coords[1]))
 
   if (UInt32(wkbtype) > 1000) || !(iszero(Int(wkbtype) & (0x80000000 | 0x40000000)))
-    write(io, htol(Float64(coords[3])))
+    write(io, htol(coords[3]))
   end
 end
 
