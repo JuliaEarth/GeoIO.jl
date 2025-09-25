@@ -119,7 +119,7 @@ function formats(io=stdout; sortby=:extension)
     throw(ArgumentError("invalid `sortby` value, use one of `:extension`, `:load` or `:save`"))
   end
   sorted = sort(FORMATS, by=(row -> row[sortby]))
-  pretty_table(io, sorted, alignment=:c, crop=:none, show_subheader=false)
+  pretty_table(io, sorted; alignment=:c, fit_table_in_display_vertically=false)
 end
 
 # basic utilities
