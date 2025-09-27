@@ -57,7 +57,9 @@ function creategpkgtables(db, table, domain, crs, geom)
 
   # https://www.geopackage.org/spec/#r29
   #  A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
-  DBInterface.execute(db, "CREATE TABLE features ( id INTEGER PRIMARY KEY AUTOINCREMENT, $(join(columns, ',')));")
+  DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')));")
+  # The use of the AUTOINCREMENT keyword is optional but recommended. 
+  # Implementers MAY omit the AUTOINCREMENT keyword for performance reasons, with the understanding that doing so has the potential to allow primary key identifiers to be reused.
 
   params = chop(repeat("?,", length(sch.names)))
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
