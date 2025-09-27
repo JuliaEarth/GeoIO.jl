@@ -10,86 +10,21 @@ function gpkgwrite(fname, geotable;)
   # Setting PRAGMA synchronous=OFF but,
   # can cause the database to go corrupt
   # if there is an operating system crash or power failure.
-  # If the power never goes out and no programs ever crash
-  # on you system then Synchronous = OFF is for you
-
-  SQLite.transaction(db) do
-    DBInterface.execute(
-      db,
-      """
-CREATE TABLE gpkg_spatial_ref_sys (
-        srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
-        organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
-        definition  TEXT NOT NULL, description TEXT,
-        definition_12_063 TEXT NOT NULL
-);
-
-CREATE TABLE gpkg_contents (
-        table_name TEXT NOT NULL PRIMARY KEY,
-        data_type TEXT NOT NULL,
-        identifier TEXT UNIQUE,
-        description TEXT DEFAULT '',
-        last_change DATETIME NOT NULL DEFAULT
-        (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-        min_x DOUBLE, min_y DOUBLE,
-        max_x DOUBLE, max_y DOUBLE,
-        srs_id INTEGER,
-        CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
-        gpkg_spatial_ref_sys(srs_id)
-);
-
-CREATE TABLE gpkg_geometry_columns (
-      table_name TEXT NOT NULL,
-      column_name TEXT NOT NULL,
-      geometry_type_name TEXT NOT NULL,
-      srs_id INTEGER NOT NULL,
-      z TINYINT NOT NULL,
-      m TINYINT NOT NULL,
-      CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-      CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-      CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-      CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
-);
-"""
-    )
-    DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
-    DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
-  end
-
-  #  According to https://www.geopackage.org/spec/#r11
-  # The gpkg_spatial_ref_sys table SHALL contain at a minimum
-  # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
-  # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-  # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  SQLite.transaction(db) do # execute do x closure
-    DBInterface.execute(
-      SQLite.Stmt(
-        db,
-        """
-        INSERT INTO gpkg_spatial_ref_sys 
-        (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
-        VALUES 
-        ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-        ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-        ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
-        """
-      )
-    )
-  end # then "commit" the transaction after executing
 
   table = values(geotable)
   domain = GeoTables.domain(geotable)
   crs = GeoTables.crs(domain)
   geom = collect(domain)
-
-  _extracttablevals(db, table, domain, crs, geom)
+  DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
+  DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
+  creategpkgtables(db, table, domain, crs, geom)
   DBInterface.execute(db, "PRAGMA optimize;")
   # Applications with short-lived database connections should run "PRAGMA optimize;"
-  # just once, just in time prior to closing each database connection.
+  # just once, prior to closing each database connection.
   DBInterface.close!(db)
 end
 
-function _extracttablevals(db, table, domain, crs, geom)
+function creategpkgtables(db, table, domain, crs, geom)
   if crs <: Cartesian
     srs = ""
     srid = -1
@@ -111,7 +46,7 @@ function _extracttablevals(db, table, domain, crs, geom)
   GeomType = _sqlitetype(geomtype)
 
   table =
-    isnothing(table) ? [(; geom=GeomType(g),) for (i, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+    isnothing(table) ? [(; geom=GeomType(g),) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
   rows = Tables.rows(table)
   sch = Tables.schema(rows)
@@ -119,11 +54,14 @@ function _extracttablevals(db, table, domain, crs, geom)
     string(SQLite.esc_id(String(sch.names[i])), ' ', SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any))
     for i in eachindex(sch.names)
   ]
-  tn = "sqlitejl_" * Random.randstring(5)
-  DBInterface.execute(db, "CREATE TABLE $tn ($(join(columns, ',')));")
+
+  # https://www.geopackage.org/spec/#r29
+  #  A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
+  DBInterface.execute(db, "CREATE TABLE features ( id INTEGER PRIMARY KEY AUTOINCREMENT, $(join(columns, ',')));")
+
   params = chop(repeat("?,", length(sch.names)))
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
-  stmt = SQLite.Stmt(db, "INSERT INTO $tn ($columns) VALUES ($params)";)
+  stmt = SQLite.Stmt(db, "INSERT INTO features ($columns) VALUES ($params)";)
   handle = SQLite._get_stmt_handle(stmt)
   SQLite.transaction(db) do
     row = nothing
@@ -153,40 +91,111 @@ function _extracttablevals(db, table, domain, crs, geom)
   bbox = boundingbox(domain)
   mincoords = CoordRefSystems.raw(coords(bbox.min))
   maxcoords = CoordRefSystems.raw(coords(bbox.max))
-  contents = [(
-    table_name=tn,
-    data_type="features",
-    identifier=tn,
-    description="",
-    last_change=Dates.format(Dates.now(Dates.UTC), "yyyy-mm-ddTHH:MM:SSZ"),
-    min_x=mincoords[1],
-    min_y=mincoords[2],
-    max_x=maxcoords[1],
-    max_y=maxcoords[2],
-    srs_id=srid
-  )]
-  SQLite.load!(contents, db, "gpkg_contents", replace=true)
-  if srid != 4326 && srid != -1
-    srstb = [(
-      srs_name="",
-      srs_id=srid,
-      organization=srs,
-      organization_coordsys_id=srid,
-      definition=CoordRefSystems.wkt2(crs),
-      description="",
-      definition_12_063=CoordRefSystems.wkt2(crs)
-    )]
-    SQLite.load!(srstb, db, "gpkg_spatial_ref_sys", replace=true)
+  minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
+  z = paramdim((geom |> first)) > 2 ? 1 : 0
+
+  SQLite.transaction(db) do
+    DBInterface.execute(
+      db,
+      """
+    CREATE TABLE gpkg_spatial_ref_sys (
+            srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
+            organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
+            definition  TEXT NOT NULL, description TEXT,
+            definition_12_063 TEXT NOT NULL
+    );
+    """
+    )
+
+    #  According to https://www.geopackage.org/spec/#r11
+    # The gpkg_spatial_ref_sys table SHALL contain at a minimum
+    # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
+    # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
+    # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
+    DBInterface.execute(
+      db,
+      """
+   INSERT INTO gpkg_spatial_ref_sys 
+        (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
+        VALUES 
+        ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+        ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+        ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
+      """
+    )
+
+    if srid != 4326 && srid > 0
+      DBInterface.execute(  # Insert non-existing CRS record into gpkg_spatial_ref_sys table. srs_id referenced by gpkg_contents, gpkg_geometry_columns
+        db,
+        """
+    INSERT INTO gpkg_spatial_ref_sys 
+            (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?);
+        """,
+        ["", srid, srs, srid, CoordRefSystems.wkt2(crs), "", CoordRefSystems.wkt2(crs)]
+      )
+    end
+
+    DBInterface.execute(
+      db,
+      """
+    CREATE TABLE gpkg_contents (
+            table_name TEXT NOT NULL PRIMARY KEY,
+            data_type TEXT NOT NULL,
+            identifier TEXT UNIQUE NOT NULL,
+            description TEXT DEFAULT '',
+            last_change DATETIME NOT NULL DEFAULT
+            (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            min_x DOUBLE, min_y DOUBLE,
+            max_x DOUBLE, max_y DOUBLE,
+            srs_id INTEGER,
+            CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
+            gpkg_spatial_ref_sys(srs_id)
+    );
+    """
+    )
+
+    DBInterface.execute(
+      db,
+      """
+    INSERT INTO gpkg_contents 
+            (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?);
+      """,
+      ["features", "features", "features", minx, miny, maxx, maxy, srid]
+    )
+
+    DBInterface.execute(
+      db,
+      """
+    CREATE TABLE gpkg_geometry_columns (
+          table_name TEXT NOT NULL,
+          column_name TEXT NOT NULL,
+          geometry_type_name TEXT NOT NULL,
+          srs_id INTEGER NOT NULL,
+          z TINYINT NOT NULL,
+          m TINYINT NOT NULL,
+          CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+          CONSTRAINT uk_gc_table_name UNIQUE (table_name),
+          CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+          CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
+    );
+    """
+    )
+
+    DBInterface.execute(
+      db,
+      """
+    INSERT INTO gpkg_geometry_columns 
+            (table_name, column_name, geometry_type_name, srs_id, z, m)
+            VALUES
+            (?, ?, ?, ?, ?, ?);
+      """,
+      ["features", "geom", geomtype, srid, z, 0]
+    )
   end
-  geomcolumns = [(
-    table_name=tn,
-    column_name="geom",
-    geometry_type_name=geomtype,
-    srs_id=srid,
-    z=paramdim((geom |> first)) > 2 ? 1 : 0,
-    m=0
-  )]
-  SQLite.load!(geomcolumns, db, "gpkg_geometry_columns", replace=true)
 end
 
 function _wkbtype(geometry)
