@@ -49,14 +49,6 @@ abstract type WKBMultiLineStringZM <: WKBMultiZM end
 abstract type WKBMultiPolygonZM <: WKBMultiZM end
 abstract type WKBGeometryCollectionZM <: WKBGeometryCollectionZ end
 
-function meshfromwkb(geom::AbstractVector{UInt8})
-  wkbbyteswap = isone(geom[1]) ? ltoh : ntoh
-  wkbtype = meshwkb(WKB{reinterpret(UInt32, @view geom[2:5]) |> only})
-  ngeoms = (wkbtype <: WKBPoint) ? 1 : only(reinterpret(UInt32, @view geom[6:9]))
-  wkbvec = Vector{UInt8}(@view geom[10:end])
-  wkbbyteswap, wkbtype, ngeoms, wkbvec
-end
-
 function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBPoint}
   if T <: WKBPointZM
     p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
@@ -100,9 +92,9 @@ function wkbtomeshes(::Type{WKBPolygon}, n, io, crs, wkbbswap)
   Meshes.PolyArea(outtering, holes...)
 end
 
-function wkbtomeshes(::Type{T}, n, io, geom, wkbbswap) where {T<:WKBMulti}
+function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBMulti}
   geoms = map(1:n) do _
-    bytereader = wkbbswap(read(io, UInt8))
+    wkbbswap = isone(read(io, UInt8)) ? ltoh : ntoh
     wkbtype = meshwkb(WKB{wkbbswap(read(io, UInt32))})
     k = wkbbswap(read(io, UInt32))
     wkbtomeshes(wkbtype, k, io, crs, wkbbswap)
@@ -158,13 +150,13 @@ function meshestowkb(::Type{T}, io, geom) where {T<:WKBMulti}
     write(io, one(UInt8))
     wkbn = parse(UInt32, ((wkbmesh(T) |> string)[5:(end - 1)]) |> htol)
     write(io, wkbn)
-    meshestowkb(meshwkb(WKB{wkbn - 3}), io, g)
+    meshestowkb(meshwkb(WKB{UInt32(wkbn - 3)}), io, g)
   end
 end
 
 function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
   write(io, htol(one(UInt8)))
-  meshdims = (paramdim(T) >= 3)
+  meshdims = (paramdim(geom) >= 3)
   if T <: Meshes.PolyArea
     wkbtype = meshdims ? WKBPolygonZ : WKBPolygon
     write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1]) |> htol))
@@ -182,7 +174,7 @@ function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
     write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Multi
-    wkbtype = meshdims ? WKBMultiZ : WKBMulti
+    wkbtype = multiwkbmesh(typeof(parent(geom)[1]), meshdims)
     write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
     meshestowkb(wkbtype, io, geom)
   else
@@ -190,6 +182,19 @@ function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
             The provided mesh $T is not supported by available WKB Geometry types.
             """))
   end
+end
+
+function multiwkbmesh(multi, zextent)
+        if multi <: PolyArea
+            wkbtype = zextent ? WKBMultiPolygonZ : WKBMultiPolygon
+        elseif multi <: Ring
+            wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
+        elseif multi <: Rope
+            wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
+        elseif multi <: Point
+            wkbtype = zextent ? WKBMultiPointZ : WKBMultiPoint
+        end
+        return wkbtype
 end
 
 function meshwkb(code::Type{WKBCode})
