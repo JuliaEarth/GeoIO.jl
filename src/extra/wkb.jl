@@ -1,120 +1,249 @@
+abstract type WKBCode end
+abstract type WKBFlav{Code} <: WKBCode end
+abstract type WKB{Code} <: WKBFlav{Code} end
 
-@enum wkbGeometryType::UInt32 begin
-  wkbUnknown = 0
-  wkbPoint = 1
-  wkbLineString = 2
-  wkbPolygon = 3
-  wkbMultiPoint = 4
-  wkbMultiLineString = 5
-  wkbMultiPolygon = 6
-  wkbGeometryCollection = 7
-  wkbCircularString = 8
-  wkbCompoundCurve = 9
-  wkbCurvePolygon = 10
-  wkbMultiCurve = 11
-  wkbMultiSurface = 12
-  wkbCurve = 13
-  wkbSurface = 14
-
-  wkbNone = 100 # pure attribute records
-  wkbLinearRing = 101
-
-  # ISO SQL/MM Part 3: Spatial
-  # Z-aware types
-  wkbPointZ = 1001
-  wkbLineStringZ = 1002
-  wkbPolygonZ = 1003
-  wkbMultiPointZ = 1004
-  wkbMultiLineStringZ = 1005
-  wkbMultiPolygonZ = 1006
-  wkbGeometryCollectionZ = 1007
-  wkbCircularStringZ = 1008
-  wkbCompoundCurveZ = 1009
-  wkbCurvePolygonZ = 1010
-  wkbMultiCurveZ = 1011
-  wkbMultiSurfaceZ = 1012
-  wkbCurveZ = 1013
-  wkbSurfaceZ = 1014
-
-  # ISO SQL/MM Part 3.
-  # M-aware types
-  wkbPointM = 2001
-  wkbLineStringM = 2002
-  wkbPolygonM = 2003
-  wkbMultiPointM = 2004
-  wkbMultiLineStringM = 2005
-  wkbMultiPolygonM = 2006
-  wkbGeometryCollectionM = 2007
-  wkbCircularStringM = 2008
-  wkbCompoundCurveM = 2009
-  wkbCurvePolygonM = 2010
-  wkbMultiCurveM = 2011
-  wkbMultiSurfaceM = 2012
-  wkbCurveM = 2013
-  wkbSurfaceM = 2014
-
-  # ISO SQL/MM Part 3.
-  # ZM-aware types
-  wkbPointZM = 3001
-  wkbLineStringZM = 3002
-  wkbPolygonZM = 3003
-  wkbMultiPointZM = 3004
-  wkbMultiLineStringZM = 3005
-  wkbMultiPolygonZM = 3006
-  wkbGeometryCollectionZM = 3007
-  wkbCircularStringZM = 3008
-  wkbCompoundCurveZM = 3009
-  wkbCurvePolygonZM = 3010
-  wkbMultiCurveZM = 3011
-  wkbMultiSurfaceZM = 3012
-  wkbCurveZM = 3013
-  wkbSurfaceZM = 3014
-
-  # 2.5D extension as per 99-402
-  # https://lists.osgeo.org/pipermail/postgis-devel/2004-December/000702.html
-  wkbPoint25D = 0x80000001
-  wkbLineString25D = 0x80000002
-  wkbPolygon25D = 0x80000003
-  wkbMultiPoint25D = 0x80000004
-  wkbMultiLineString25D = 0x80000005
-  wkbMultiPolygon25D = 0x80000006
-  wkbGeometryCollection25D = 0x80000007
-end
-
+# "Well-Known" Binary scheme for simple feature geometry.
+# The base Geometry class has subclasses for Point, Line, Polygon, and GeometryCollection
+# and Support for 3D coordinates
+# https://libgeos.org/specifications/wkb/
+# https://www.ogc.org/standards/sfa/
 abstract type WKBGeometry end
+abstract type WKBPoint <: WKBGeometry end
+abstract type WKBLineString <: WKBGeometry end
+abstract type WKBPolygon <: WKBGeometry end
+abstract type WKBMulti <: WKBGeometry end
+abstract type WKBMultiPoint <: WKBMulti end
+abstract type WKBMultiLineString <: WKBMulti end
+abstract type WKBMultiPolygon <: WKBMulti end
+abstract type WKBGeometryCollection <: WKBGeometry end
+# ISO SQL/MM Part 3: Spatial
+# Z-aware types, also representative of the 2.5D extension as per 99-402
+# https://lists.osgeo.org/pipermail/postgis-devel/2004-December/000702.html
+abstract type WKBGeometryZ <: WKBGeometry end
+abstract type WKBPointZ <: WKBGeometryZ end
+abstract type WKBLineStringZ <: WKBGeometryZ end
+abstract type WKBPolygonZ <: WKBGeometryZ end
+abstract type WKBMultiZ <: WKBMulti end
+abstract type WKBMultiPointZ <: WKBMultiZ end
+abstract type WKBMultiLineStringZ <: WKBMultiZ end
+abstract type WKBMultiPolygonZ <: WKBMultiZ end
+abstract type WKBGeometryCollectionZ <: WKBGeometryCollection end
+# ISO SQL/MM Part 3.
+# M-aware types
+abstract type WKBPointM <: WKBPointZ end
+abstract type WKBLineStringM <: WKBLineStringZ end
+abstract type WKBPolygonM <: WKBPolygonZ end
+abstract type WKBMultiM <: WKBMultiZ end
+abstract type WKBMultiPointM <: WKBMultiM end
+abstract type WKBMultiLineStringM <: WKBMultiM end
+abstract type WKBMultiPolygonM <: WKBMultiM end
+abstract type WKBGeometryCollectionM <: WKBGeometryCollectionZ end
+# ISO SQL/MM Part 3.
+# ZM-aware types
+abstract type WKBPointZM <: WKBPointZ end
+abstract type WKBLineStringZM <: WKBLineStringZ end
+abstract type WKBPolygonZM <: WKBPolygonZ end
+abstract type WKBMultiZM <: WKBMultiZ end
+abstract type WKBMultiPointZM <: WKBMultiZM end
+abstract type WKBMultiLineStringZM <: WKBMultiZM end
+abstract type WKBMultiPolygonZM <: WKBMultiZM end
+abstract type WKBGeometryCollectionZM <: WKBGeometryCollectionZ end
 
-struct WKBPoint <: WKBGeometry
-  data::Vector{UInt8}
+function meshfromwkb(geom::AbstractVector{UInt8})
+  wkbbyteswap = isone(geom[1]) ? ltoh : ntoh
+  wkbtype = meshwkb(WKB{reinterpret(UInt32, @view geom[2:5]) |> only})
+  ngeoms = (wkbtype <: WKBPoint) ? 1 : only(reinterpret(UInt32, @view geom[6:9]))
+  wkbvec = Vector{UInt8}(@view geom[10:end])
+  wkbbyteswap, wkbtype, ngeoms, wkbvec
 end
 
-struct WKBLineString <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-struct WKBPolygon <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-struct WKBMultiPoint <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-struct WKBMultiLineString <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-struct WKBMultiPolygon <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-struct WKBGeometryCollection <: WKBGeometry
-  data::Vector{UInt8}
-end
-
-function Base.getproperty(gpkg::WKBGeometry, sym::Symbol)
-  if sym == :data
-    return getfield(gpkg, :data)
+function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBPoint}
+  if T <: WKBPointZM
+    p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
+  elseif T <: WKBPointM
+    p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
+     wkbbswap(read(io, Float64)) # skip aspatial axis, M (Optional Measurement)
+  elseif T <: WKBPointZ
+    p =  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64))
   else
-    return getfield(gpkg, sym)
+    p =  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64))
+  end
+  Meshes.Point(crs(p...))
+end
+
+function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBLineString}
+  if T <: WKBLineStringZM
+    wkbpoint = WKBPointZM
+  elseif T <: WKBLineStringM
+    wkbpoint = WKBPointM
+  elseif T <: WKBLineStringZ
+    wkbpoint = WKBPointZ
+  else
+    wkbpoint = WKBPoint
+  end
+  points = map(1:n) do _
+    wkbtomeshes(wkbpoint, 1, io, crs, wkbbswap)
+  end
+  if first(points) != points[n] && length(points) > 2
+    return Meshes.Rope(points)
+  end
+  Meshes.Ring(points[1:(end - 1)])
+end
+
+function wkbtomeshes(::Type{WKBPolygon}, n, io, crs, wkbbswap)
+  rings = map(1:n) do _
+    k = wkbbswap(read(io, UInt32))
+    wkbtomeshes(WKBLineString, k, io, crs, wkbbswap)
+  end
+  outtering = first(rings)
+  holes = isone(length(rings)) ? rings[2:end] : Meshes.Ring[]
+  Meshes.PolyArea(outtering, holes...)
+end
+
+function wkbtomeshes(::Type{T}, n, io, geom, wkbbswap) where {T<:WKBMulti}
+  geoms = map(1:n) do _
+    bytereader = wkbbswap(read(io, UInt8))
+    wkbtype = meshwkb(WKB{wkbbswap(read(io, UInt32))})
+    k = wkbbswap(read(io, UInt32))
+    wkbtomeshes(wkbtype, k, io, crs, wkbbswap)
+  end
+  Meshes.Multi(geoms)
+end
+
+function meshestowkb(::Type{T}, io, geom) where {T<:WKBPoint}
+  coordvec = CoordRefSystems.raw(coords(geom))
+  write(io, htol(coordvec[2]))
+  write(io, htol(coordvec[1]))
+  if T <: WKBPointZ
+    write(io, htol(coordvec[3]))
   end
 end
+
+function meshestowkb(::Type{T}, io, geom) where {T<:WKBLineString}
+  points = vertices(geom)
+  if typeof(geom) <: Meshes.Ring
+    write(io, htol(UInt32(length(points) + 1)))
+  else
+    write(io, UInt32(length(points)))
+  end
+  if T <: WKBLineStringZ
+    wkbpoint = WKBPointZ
+  else
+    wkbpoint = WKBPoint
+  end
+  for c in points
+    meshestowkb(wkbpoint, io, c)
+  end
+  if typeof(geom) <: Meshes.Ring
+    meshestowkb(wkbpoint, io, first(points))
+  end
+end
+
+function meshestowkb(::Type{T}, io, geom) where {T<:WKBPolygon}
+  rings = [boundary(geom::PolyArea)]
+  write(io, htol(UInt32(length(rings))))
+  if T <: WKBPolygonZ
+    wkbchain = WKBLineStringZ
+  else
+    wkbchain = WKBLineString
+  end
+  for ring in rings
+      meshestowkb(wkbchain, io, ring)
+  end
+end
+
+function meshestowkb(::Type{T}, io, geom) where {T<:WKBMulti}
+  write(io, htol(UInt32(length(geom |> parent))))
+  for g in geom |> parent
+    write(io, one(UInt8))
+    wkbn = parse(UInt32, ((wkbmesh(T) |> string)[5:(end - 1)]) |> htol)
+    write(io, wkbn)
+    meshestowkb(meshwkb(WKB{wkbn - 3}), io, g)
+  end
+end
+
+function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
+  write(io, htol(one(UInt8)))
+  meshdims = (paramdim(T) >= 3)
+  if T <: Meshes.PolyArea
+    wkbtype = meshdims ? WKBPolygonZ : WKBPolygon
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1]) |> htol))
+    meshestowkb(wkbtype, io, geom)
+  elseif T <: Meshes.Rope
+    wkbtype = meshdims ? WKBLineStringZ : WKBLineString
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    meshestowkb(wkbtype, io, geom)
+  elseif T <: Meshes.Ring
+    wkbtype = meshdims ? WKBLineStringZ : WKBLineString
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    meshestowkb(wkbtype, io, geom)
+  elseif T <: Meshes.Point
+    wkbtype = meshdims ? WKBPointZ : WKBPoint
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    meshestowkb(wkbtype, io, geom)
+  elseif T <: Meshes.Multi
+    wkbtype = meshdims ? WKBMultiZ : WKBMulti
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    meshestowkb(wkbtype, io, geom)
+  else
+    throw(ArgumentError("""
+            The provided mesh $T is not supported by available WKB Geometry types.
+            """))
+  end
+end
+
+function meshwkb(code::Type{WKBCode})
+  throw(ArgumentError("""
+  The provided code $code is not mapped to a WKB Geometry type yet.
+  """))
+end
+
+function wkbmesh(wkbgeom::Type{WKBGeometry})
+  throw(ArgumentError("""
+  The provided type $wkbgeom is not mapped to a WKB implementation.
+  """))
+end
+
+macro wkbcode(Code, WKBArray)
+  expr = quote
+    meshwkb(::Type{$Code}) = $WKBArray
+    wkbmesh(::Type{$WKBArray}) = $Code
+  end
+  esc(expr)
+end
+
+@wkbcode WKB{UInt32(1)} WKBPoint
+@wkbcode WKB{UInt32(2)} WKBLineString
+@wkbcode WKB{UInt32(3)} WKBPolygon
+@wkbcode WKB{UInt32(4)} WKBMultiPoint
+@wkbcode WKB{UInt32(5)} WKBMultiLineString
+@wkbcode WKB{UInt32(6)} WKBMultiPolygon
+@wkbcode WKB{UInt32(7)} WKBGeometryCollection
+# @wkbcode WKB{0x80000001} WKBPointZ
+# @wkbcode WKB{0x80000002} WKBLineStringZ
+# @wkbcode WKB{0x80000003} WKBPolygonZ
+# @wkbcode WKB{0x80000004} WKBMultiPointZ
+# @wkbcode WKB{0x80000005} WKBMultiLineStringZ
+# @wkbcode WKB{0x80000006} WKBMultiPolygonZ
+# @wkbcode WKB{0x80000007} WKBGeometryCollectionZ
+@wkbcode WKB{UInt32(1001)} WKBPointZ
+@wkbcode WKB{UInt32(1002)} WKBLineStringZ
+@wkbcode WKB{UInt32(1003)} WKBPolygonZ
+@wkbcode WKB{UInt32(1004)} WKBMultiPointZ
+@wkbcode WKB{UInt32(1005)} WKBMultiLineStringZ
+@wkbcode WKB{UInt32(1006)} WKBMultiPolygonZ
+@wkbcode WKB{UInt32(1007)} WKBGeometryCollectionZ
+@wkbcode WKB{UInt32(2001)} WKBPointM
+@wkbcode WKB{UInt32(2002)} WKBLineStringM
+@wkbcode WKB{UInt32(2003)} WKBPolygonM
+@wkbcode WKB{UInt32(2004)} WKBMultiPointM
+@wkbcode WKB{UInt32(2005)} WKBMultiLineStringM
+@wkbcode WKB{UInt32(2006)} WKBMultiPolygonM
+@wkbcode WKB{UInt32(2007)} WKBGeometryCollectionM
+@wkbcode WKB{UInt32(3001)} WKBPointZM
+@wkbcode WKB{UInt32(3002)} WKBLineStringZM
+@wkbcode WKB{UInt32(3003)} WKBPolygonZM
+@wkbcode WKB{UInt32(3004)} WKBMultiPointZM
+@wkbcode WKB{UInt32(3005)} WKBMultiLineStringZM
+@wkbcode WKB{UInt32(3006)} WKBMultiPolygonZM
+@wkbcode WKB{UInt32(3007)} WKBGeometryCollectionZM

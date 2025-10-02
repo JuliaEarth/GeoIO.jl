@@ -135,19 +135,18 @@ AND g.m IN (0, 1, 2)
       !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
     end
     submeshes = map(gpkgblobs) do blob
-      gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
-      io = IOBuffer(gpkgbindata)
+      if blob[1][1:2] != UInt8[0x47, 0x50]
+        @error "MISSING MAGIC 'GP' STRING"
+      end
+      io = IOBuffer(blob[1])
       seek(io, 3)
-      flag = read(io, UInt8)
+      flag = read(io,UInt8)
       # Note that Julia does not convert the endianness for you.
       # Use ntoh or ltoh for this purpose.
       bswap = isone(flag & 0x01) ? ltoh : ntoh
-
       srsid = bswap(read(io, Int32))
-
       envelope = (flag & (0x07 << 1)) >> 1
       envelopedims = 0
-
       if !iszero(envelope)
         if isone(envelope)
           envelopedims = 1 # 2D
@@ -158,27 +157,30 @@ AND g.m IN (0, 1, 2)
         elseif isequal(4, envelope)
           envelopedims = 4 # 2D+ZM
         else
-          @error "exceeded dimensional limit for geometry, file may be corrupted or reader is broken"
-          false
+          throw(ErrorException("exceeded dimensional limit for geometry, file may be corrupted or reader is broken"))
         end
-      else
-        true # no envelope (space saving slower indexing option), 0 bytes
-      end
+      end # else no envelope (space saving slower indexing option), 0 bytes
 
       # header size in byte stream
       headerlen = 8 + 8 * 4 * envelopedims
       seek(io, headerlen)
+      wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
+      wkbtype = meshwkb(WKB{read(io, UInt32)})
+      ngeoms = (wkbtype <: WKBPoint) ? one(UInt32) : read(io, UInt32)
 
-      ebyteorder = read(io, UInt8)
+      if iszero(srsid)
+        crs = LatLon{WGS84Latest}
+      elseif !isone(abs(srsid))
+        if org == "EPSG"
+          crs = CoordRefSystems.get(EPSG{org_coordsys_id})
+        elseif org == "ESRI"
+          crs = CoordRefSystems.get(ERSI{org_coordsys_id})
+        end
+      else
+        crs = Cartesian{NoDatum}
+      end
 
-      bswap = isone(ebyteorder) ? ltoh : ntoh
-
-      wkbtype = wkbGeometryType(read(io, UInt32))
-
-      zextent = isequal(envelopedims, 2)
-
-      mesh = meshfromwkb(io, srsid, org, org_coordsys_id, wkbtype, zextent, bswap)
-
+      mesh = wkbtomeshes(wkbtype, ngeoms, io, crs, wkbbyteswap)
       if !isnothing(mesh)
         mesh
       end
@@ -187,96 +189,4 @@ AND g.m IN (0, 1, 2)
   end
   # efficient method for concatenating arrays of arrays 
   reduce(vcat, meshes) # Future versions of Julia might change the reduce algorithm
-end
-
-function meshfromwkb(io, srsid, org, org_coordsys_id, ewkbtype, zextent, bswap)
-  if iszero(srsid)
-    crs = LatLon{WGS84Latest}
-  elseif !isone(abs(srsid))
-    if org == "EPSG"
-      crs = CoordRefSystems.get(EPSG{org_coordsys_id})
-    elseif org == "ESRI"
-      crs = CoordRefSystems.get(ERSI{org_coordsys_id})
-    end
-  else
-    crs = Cartesian{NoDatum}
-  end
-
-  if occursin("Multi", string(ewkbtype))
-    elems = wkbmultigeometry(io, crs, zextent, bswap)
-    Multi(elems)
-  else
-    elem = meshfromsf(io, crs, ewkbtype, zextent, bswap)
-    elem
-  end
-end
-
-# Requirement 20: GeoPackage SHALL store feature table geometries
-#  with the basic simple feature geometry types
-# https://www.geopackage.org/spec140/index.html#geometry_types
-function meshfromsf(io, crs, ewkbtype, zextent, bswap)
-  if isequal(ewkbtype, wkbPoint)
-    elem = wkbcoordinate(io, zextent, bswap)
-    Point(crs(elem...))
-  elseif isequal(ewkbtype, wkbLineString)
-    elem = wkblinestring(io, zextent, bswap)
-    if length(elem) >= 2 && first(elem) != last(elem)
-      Rope([Point(crs(coords...)) for coords in elem]...)
-    else
-      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
-    end
-  elseif isequal(ewkbtype, wkbPolygon)
-    elem = wkbpolygon(io, zextent, bswap)
-    rings = map(elem) do ring
-      coords = map(ring) do point
-        Point(crs(point...))
-      end
-      Ring(coords)
-    end
-
-    outerring = first(rings)
-    holes = isone(length(rings)) ? rings[2:end] : Ring[]
-    PolyArea(outerring, holes...)
-  end
-end
-
-function wkbcoordinate(io, z, bswap)
-  x = bswap(read(io, Float64))
-  y = bswap(read(io, Float64))
-
-  if z
-    z = bswap(read(io, Float64))
-    return x, y, z
-  end
-
-  x, y
-end
-
-function wkblinestring(io, z, bswap)
-  npoints = bswap(read(io, UInt32))
-
-  points = map(1:npoints) do _
-    wkbcoordinate(io, z, bswap)
-  end
-  points
-end
-
-function wkbpolygon(io, z, bswap)
-  nrings = bswap(read(io, UInt32))
-
-  rings = map(1:nrings) do _
-    wkblinestring(io, z, bswap)
-  end
-  rings
-end
-
-function wkbmultigeometry(io, crs, z, bswap)
-  ngeoms = bswap(read(io, UInt32))
-
-  geomcollection = map(1:ngeoms) do _
-    bswap = isone(read(io, UInt8)) ? ltoh : ntoh
-    ewkbtype = wkbGeometryType(read(io, UInt32))
-    meshfromsf(io, crs, ewkbtype, z, bswap)
-  end
-  geomcollection
 end
