@@ -140,7 +140,7 @@ AND g.m IN (0, 1, 2)
       end
       io = IOBuffer(blob[1])
       seek(io, 3)
-      flag = read(io,UInt8)
+      flag = read(io, UInt8)
       # Note that Julia does not convert the endianness for you.
       # Use ntoh or ltoh for this purpose.
       bswap = isone(flag & 0x01) ? ltoh : ntoh

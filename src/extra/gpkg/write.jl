@@ -42,8 +42,6 @@ function creategpkgtables(db, table, domain, crs, geom)
     vcat(gpkgbinheader, take!(io))
   end
 
-  
-
   table =
     isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]

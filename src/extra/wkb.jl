@@ -51,14 +51,15 @@ abstract type WKBGeometryCollectionZM <: WKBGeometryCollectionZ end
 
 function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBPoint}
   if T <: WKBPointZM
-    p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
+    p =
+      wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
   elseif T <: WKBPointM
     p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
-     wkbbswap(read(io, Float64)) # skip aspatial axis, M (Optional Measurement)
+    wkbbswap(read(io, Float64)) # skip aspatial axis, M (Optional Measurement)
   elseif T <: WKBPointZ
-    p =  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64))
+    p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
   else
-    p =  wkbbswap(read(io, Float64)),  wkbbswap(read(io, Float64))
+    p = wkbbswap(read(io, Float64)), wkbbswap(read(io, Float64))
   end
   Meshes.Point(crs(p...))
 end
@@ -140,7 +141,7 @@ function meshestowkb(::Type{T}, io, geom) where {T<:WKBPolygon}
     wkbchain = WKBLineString
   end
   for ring in rings
-      meshestowkb(wkbchain, io, ring)
+    meshestowkb(wkbchain, io, ring)
   end
 end
 
@@ -159,23 +160,23 @@ function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
   meshdims = (paramdim(geom) >= 3)
   if T <: Meshes.PolyArea
     wkbtype = meshdims ? WKBPolygonZ : WKBPolygon
-    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1]) |> htol))
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:(end - 1)]) |> htol))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Rope
     wkbtype = meshdims ? WKBLineStringZ : WKBLineString
-    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:(end - 1)]) |> htol))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Ring
     wkbtype = meshdims ? WKBLineStringZ : WKBLineString
-    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:(end - 1)]) |> htol))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Point
     wkbtype = meshdims ? WKBPointZ : WKBPoint
-    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:(end - 1)]) |> htol))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Multi
     wkbtype = multiwkbmesh(typeof(parent(geom)[1]), meshdims)
-    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:end-1])|> htol))
+    write(io, parse(UInt32, ((wkbmesh(wkbtype) |> string)[11:(end - 1)]) |> htol))
     meshestowkb(wkbtype, io, geom)
   else
     throw(ArgumentError("""
@@ -185,16 +186,16 @@ function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
 end
 
 function multiwkbmesh(multi, zextent)
-        if multi <: PolyArea
-            wkbtype = zextent ? WKBMultiPolygonZ : WKBMultiPolygon
-        elseif multi <: Ring
-            wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
-        elseif multi <: Rope
-            wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
-        elseif multi <: Point
-            wkbtype = zextent ? WKBMultiPointZ : WKBMultiPoint
-        end
-        return wkbtype
+  if multi <: PolyArea
+    wkbtype = zextent ? WKBMultiPolygonZ : WKBMultiPolygon
+  elseif multi <: Ring
+    wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
+  elseif multi <: Rope
+    wkbtype = zextent ? WKBMultiLineStringZ : WKBMultiLineString
+  elseif multi <: Point
+    wkbtype = zextent ? WKBMultiPointZ : WKBMultiPoint
+  end
+  return wkbtype
 end
 
 function meshwkb(code::Type{WKBCode})
