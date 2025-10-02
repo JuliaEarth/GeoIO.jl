@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
+
 abstract type WKBCode end
 abstract type WKBFlav{Code} <: WKBCode end
 abstract type WKB{Code} <: WKBFlav{Code} end
