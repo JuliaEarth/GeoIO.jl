@@ -5,46 +5,42 @@
 function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   assertgpkg(db)
-  geom = gpkgmesh(db, ; layer)
-  attrs = gpkgmeshattrs(db, ; layer)
+  geom = gpkggeoms(db, ; layer)
+  attrs = gpkgvalues(db, ; layer)
   DBInterface.execute(db, "PRAGMA optimize;")
   # PRAGMA optimize command will normally only consider running ANALYZE
   # on tables that have been previously queried by the same database connection
   DBInterface.close!(db)
   if eltype(attrs) <: Nothing
-    return GeoTables.georef(nothing, geom)
+    return georef(nothing, geom)
   end
-  GeoTables.georef(attrs, geom)
+  georef(attrs, geom)
 end
 
 function assertgpkg(db)
-  if !hasgpkgmetadata(db)
+  tbcount = first(DBInterface.execute(
+    db,
+    """
+  SELECT COUNT(*) AS n FROM sqlite_master WHERE 
+  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
+  type IN ('table', 'view');
+"""
+  ))
+  # Requirement 10: must include a gpkg_spatial_ref_sys table
+  # Requirement 13: must include a gpkg_contents table
+  if tbcount.n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
 
   # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
   # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if ((DBInterface.execute(db, "PRAGMA integrity_check;") |> first).integrity_check != "ok") ||
+  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
 end
 
-# Requirement 10: must include a gpkg_spatial_ref_sys table
-# Requirement 13: must include a gpkg_contents table
-function hasgpkgmetadata(db)
-  tbcount = DBInterface.execute(
-    db,
-    """
-  SELECT COUNT(*) FROM sqlite_master WHERE 
-  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
-  type IN ('table', 'view');
-"""
-  ) |> first |> only
-  tbcount == 2
-end
-
-function gpkgmeshattrs(db, ; layer=1)
+function gpkgvalues(db, ; layer=1)
   feature_tables = DBInterface.execute(
     db,
     """
@@ -110,7 +106,7 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-function gpkgmesh(db, ; layer=1)
+function gpkggeoms(db, ; layer=1)
   tb = DBInterface.execute(
     db,
     """
