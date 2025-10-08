@@ -24,7 +24,7 @@ function assertgpkg(db)
   SELECT COUNT(*) AS n FROM sqlite_master WHERE 
   name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
   type IN ('table', 'view');
-"""
+    """
   ))
   # Requirement 10: must include a gpkg_spatial_ref_sys table
   # Requirement 13: must include a gpkg_contents table
@@ -53,7 +53,7 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
   JOIN gpkg_contents c ON (g.table_name = c.table_name)
   WHERE 
   c.data_type = 'features' LIMIT $layer
-"""
+    """
   )
   fields = nothing
   tb = map(feature_tables) do query
@@ -66,7 +66,7 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     if isnothing(fields) || length(rp_attrs) < length(fields)
       fields = rp_attrs
     end
-    rowvals = length(fields) |> iszero ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+    rowvals = iszero(length(fields)) ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
       NamedTuple(rv)
     end
     rowvals
@@ -121,7 +121,7 @@ AND g.srs_id = c.srs_id
 AND g.z IN (0, 1, 2)
 AND g.m IN (0, 1, 2)
  LIMIT $layer;
- """
+    """
   )
   meshes = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, org_coordsys_id)
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")

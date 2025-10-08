@@ -87,10 +87,19 @@ function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBLineString}
   Meshes.Ring(points[1:(end - 1)])
 end
 
-function wkbtomeshes(::Type{WKBPolygon}, n, io, crs, wkbbswap)
+function wkbtomeshes(::Type{T}, n, io, crs, wkbbswap) where {T<:WKBPolygon}
+  if T <: WKBPolygonZM
+    wkbchain = WKBLineStringZM
+  elseif T <: WKBPolygonM
+    wkbchain = WKBLineStringM
+  elseif T <: WKBPolygonZ
+    wkbchain = WKBLineStringZ
+  else
+    wkbchain = WKBLineString
+  end
   rings = map(1:n) do _
     k = wkbbswap(read(io, UInt32))
-    wkbtomeshes(WKBLineString, k, io, crs, wkbbswap)
+    wkbtomeshes(wkbchain, k, io, crs, wkbbswap)
   end
   outtering = first(rings)
   holes = isone(length(rings)) ? rings[2:end] : Meshes.Ring[]
@@ -153,9 +162,9 @@ function meshestowkb(::Type{T}, io, geom) where {T<:WKBMulti}
   write(io, htol(UInt32(length(parent(geom)))))
   for g in parent(geom)
     write(io, one(UInt8))
-    wkbn = parse(UInt32, (string(wkbmesh(T))[5:(end - 1)]) |> htol)
+    wkbn = parse(UInt32, htol(string(wkbmesh(T))[5:(end - 1)]))
     write(io, wkbn)
-    meshestowkb(meshwkb(WKB{UInt32(wkbn - 3)}), io, g)
+    meshestowkb(meshwkb(WKB{wkbn - UInt32(3)}), io, g)
   end
 end
 
@@ -164,23 +173,23 @@ function meshestowkb(geom::T, io) where {T<:Meshes.Geometry}
   meshdims = (paramdim(geom) >= 3)
   if T <: Meshes.PolyArea
     wkbtype = meshdims ? WKBPolygonZ : WKBPolygon
-    write(io, parse(UInt32, (string(wkbmesh(wkbtype))[11:(end - 1)]) |> htol))
+    write(io, parse(UInt32, htol(string(wkbmesh(wkbtype))[11:(end - 1)])))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Rope
     wkbtype = meshdims ? WKBLineStringZ : WKBLineString
-    write(io, parse(UInt32, (string(wkbmesh(wkbtype))[11:(end - 1)]) |> htol))
+    write(io, parse(UInt32, htol(string(wkbmesh(wkbtype))[11:(end - 1)])))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Ring
     wkbtype = meshdims ? WKBLineStringZ : WKBLineString
-    write(io, parse(UInt32, (string(wkbmesh(wkbtype))[11:(end - 1)]) |> htol))
+    write(io, parse(UInt32, htol(string(wkbmesh(wkbtype))[11:(end - 1)])))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Point
     wkbtype = meshdims ? WKBPointZ : WKBPoint
-    write(io, parse(UInt32, (string(wkbmesh(wkbtype))[11:(end - 1)]) |> htol))
+    write(io, parse(UInt32, htol(string(wkbmesh(wkbtype))[11:(end - 1)])))
     meshestowkb(wkbtype, io, geom)
   elseif T <: Meshes.Multi
     wkbtype = multiwkbmesh(typeof(first(parent(geom))), meshdims)
-    write(io, parse(UInt32, (string(wkbmesh(wkbtype))[11:(end - 1)]) |> htol))
+    write(io, parse(UInt32, htol(string(wkbmesh(wkbtype))[11:(end - 1)])))
     meshestowkb(wkbtype, io, geom)
   else
     throw(ArgumentError("""
