@@ -39,7 +39,7 @@ function creategpkgtables(db, table, domain, crs, geom)
   gpkgbinary = map(geom) do ft
     gpkgbinheader = writegpkgheader(srid, ft)
     io = IOBuffer()
-    writewkbgeom(ft, io)
+    writewkbgeom(io, ft)
     vcat(gpkgbinheader, take!(io))
   end
 
