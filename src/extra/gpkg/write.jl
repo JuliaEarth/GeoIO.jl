@@ -39,7 +39,7 @@ function creategpkgtables(db, table, domain, crs, geom)
   gpkgbinary = map(geom) do ft
     gpkgbinheader = writegpkgheader(srid, ft)
     io = IOBuffer()
-    writewkbgeom(io, ft)
+    writewkbgeom(ft, io)
     vcat(gpkgbinheader, take!(io))
   end
 
@@ -92,7 +92,7 @@ function creategpkgtables(db, table, domain, crs, geom)
   mincoords = CoordRefSystems.raw(coords(bbox.min))
   maxcoords = CoordRefSystems.raw(coords(bbox.max))
   minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
-  z = paramdim((geom |> first)) > 2 ? 1 : 0
+  z = paramdim(first(geom)) > 2 ? 1 : 0
 
   SQLite.transaction(db) do
     DBInterface.execute(

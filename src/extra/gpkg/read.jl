@@ -9,9 +9,9 @@ function gpkgread(fname; layer=1)
   attrs = gpkgmeshattrs(db, ; layer)
   DBInterface.close!(db)
   if eltype(attrs) <: Nothing
-    return GeoTables.georef(nothing, geom)
+    return georef(nothing, geom)
   end
-  GeoTables.georef(attrs, geom)
+  georef(attrs, geom)
 end
 
 function assertgpkg(db)
@@ -31,13 +31,13 @@ function assertgpkg(db)
 
   # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
   # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if ((DBInterface.execute(db, "PRAGMA integrity_check;") |> first).integrity_check != "ok") ||
+  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
 end
 
-function gpkgmeshattrs(db, ; layer=1)
+function gpkgvalues(db, ; layer=1)
   feature_tables = DBInterface.execute(
     db,
     """
@@ -103,7 +103,7 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-function gpkgmesh(db, ; layer=1)
+function gpkggeoms(db, ; layer=1)
   tb = DBInterface.execute(
     db,
     """
@@ -118,7 +118,7 @@ AND g.srs_id = c.srs_id
 AND g.z IN (0, 1, 2)
 AND g.m IN (0, 1, 2)
  LIMIT $layer;
- """
+    """
   )
   meshes = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, org_coordsys_id)
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
@@ -161,7 +161,8 @@ AND g.m IN (0, 1, 2)
       wkbtypebits = read(io, UInt32)
       zextent = isequal(envelopedims, 2)
       if zextent
-        wkbtype = wkbtypebits & ewkbmaskbits ? wkbGeometryType[wkbtypebits & 0x000000F] : wkbGeometryType[wkbtypebits - 1000]
+        wkbtype =
+          wkbtypebits & ewkbmaskbits ? wkbGeometryType[wkbtypebits & 0x000000F] : wkbGeometryType[wkbtypebits - 1000]
       else
         wkbtype = wkbGeometryType[wkbtypebits]
       end
@@ -177,7 +178,6 @@ AND g.m IN (0, 1, 2)
         crs = Cartesian{NoDatum}
       end
       mesh = meshfromwkb(io, crs, wkbtype, zextent, wkbbyteswap)
-
       if !isnothing(mesh)
         mesh
       end
@@ -187,5 +187,3 @@ AND g.m IN (0, 1, 2)
   # efficient method for concatenating arrays of arrays 
   reduce(vcat, meshes) # Future versions of Julia might change the reduce algorithm
 end
-
-
