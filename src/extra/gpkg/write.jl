@@ -19,6 +19,7 @@ function gpkgwrite(fname, geotable;)
   DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
   creategpkgtables(db, table, domain, crs, geom)
   DBInterface.execute(db, "PRAGMA optimize;")
+  # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should run "PRAGMA optimize;"
   # just once, prior to closing each database connection.
   DBInterface.close!(db)
@@ -42,12 +43,9 @@ function creategpkgtables(db, table, domain, crs, geom)
     vcat(gpkgbinheader, take!(io))
   end
 
-  geomtype = _geomtype(geom)
-  GeomType = _sqlitetype(geomtype)
-
   table =
-    isnothing(table) ? [(; geom=GeomType(g),) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
-    [(; t..., geom=GeomType(g)) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
+    isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+    [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
   rows = Tables.rows(table)
   sch = Tables.schema(rows)
   columns = [
@@ -117,7 +115,7 @@ function creategpkgtables(db, table, domain, crs, geom)
     DBInterface.execute(
       db,
       """
-   INSERT INTO gpkg_spatial_ref_sys 
+    INSERT INTO gpkg_spatial_ref_sys 
         (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063) 
         VALUES 
         ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
@@ -195,29 +193,9 @@ function creategpkgtables(db, table, domain, crs, geom)
             VALUES
             (?, ?, ?, ?, ?, ?);
       """,
-      ["features", "geom", geomtype, srid, z, 0]
+      ["features", "geom", "GEOMETRY", srid, z, 0]
     )
   end
-end
-
-function _wkbtype(geometry)
-  if geometry isa Point
-    return wkbPoint
-  elseif geometry isa Rope || geometry isa Ring
-    return wkbLineString
-  elseif geometry isa PolyArea
-    return wkbPolygon
-  elseif geometry isa Multi
-    fg = parent(geometry) |> first
-    return wkbGeometryType(Int(_wkbtype(fg)) + 3)
-  else
-    @error "my hovercraft is full of eels: $geometry"
-  end
-end
-
-function _wkbsetz(type::wkbGeometryType)
-  return wkbGeometryType(Int(type) + 1000)
-  # ISO WKB Flavour
 end
 
 function writegpkgheader(srsid, geom)
@@ -242,79 +220,4 @@ function writegpkgheader(srsid, geom)
   end
 
   return take!(io)
-end
-
-function writewkbgeom(io, geom)
-  wkbtype = paramdim(geom) < 3 ? _wkbtype(geom) : _wkbsetz(_wkbtype(geom))
-  write(io, htol(one(UInt8)))
-  write(io, htol(UInt32(wkbtype)))
-  _wkbgeom(io, wkbtype, geom)
-end
-
-function writewkbsf(io, wkbtype, geom)
-  if wkbtype == wkbPolygon || wkbtype == wkbPolygonZ
-    _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
-  elseif wkbtype == wkbLineString || wkbtype == wkbLineString
-    coordlist = vertices(geom)
-    if typeof(geom) <: Ring
-      return _wkblinearring(io, wkbtype, coordlist)
-    end
-    _wkblinestring(io, wkbtype, coordlist)
-  elseif wkbtype == wkbPoint || wkbtype == wkbPointZ
-    coordinates = CoordRefSystems.raw(coords(geom))
-    _wkbcoordinates(io, wkbtype, coordinates)
-  else
-    throw(ErrorException("Well-Known Binary Geometry not supported: $wkbtype"))
-  end
-end
-
-function _wkbgeom(io, wkbtype, geom)
-  if Int(wkbtype) > 3
-    _wkbmulti(io, wkbtype, geom)
-  else
-    writewkbsf(io, wkbtype, geom)
-  end
-end
-
-function _wkbcoordinates(io, wkbtype, coords)
-  write(io, htol(coords[2]))
-  write(io, htol(coords[1]))
-
-  if (UInt32(wkbtype) > 1000) || !(iszero(Int(wkbtype) & (0x80000000 | 0x40000000)))
-    write(io, htol(coords[3]))
-  end
-end
-
-function _wkblinestring(io, wkb_type, coord_list)
-  write(io, htol(UInt32(length(coord_list))))
-  for n_coords in coord_list
-    coordinates = CoordRefSystems.raw(coords(n_coords))
-    _wkbcoordinates(io, wkb_type, coordinates)
-  end
-end
-
-function _wkblinearring(io, wkb_type, coord_list)
-  write(io, htol(UInt32(length(coord_list) + 1)))
-  for n_coords in coord_list
-    coordinates = CoordRefSystems.raw(coords(n_coords))
-    _wkbcoordinates(io, wkb_type, coordinates)
-  end
-  _wkbcoordinates(io, wkb_type, CoordRefSystems.raw(first(coord_list) |> coords))
-end
-
-function _wkbpolygon(io, wkb_type, rings)
-  write(io, htol(UInt32(length(rings))))
-  for ring in rings
-    coord_list = vertices(ring)
-    _wkblinestring(io, wkb_type, coord_list)
-  end
-end
-
-function _wkbmulti(io, wkbtype, geoms)
-  write(io, htol(UInt32(length(geoms |> parent))))
-  for sf in geoms |> parent
-    write(io, one(UInt8))
-    write(io, UInt32(Int(wkbMultiPolygon) - 3))
-    writewkbsf(io, wkbGeometryType(Int(wkbtype) - 3), sf)
-  end
 end

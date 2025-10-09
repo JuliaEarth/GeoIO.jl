@@ -7,9 +7,6 @@ function gpkgread(fname; layer=1)
   assertgpkg(db)
   geom = gpkgmesh(db, ; layer)
   attrs = gpkgmeshattrs(db, ; layer)
-  DBInterface.execute(db, "PRAGMA optimize;")
-  # PRAGMA optimize command will normally only consider running ANALYZE
-  # on tables that have been previously queried by the same database connection
   DBInterface.close!(db)
   if eltype(attrs) <: Nothing
     return GeoTables.georef(nothing, geom)
@@ -18,7 +15,17 @@ function gpkgread(fname; layer=1)
 end
 
 function assertgpkg(db)
-  if !hasgpkgmetadata(db)
+  tbcount = first(DBInterface.execute(
+    db,
+    """
+  SELECT COUNT(*) AS n FROM sqlite_master WHERE 
+  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
+  type IN ('table', 'view');
+    """
+  ))
+  # Requirement 10: must include a gpkg_spatial_ref_sys table
+  # Requirement 13: must include a gpkg_contents table
+  if tbcount.n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
 
@@ -28,20 +35,6 @@ function assertgpkg(db)
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
-end
-
-# Requirement 10: must include a gpkg_spatial_ref_sys table
-# Requirement 13: must include a gpkg_contents table
-function hasgpkgmetadata(db)
-  tbcount = DBInterface.execute(
-    db,
-    """
-  SELECT COUNT(*) FROM sqlite_master WHERE 
-  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
-  type IN ('table', 'view');
-"""
-  ) |> first |> only
-  tbcount == 2
 end
 
 function gpkgmeshattrs(db, ; layer=1)
@@ -57,7 +50,7 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
   JOIN gpkg_contents c ON (g.table_name = c.table_name)
   WHERE 
   c.data_type = 'features' LIMIT $layer
-"""
+    """
   )
   fields = nothing
   tb = map(feature_tables) do query
@@ -70,7 +63,7 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     if isnothing(fields) || length(rp_attrs) < length(fields)
       fields = rp_attrs
     end
-    rowvals = length(fields) |> iszero ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+    rowvals = iszero(length(fields)) ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
       NamedTuple(rv)
     end
     rowvals
@@ -135,49 +128,55 @@ AND g.m IN (0, 1, 2)
       !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
     end
     submeshes = map(gpkgblobs) do blob
-      gpkgbindata = isa(blob[1], WKBGeometry) ? blob[1].data : blob[1]
-      io = IOBuffer(gpkgbindata)
+      if blob[1][1:2] != UInt8[0x47, 0x50]
+        @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+      end
+      io = IOBuffer(blob[1])
       seek(io, 3)
       flag = read(io, UInt8)
       # Note that Julia does not convert the endianness for you.
       # Use ntoh or ltoh for this purpose.
       bswap = isone(flag & 0x01) ? ltoh : ntoh
-
       srsid = bswap(read(io, Int32))
-
       envelope = (flag & (0x07 << 1)) >> 1
       envelopedims = 0
-
       if !iszero(envelope)
         if isone(envelope)
           envelopedims = 1 # 2D
         elseif isequal(2, envelope)
           envelopedims = 2 # 2D+Z
         elseif isequal(3, envelope)
-          envelopedims = 3 # 2D+M
+          envelopedims = 3 # 2D+M is not supported
         elseif isequal(4, envelope)
-          envelopedims = 4 # 2D+ZM
+          envelopedims = 4 # 2D+ZM is not supported
         else
-          @error "exceeded dimensional limit for geometry, file may be corrupted or reader is broken"
-          false
+          throw(ErrorException("exceeded dimensional limit for geometry, file may be corrupted or reader is broken"))
         end
-      else
-        true # no envelope (space saving slower indexing option), 0 bytes
-      end
+      end # else no envelope (space saving slower indexing option), 0 bytes
 
       # header size in byte stream
       headerlen = 8 + 8 * 4 * envelopedims
       seek(io, headerlen)
-
-      ebyteorder = read(io, UInt8)
-
-      bswap = isone(ebyteorder) ? ltoh : ntoh
-
-      wkbtype = wkbGeometryType(read(io, UInt32))
-
+      wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
+      wkbtypebits = read(io, UInt32)
       zextent = isequal(envelopedims, 2)
-
-      mesh = meshfromwkb(io, srsid, org, org_coordsys_id, wkbtype, zextent, bswap)
+      if zextent
+        wkbtype = wkbtypebits & ewkbmaskbits ? wkbGeometryType[wkbtypebits & 0x000000F] : wkbGeometryType[wkbtypebits - 1000]
+      else
+        wkbtype = wkbGeometryType[wkbtypebits]
+      end
+      if iszero(srsid)
+        crs = LatLon{WGS84Latest}
+      elseif !isone(abs(srsid))
+        if org == "EPSG"
+          crs = CoordRefSystems.get(EPSG{org_coordsys_id})
+        elseif org == "ESRI"
+          crs = CoordRefSystems.get(ERSI{org_coordsys_id})
+        end
+      else
+        crs = Cartesian{NoDatum}
+      end
+      mesh = meshfromwkb(io, crs, wkbtype, zextent, wkbbyteswap)
 
       if !isnothing(mesh)
         mesh
@@ -189,94 +188,4 @@ AND g.m IN (0, 1, 2)
   reduce(vcat, meshes) # Future versions of Julia might change the reduce algorithm
 end
 
-function meshfromwkb(io, srsid, org, org_coordsys_id, ewkbtype, zextent, bswap)
-  if iszero(srsid)
-    crs = LatLon{WGS84Latest}
-  elseif !isone(abs(srsid))
-    if org == "EPSG"
-      crs = CoordRefSystems.get(EPSG{org_coordsys_id})
-    elseif org == "ESRI"
-      crs = CoordRefSystems.get(ERSI{org_coordsys_id})
-    end
-  else
-    crs = Cartesian{NoDatum}
-  end
 
-  if occursin("Multi", string(ewkbtype))
-    elems = wkbmultigeometry(io, crs, zextent, bswap)
-    Multi(elems)
-  else
-    elem = meshfromsf(io, crs, ewkbtype, zextent, bswap)
-    elem
-  end
-end
-
-# Requirement 20: GeoPackage SHALL store feature table geometries
-#  with the basic simple feature geometry types
-# https://www.geopackage.org/spec140/index.html#geometry_types
-function meshfromsf(io, crs, ewkbtype, zextent, bswap)
-  if isequal(ewkbtype, wkbPoint)
-    elem = wkbcoordinate(io, zextent, bswap)
-    Point(crs(elem...))
-  elseif isequal(ewkbtype, wkbLineString)
-    elem = wkblinestring(io, zextent, bswap)
-    if length(elem) >= 2 && first(elem) != last(elem)
-      Rope([Point(crs(coords...)) for coords in elem]...)
-    else
-      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
-    end
-  elseif isequal(ewkbtype, wkbPolygon)
-    elem = wkbpolygon(io, zextent, bswap)
-    rings = map(elem) do ring
-      coords = map(ring) do point
-        Point(crs(point...))
-      end
-      Ring(coords)
-    end
-
-    outerring = first(rings)
-    holes = isone(length(rings)) ? rings[2:end] : Ring[]
-    PolyArea(outerring, holes...)
-  end
-end
-
-function wkbcoordinate(io, z, bswap)
-  x = bswap(read(io, Float64))
-  y = bswap(read(io, Float64))
-
-  if z
-    z = bswap(read(io, Float64))
-    return x, y, z
-  end
-
-  x, y
-end
-
-function wkblinestring(io, z, bswap)
-  npoints = bswap(read(io, UInt32))
-
-  points = map(1:npoints) do _
-    wkbcoordinate(io, z, bswap)
-  end
-  points
-end
-
-function wkbpolygon(io, z, bswap)
-  nrings = bswap(read(io, UInt32))
-
-  rings = map(1:nrings) do _
-    wkblinestring(io, z, bswap)
-  end
-  rings
-end
-
-function wkbmultigeometry(io, crs, z, bswap)
-  ngeoms = bswap(read(io, UInt32))
-
-  geomcollection = map(1:ngeoms) do _
-    bswap = isone(read(io, UInt8)) ? ltoh : ntoh
-    ewkbtype = wkbGeometryType(read(io, UInt32))
-    meshfromsf(io, crs, ewkbtype, z, bswap)
-  end
-  geomcollection
-end
