@@ -45,7 +45,7 @@ function creategpkgtables(db, table, domain, crs, geom)
 
   table =
     isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
-    [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
+    [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
   rows = Tables.rows(table)
   sch = Tables.schema(rows)
   columns = [
@@ -55,7 +55,7 @@ function creategpkgtables(db, table, domain, crs, geom)
 
   # https://www.geopackage.org/spec/#r29
   #  A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
-  DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')));")
+  DBInterface.execute(db, "CREATE TABLE features ( id INTEGER PRIMARY KEY AUTOINCREMENT, $(join(columns, ',')));")
   # The use of the AUTOINCREMENT keyword is optional but recommended. 
   # Implementers MAY omit the AUTOINCREMENT keyword for performance reasons, with the understanding that doing so has the potential to allow primary key identifiers to be reused.
 

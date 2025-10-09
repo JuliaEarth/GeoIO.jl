@@ -23,8 +23,9 @@
   file = joinpath(savedir, "noattribs.gpkg")
   GeoIO.save(file, gtb1)
   gtb2 = GeoIO.load(file)
-  @test isnothing(values(gtb2))
-  @test gtb2 == gtb1
+  @test isequal((id = [1, 2, 3],), values(gtb2))
+  gtb1o = georef((id = [1, 2, 3],), pset)
+  @test gtb2 == gtb1o
 
   # CSV
   pset = [Point(0.0, 0.0), Point(1.0, 0.0), Point(0.0, 1.0)]
