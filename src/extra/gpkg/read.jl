@@ -162,9 +162,9 @@ AND g.m IN (0, 1, 2)
       zextent = isequal(envelopedims, 2)
       if zextent
         wkbtype =
-          wkbtypebits & ewkbmaskbits ? wkbGeometryType[wkbtypebits & 0x000000F] : wkbGeometryType[wkbtypebits - 1000]
+          wkbtypebits & ewkbmaskbits ? wkbGeometryType(wkbtypebits & 0x000000F) : wkbGeometryType(wkbtypebits - 1000)
       else
-        wkbtype = wkbGeometryType[wkbtypebits]
+        wkbtype = wkbGeometryType(wkbtypebits)
       end
       if iszero(srsid)
         crs = LatLon{WGS84Latest}

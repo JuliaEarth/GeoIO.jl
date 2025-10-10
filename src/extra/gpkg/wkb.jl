@@ -56,7 +56,7 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
     io = IOBuffer
     for row in wkbGeometryColumn
       wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
-      wkbtype = read(io, UInt32)
+      wkbtype = wkbGeometryType(read(io, UInt32))
       crs = LatLon{WGS84Latest}
       haszextent = false
       push!(meshes, meshfromwkb(io, crs, wkbtype, haszextent, wkbbyteswap))
@@ -66,21 +66,22 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
 """
 const ewkbmaskbits = 0x40000000 | 0x80000000
 
-const wkbGeometryType = Dict{UInt32,Symbol}(
-  1 => :wkbPoint,
-  2 => :wkbLineString,
-  3 => :wkbPolygon,
-  4 => :wkbMultiPoint,
-  5 => :wkbMultiLineString,
-  6 => :wkbMultiPolygon,
-  7 => :wkbGeometryCollection
-)
+@enum wkbGeometryType begin
+  wkbUnknown = 0
+  wkbPoint = 1
+  wkbLineString = 2
+  wkbPolygon = 3
+  wkbMultiPoint = 4
+  wkbMultiLineString = 5
+  wkbMultiPolygon = 6
+  wkbGeometryCollection = 7
+end
 
 # Requirement 20: GeoPackage SHALL store feature table geometries
 #  with the basic simple feature geometry types
 # https://www.geopackage.org/spec140/index.html#geometry_types
 function meshfromwkb(io, crs, wkbtype, zextent, bswap)
-  if occursin("Multi", string(wkbtype))
+  if UInt32(wkbtype) > 3
     elems = wkbmultigeometry(io, crs, zextent, bswap)
     Multi(elems)
   else
@@ -90,17 +91,17 @@ function meshfromwkb(io, crs, wkbtype, zextent, bswap)
 end
 
 function meshfromsf(io, crs, wkbtype, zextent, bswap)
-  if isequal(wkbtype, :wkbPoint)
+  if isequal(wkbtype, wkbPoint)
     elem = wkbcoordinate(io, zextent, bswap)
     Point(crs(elem...))
-  elseif isequal(wkbtype, :wkbLineString)
+  elseif isequal(wkbtype, wkbLineString)
     elem = wkblinestring(io, zextent, bswap)
     if length(elem) >= 2 && first(elem) != last(elem)
       Rope([Point(crs(coords...)) for coords in elem]...)
     else
       Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
     end
-  elseif isequal(wkbtype, :wkbPolygon)
+  elseif isequal(wkbtype, wkbPolygon)
     elem = wkbpolygon(io, zextent, bswap)
     rings = map(elem) do ring
       coords = map(ring) do point
@@ -153,12 +154,12 @@ function wkbmultigeometry(io, crs, z, bswap)
     wkbtypebits = read(io, UInt32)
     if z
       if iszero(wkbtypebits & ewkbmaskbits)
-        wkbtype = wkbGeometryType[wkbtypebits]
+        wkbtype = wkbGeometryType(wkbtypebits)
       else
-        wkbtype = wkbGeometryType[wkbtypebits - 1000]
+        wkbtype = wkbGeometryType(wkbtypebits - 1000)
       end
     else
-      wkbtype = wkbGeometryType[wkbtypebits]
+      wkbtype = wkbGeometryType(wkbtypebits)
     end
     meshfromsf(io, crs, wkbtype, z, bswap)
   end
@@ -167,36 +168,36 @@ end
 
 function _wkbtype(geometry)
   if geometry isa Point
-    return :wkbPoint
+    return wkbPoint
   elseif geometry isa Rope || geometry isa Ring
-    return :wkbLineString
+    return wkbLineString
   elseif geometry isa PolyArea
-    return :wkbPolygon
+    return wkbPolygon
   elseif geometry isa Multi
     fg = first(parent(geometry))
-    return wkbGeometryType[findfirst(isequal(_wkbtype(fg)), wkbGeometryType) + 3]
+    return wkbGeometryType(Int(_wkbtype(fg)) + 3)
   else
-    throw(ErrorException(" $geometry to wkbGeometryType Symbol is not available"))
+    return wkbGeometryCollection
   end
 end
 
 function writewkbgeom(io, geom)
   wkbtype = _wkbtype(geom)
   write(io, htol(one(UInt8)))
-  write(io, htol(UInt32(findfirst(isequal(wkbtype), wkbGeometryType))))
+  write(io, htol(UInt32(wkbtype)))
   _wkbgeom(io, wkbtype, geom)
 end
 
 function writewkbsf(io, wkbtype, geom)
-  if isequal(wkbtype, :wkbPolygon)
-    _wkbpolygon(io, wkbtype, [boundary(geom::PolyArea)])
-  elseif isequal(wkbtype, :wkbLineString)
+  if isequal(wkbtype, wkbPolygon)
+    _wkbpolygon(io, [boundary(geom::PolyArea)])
+  elseif isequal(wkbtype, wkbLineString)
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
-      return _wkblinearring(io, wkbtype, coordlist)
+      return _wkblinearring(io, coordlist)
     end
-    _wkblinestring(io, wkbtype, coordlist)
-  elseif isequal(wkbtype, :wkbPoint)
+    _wkblinestring(io, coordlist)
+  elseif isequal(wkbtype, wkbPoint)
     coordinates = CoordRefSystems.raw(coords(geom))
     _wkbcoordinates(io, coordinates)
   else
@@ -205,7 +206,7 @@ function writewkbsf(io, wkbtype, geom)
 end
 
 function _wkbgeom(io, wkbtype, geom)
-  if findfirst(isequal(wkbtype), wkbGeometryType) > 3
+  if UInt32(wkbtype) > 3
     _wkbmulti(io, wkbtype, geom)
   else
     writewkbsf(io, wkbtype, geom)
@@ -220,7 +221,7 @@ function _wkbcoordinates(io, coords)
   end
 end
 
-function _wkblinestring(io, wkb_type, coord_list)
+function _wkblinestring(io, coord_list)
   write(io, htol(UInt32(length(coord_list))))
   for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
@@ -228,7 +229,7 @@ function _wkblinestring(io, wkb_type, coord_list)
   end
 end
 
-function _wkblinearring(io, wkb_type, coord_list)
+function _wkblinearring(io, coord_list)
   write(io, htol(UInt32(length(coord_list) + 1)))
   for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
@@ -237,11 +238,11 @@ function _wkblinearring(io, wkb_type, coord_list)
   _wkbcoordinates(io, CoordRefSystems.raw(first(coord_list) |> coords))
 end
 
-function _wkbpolygon(io, wkb_type, rings)
+function _wkbpolygon(io, rings)
   write(io, htol(UInt32(length(rings))))
   for ring in rings
     coord_list = vertices(ring)
-    _wkblinestring(io, wkb_type, coord_list)
+    _wkblinestring(io, coord_list)
   end
 end
 
@@ -249,8 +250,7 @@ function _wkbmulti(io, multiwkbtype, geoms)
   write(io, htol(UInt32(length(parent(geoms)))))
   for sf in parent(geoms)
     write(io, one(UInt8))
-    wkbn = findfirst(isequal(multiwkbtype), wkbGeometryType)
-    write(io, UInt32(wkbn - 3))
-    writewkbsf(io, wkbGeometryType[wkbn - 3], sf)
+    write(io, UInt32(multiwkbtype) - 3)
+    writewkbsf(io, wkbGeometryType(UInt32(multiwkbtype) - 3), sf)
   end
 end
