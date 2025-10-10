@@ -8,7 +8,10 @@
 Flavors of WKB supported:
 
 0. Standard WKB supports two-dimensional geometry, and is a proper subset of both extended WKB and ISO WKB.
-```` julia
+
+## Reading WKB Geometry BLOB
+
+``` julia
     io = IOBuffer(WKBGeometryBLOB)
     # load byte order in order to transport geometry 
     # easily between systems of different endianness
@@ -20,11 +23,12 @@ Flavors of WKB supported:
       # load number of geometries in geometry set
       numWkbGeometries = read(io, UInt32)
     end
-    # load in WKBGeometry that contain 
-    # double precision numbers in the coordinates
+    # load in WKBGeometry that contain geometry values
+    # w/ double precision numbers in the coordinates
     # that are also subject to byte order rules
     wkbGeometryBlob = read(io, Vector{UInt8})
-````
+```
+
 1. Extended WKB allows applications to optionally add extra dimensions, and optionally embed an SRID
  99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag
 to indicate the presence of Z coordinates in a WKB geometry.

@@ -6,6 +6,7 @@ function gpkgwrite(fname, geotable;)
   db = SQLite.DB(fname)
 
   DBInterface.execute(db, "PRAGMA synchronous=0")
+  # https://sqlite.org/pragma.html#pragma_synchronous
   # Commits can be orders of magnitude faster with
   # Setting PRAGMA synchronous=OFF but,
   # can cause the database to go corrupt
@@ -34,7 +35,7 @@ function creategpkgtables(db, table, domain, crs, geom)
     srid = 4326
   else
     srs = string(CoordRefSystems.code(crs))[1:4]
-    srid = parse(Int32, srs)
+    srid = parse(Int32, string(CoordRefSystems.code(crs))[6:(end - 1)])
   end
   gpkgbinary = map(geom) do ft
     gpkgbinheader = writegpkgheader(srid, ft)
@@ -86,15 +87,13 @@ function creategpkgtables(db, table, domain, crs, geom)
       state === nothing && break
       row, st = state
     end
-  end
 
-  bbox = boundingbox(domain)
-  mincoords = CoordRefSystems.raw(coords(bbox.min))
-  maxcoords = CoordRefSystems.raw(coords(bbox.max))
-  minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
-  z = paramdim(first(geom)) > 2 ? 1 : 0
+    bbox = boundingbox(domain)
+    mincoords = CoordRefSystems.raw(coords(bbox.min))
+    maxcoords = CoordRefSystems.raw(coords(bbox.max))
+    minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
+    z = paramdim(first(geom)) > 2 ? 1 : 0
 
-  SQLite.transaction(db) do
     DBInterface.execute(
       db,
       """
@@ -194,6 +193,63 @@ function creategpkgtables(db, table, domain, crs, geom)
             (?, ?, ?, ?, ?, ?);
       """,
       ["features", "geom", "GEOMETRY", srid, z, 0]
+    )
+
+    DBInterface.execute(
+      db,
+      """
+    CREATE VIRTUAL TABLE rtree_features_geom USING 
+      rtree(id, minx, maxx, miny, maxy)
+      """
+    )
+    bboxes = map(geom) do ft
+      bbox = boundingbox(ft)
+      mincoords = CoordRefSystems.raw(coords(bbox.min))
+      maxcoords = CoordRefSystems.raw(coords(bbox.max))
+      minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
+      return (minx, maxx, miny, maxy)
+    end
+
+    stmt = SQLite.Stmt(db, "INSERT INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
+    handle = SQLite._get_stmt_handle(stmt)
+    for i in 1:length(gpkgbinary)
+      fx_minx, fx_maxx, fx_miny, fx_maxy = bboxes[i]
+      SQLite.bind!(stmt, 1, i)
+      SQLite.bind!(stmt, 2, fx_minx)
+      SQLite.bind!(stmt, 3, fx_maxx)
+      SQLite.bind!(stmt, 4, fx_miny)
+      SQLite.bind!(stmt, 5, fx_maxy)
+      r = SQLite.C.sqlite3_step(handle)
+      if r != SQLite.C.SQLITE_DONE
+        e = SQLite.sqliteexception(db, stmt)
+        SQLite.C.sqlite3_reset(handle)
+        throw(e)
+      end
+      SQLite.C.sqlite3_reset(handle)
+    end
+
+    DBInterface.execute(
+      db,
+      """
+    CREATE TABLE gpkg_extensions (
+          table_name TEXT,
+          column_name TEXT,
+          extension_name TEXT NOT NULL,
+          definition TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
+        )
+        """
+    )
+
+    DBInterface.execute(
+      db,
+      """
+    INSERT INTO gpkg_extensions
+        (table_name, column_name, extension_name, definition, scope)
+        VALUES 
+        ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only');
+        """
     )
   end
 end
