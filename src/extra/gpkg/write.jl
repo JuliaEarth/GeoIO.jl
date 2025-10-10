@@ -58,13 +58,12 @@ function creategpkgtables(db, table, domain, crs, geom)
   #  A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   DBInterface.execute(db, "CREATE TABLE features ( id INTEGER PRIMARY KEY AUTOINCREMENT, $(join(columns, ',')));")
   # The use of the AUTOINCREMENT keyword is optional but recommended. 
-  # Implementers MAY omit the AUTOINCREMENT keyword for performance reasons, with the understanding that doing so has the potential to allow primary key identifiers to be reused.
 
   params = chop(repeat("?,", length(sch.names)))
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
   stmt = SQLite.Stmt(db, "INSERT INTO features ($columns) VALUES ($params)";)
-  handle = SQLite._get_stmt_handle(stmt)
-  SQLite.transaction(db) do
+  handle = SQLite._get_stmt_handle(stmt) # # used for holding references to bound statement values via bind!
+  SQLite.transaction(db) do # default mode = "DEFERRED"
     row = nothing
     if row === nothing
       state = iterate(rows)
@@ -75,7 +74,9 @@ function creategpkgtables(db, table, domain, crs, geom)
       Tables.eachcolumn(sch, row) do val, col, _
         SQLite.bind!(stmt, col, val)
       end
-      r = GC.@preserve row SQLite.C.sqlite3_step(handle)
+      r = GC.@preserve row SQLite.C.sqlite3_step(handle) # Evaluate An SQL Statement
+      # the return value will be either SQLITE_BUSY, SQLITE_DONE, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
+      # To ensure that a statement has "finished" is to invoke sqlite3_reset() or sqlite3_finalize().
       if r == SQLite.C.SQLITE_DONE
         SQLite.C.sqlite3_reset(handle)
       elseif r != SQLite.C.SQLITE_ROW
@@ -122,9 +123,9 @@ function creategpkgtables(db, table, domain, crs, geom)
         ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
       """
     )
-
+    # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
     if srid != 4326 && srid > 0
-      DBInterface.execute(  # Insert non-existing CRS record into gpkg_spatial_ref_sys table. srs_id referenced by gpkg_contents, gpkg_geometry_columns
+      DBInterface.execute(  
         db,
         """
     INSERT INTO gpkg_spatial_ref_sys 
@@ -195,6 +196,8 @@ function creategpkgtables(db, table, domain, crs, geom)
       ["features", "geom", "GEOMETRY", srid, z, 0]
     )
 
+    # https://www.geopackage.org/spec/#r77
+    # Extended GeoPackage requires spatial indexes on feature table geometry columns using the SQLite Virtual Table R-trees 
     DBInterface.execute(
       db,
       """
@@ -210,11 +213,15 @@ function creategpkgtables(db, table, domain, crs, geom)
       return (minx, maxx, miny, maxy)
     end
 
+    # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
+    # And provides a significant performance advantage for searches with basic envelope spatial criteria 
+    # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
+    # The index data structure needs to be manually populated, updated and queried. 
     stmt = SQLite.Stmt(db, "INSERT INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
     handle = SQLite._get_stmt_handle(stmt)
     for i in 1:length(gpkgbinary)
-      fx_minx, fx_maxx, fx_miny, fx_maxy = bboxes[i]
-      SQLite.bind!(stmt, 1, i)
+      fx_minx, fx_maxx, fx_miny, fx_maxy = bboxes[i] # the min/max x/y parameters are min- and max-value pairs (stored as 32-bit floating point numbers) 
+      SQLite.bind!(stmt, 1, i) # The R-tree function id parameter becomes the virtual table 64-bit signed integer primary key id column
       SQLite.bind!(stmt, 2, fx_minx)
       SQLite.bind!(stmt, 3, fx_maxx)
       SQLite.bind!(stmt, 4, fx_miny)
