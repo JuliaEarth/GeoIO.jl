@@ -5,16 +5,27 @@
 function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   assertgpkg(db)
-  geom = gpkggeoms(db, ; layer)
-  attrs = gpkgvalues(db, ; layer)
+  geoms = gpkggeoms(db; layer)
+  table = gpkgvalues(db; layer)
   DBInterface.close!(db)
-  if eltype(attrs) <: Nothing
-    return georef(nothing, geom)
+  if eltype(table) <: Nothing
+    return georef(nothing, geoms)
+  else
+    georef(table, geoms)
   end
-  georef(attrs, geom)
 end
 
 function assertgpkg(db)
+
+  # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
+  # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
+  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
+     !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
+    throw(ErrorException("database integrity at risk or foreign key violation(s)"))
+  end
+
+  # Requirement 10: must include a gpkg_spatial_ref_sys table
+  # Requirement 13: must include a gpkg_contents table
   tbcount = first(DBInterface.execute(
     db,
     """
@@ -23,22 +34,13 @@ function assertgpkg(db)
   type IN ('table', 'view');
     """
   ))
-  # Requirement 10: must include a gpkg_spatial_ref_sys table
-  # Requirement 13: must include a gpkg_contents table
   if tbcount.n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
-  end
-
-  # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
-  # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
-     !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
-    throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
 end
 
 function gpkgvalues(db, ; layer=1)
-  feature_tables = DBInterface.execute(
+  table = DBInterface.execute(
     db,
     """
 SELECT c.table_name, c.identifier, 
@@ -53,22 +55,31 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     """
   )
   fields = nothing
-  tb = map(feature_tables) do query
+  table = map(table) do query
     tn = query.table_name
-    cn = query.column_name
-    ft_attrs = SQLite.tableinfo(db, tn).name
-    deleteat!(ft_attrs, findall(x -> isequal(x, cn), ft_attrs))
-    rp_attrs = join(ft_attrs, ", ")
-    # keep the shortest set of attributes to avoid KeyError {Key} not found
-    if isnothing(fields) || length(rp_attrs) < length(fields)
-      fields = rp_attrs
+    tableinfo = SQLite.tableinfo(db, tn).name
+    # returns NamedTuple of AbstractVectors, also known as a "column table"
+
+    # remove `column_name` field from tableinfo in-place
+    # to avoid querying the geometry column that stores feature geometry
+    deleteat!(tableinfo, findall(x -> isequal(x, query.column_name), tableinfo))
+    columns = join(tableinfo, ", ")
+
+    # keep the shortest set of fields if there is more than one feature table
+    if isnothing(fields) || length(columns) < length(fields)
+      fields = columns
     end
-    rowvals = iszero(length(fields)) ? nothing : map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+
+    # if there are no fields in column table then return nothing to table
+    if iszero(length(fields))
+      return nothing
+    end
+    rowvals = map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
       NamedTuple(rv)
     end
     rowvals
   end
-  vcat(tb...)
+  vcat(table...)
 end
 
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
@@ -120,14 +131,16 @@ AND g.m IN (0, 1, 2)
  LIMIT $layer;
     """
   )
-  meshes = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, org_coordsys_id)
+  featuretablegeoms = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, orgcoordsysid)
+    # get feature geometry from geometry column in feature table
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
-    named_rows = map(NamedTuple, gpkgbinary)
-    gpkgblobs = filter(named_rows) do row
+
+    gpkgblobs = filter(map(NamedTuple, gpkgbinary)) do row
       !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
     end
-    submeshes = map(gpkgblobs) do blob
+
+    geomcollection = map(gpkgblobs) do blob
       if blob[1][1:2] != UInt8[0x47, 0x50]
         @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
       end
@@ -166,24 +179,26 @@ AND g.m IN (0, 1, 2)
       else
         wkbtype = wkbGeometryType(wkbtypebits)
       end
+
       if iszero(srsid)
         crs = LatLon{WGS84Latest}
       elseif !isone(abs(srsid))
         if org == "EPSG"
-          crs = CoordRefSystems.get(EPSG{org_coordsys_id})
+          crs = CoordRefSystems.get(EPSG{orgcoordsysid})
         elseif org == "ESRI"
-          crs = CoordRefSystems.get(ERSI{org_coordsys_id})
+          crs = CoordRefSystems.get(ERSI{orgcoordsysid})
         end
       else
         crs = Cartesian{NoDatum}
       end
-      mesh = meshfromwkb(io, crs, wkbtype, zextent, wkbbyteswap)
-      if !isnothing(mesh)
-        mesh
+
+      geom = gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap)
+      if !isnothing(geom)
+        geom
       end
     end
-    submeshes
+    geomcollection
   end
   # efficient method for concatenating arrays of arrays 
-  reduce(vcat, meshes) # Future versions of Julia might change the reduce algorithm
+  reduce(vcat, featuretablegeoms) # Future versions of Julia might change the reduce algorithm
 end

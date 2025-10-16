@@ -7,7 +7,7 @@
 
 Flavors of WKB supported:
 
-0. Standard WKB supports two-dimensional geometry, and is a proper subset of both extended WKB and ISO WKB.
+- Standard WKB supports two-dimensional geometry, and is a proper subset of both extended WKB and ISO WKB.
 
 ## Reading WKB Geometry BLOB
 
@@ -25,17 +25,19 @@ Flavors of WKB supported:
     end
     # load in WKBGeometry that contain geometry values
     # w/ double precision numbers in the coordinates
-    # that are also subject to byte order rules
-    wkbGeometryBlob = read(io, Vector{UInt8})
+    # that are also subject to byte order rules.
+    wkbEndianness = isone(wkbByteOrder) ? ltoh : ntoh
+    # Note that Julia does not convert the endianness for you.
+    wkbGeometryBlob = wkbEndianness(read(io, Vector{UInt8}))
 ```
 
-1. Extended WKB allows applications to optionally add extra dimensions, and optionally embed an SRID
+- Extended WKB allows applications to optionally add extra dimensions, and optionally embed an SRID
  99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag
 to indicate the presence of Z coordinates in a WKB geometry.
  When the optional wkbSRID is added to the wkbType, an SRID number is inserted after the wkbType number.
 ⚠ This optional behaviour is not supported and will likely fail loading this variant
 
-2. ISO WKB allows for higher dimensional geometries.
+- ISO WKB allows for higher dimensional geometries.
 SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM)
 ⚠ only offsets of 1000 are recognized and supported and will likely fali loading this variant
 
@@ -52,14 +54,14 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
 ## Example
 
 ``` julia
-    meshes = []
+    geoms = []
     io = IOBuffer
     for row in wkbGeometryColumn
       wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
       wkbtype = wkbGeometryType(read(io, UInt32))
       crs = LatLon{WGS84Latest}
       haszextent = false
-      push!(meshes, meshfromwkb(io, crs, wkbtype, haszextent, wkbbyteswap))
+      push!(geoms, gpkgwkbgeom(io, crs, wkbtype, haszextent, wkbbyteswap))
     end
 ``` 
 
@@ -80,17 +82,17 @@ end
 # Requirement 20: GeoPackage SHALL store feature table geometries
 #  with the basic simple feature geometry types
 # https://www.geopackage.org/spec140/index.html#geometry_types
-function meshfromwkb(io, crs, wkbtype, zextent, bswap)
+function gpkgwkbgeom(io, crs, wkbtype, zextent, bswap)
   if UInt32(wkbtype) > 3
-    elems = wkbmultigeometry(io, crs, zextent, bswap)
+    elems = wkbmulti(io, crs, zextent, bswap)
     Multi(elems)
   else
-    elem = meshfromsf(io, crs, wkbtype, zextent, bswap)
+    elem = wkbsimple(io, crs, wkbtype, zextent, bswap)
     elem
   end
 end
 
-function meshfromsf(io, crs, wkbtype, zextent, bswap)
+function wkbsimple(io, crs, wkbtype, zextent, bswap)
   if isequal(wkbtype, wkbPoint)
     elem = wkbcoordinate(io, zextent, bswap)
     Point(crs(elem...))
@@ -146,7 +148,7 @@ function wkbpolygon(io, z, bswap)
   rings
 end
 
-function wkbmultigeometry(io, crs, z, bswap)
+function wkbmulti(io, crs, z, bswap)
   ngeoms = bswap(read(io, UInt32))
 
   geomcollection = map(1:ngeoms) do _
@@ -161,7 +163,7 @@ function wkbmultigeometry(io, crs, z, bswap)
     else
       wkbtype = wkbGeometryType(wkbtypebits)
     end
-    meshfromsf(io, crs, wkbtype, z, bswap)
+    wkbsimple(io, crs, wkbtype, z, bswap)
   end
   geomcollection
 end
@@ -188,15 +190,19 @@ function writewkbgeom(io, geom)
   _wkbgeom(io, wkbtype, geom)
 end
 
-function writewkbsf(io, wkbtype, geom)
+#-------
+# WKB GEOMETRY WRITER UTILS
+#-------
+
+function _writewkbsimple(io, wkbtype, geom)
   if isequal(wkbtype, wkbPolygon)
     _wkbpolygon(io, [boundary(geom::PolyArea)])
   elseif isequal(wkbtype, wkbLineString)
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
-      return _wkblinearring(io, coordlist)
+      return _wkbchainring(io, coordlist)
     end
-    _wkblinestring(io, coordlist)
+    _wkbchainrope(io, coordlist)
   elseif isequal(wkbtype, wkbPoint)
     coordinates = CoordRefSystems.raw(coords(geom))
     _wkbcoordinates(io, coordinates)
@@ -209,7 +215,7 @@ function _wkbgeom(io, wkbtype, geom)
   if UInt32(wkbtype) > 3
     _wkbmulti(io, wkbtype, geom)
   else
-    writewkbsf(io, wkbtype, geom)
+    _writewkbsimple(io, wkbtype, geom)
   end
 end
 
@@ -221,7 +227,7 @@ function _wkbcoordinates(io, coords)
   end
 end
 
-function _wkblinestring(io, coord_list)
+function _wkbchainrope(io, coord_list)
   write(io, htol(UInt32(length(coord_list))))
   for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
@@ -229,7 +235,7 @@ function _wkblinestring(io, coord_list)
   end
 end
 
-function _wkblinearring(io, coord_list)
+function _wkbchainring(io, coord_list)
   write(io, htol(UInt32(length(coord_list) + 1)))
   for n_coords in coord_list
     coordinates = CoordRefSystems.raw(coords(n_coords))
@@ -242,7 +248,7 @@ function _wkbpolygon(io, rings)
   write(io, htol(UInt32(length(rings))))
   for ring in rings
     coord_list = vertices(ring)
-    _wkblinestring(io, coord_list)
+    _wkbchainring(io, coord_list)
   end
 end
 
@@ -251,6 +257,6 @@ function _wkbmulti(io, multiwkbtype, geoms)
   for sf in parent(geoms)
     write(io, one(UInt8))
     write(io, UInt32(multiwkbtype) - 3)
-    writewkbsf(io, wkbGeometryType(UInt32(multiwkbtype) - 3), sf)
+    _writewkbsimple(io, wkbGeometryType(UInt32(multiwkbtype) - 3), sf)
   end
 end
