@@ -58,7 +58,7 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
     io = IOBuffer
     for row in wkbGeometryColumn
       wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
-      wkbtype = wkbGeometryType(read(io, UInt32))
+      wkbtype = read(io, UInt32)
       crs = LatLon{WGS84Latest}
       haszextent = false
       push!(geoms, gpkgwkbgeom(io, crs, wkbtype, haszextent, wkbbyteswap))
@@ -68,22 +68,11 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
 """
 const ewkbmaskbits = 0x40000000 | 0x80000000
 
-@enum wkbGeometryType begin
-  wkbUnknown = 0
-  wkbPoint = 1
-  wkbLineString = 2
-  wkbPolygon = 3
-  wkbMultiPoint = 4
-  wkbMultiLineString = 5
-  wkbMultiPolygon = 6
-  wkbGeometryCollection = 7
-end
-
 # Requirement 20: GeoPackage SHALL store feature table geometries
 #  with the basic simple feature geometry types
 # https://www.geopackage.org/spec140/index.html#geometry_types
 function gpkgwkbgeom(io, crs, wkbtype, zextent, bswap)
-  if UInt32(wkbtype) > 3
+  if wkbtype > 3
     elems = wkbmulti(io, crs, zextent, bswap)
     Multi(elems)
   else
@@ -93,17 +82,17 @@ function gpkgwkbgeom(io, crs, wkbtype, zextent, bswap)
 end
 
 function wkbsimple(io, crs, wkbtype, zextent, bswap)
-  if isequal(wkbtype, wkbPoint)
+  if isequal(wkbtype, 1)
     elem = wkbcoordinate(io, zextent, bswap)
     Point(crs(elem...))
-  elseif isequal(wkbtype, wkbLineString)
+  elseif isequal(wkbtype, 2)
     elem = wkblinestring(io, zextent, bswap)
     if length(elem) >= 2 && first(elem) != last(elem)
       Rope([Point(crs(coords...)) for coords in elem]...)
     else
       Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
     end
-  elseif isequal(wkbtype, wkbPolygon)
+  elseif isequal(wkbtype, 3)
     elem = wkbpolygon(io, zextent, bswap)
     rings = map(elem) do ring
       coords = map(ring) do point
@@ -121,7 +110,6 @@ end
 function wkbcoordinate(io, z, bswap)
   x = bswap(read(io, Float64))
   y = bswap(read(io, Float64))
-
   if z
     z = bswap(read(io, Float64))
     return x, y, z
@@ -152,34 +140,30 @@ function wkbmulti(io, crs, z, bswap)
   ngeoms = bswap(read(io, UInt32))
 
   geomcollection = map(1:ngeoms) do _
-    bswap = isone(read(io, UInt8)) ? ltoh : ntoh
+    wkbbswap = isone(read(io, UInt8)) ? ltoh : ntoh
     wkbtypebits = read(io, UInt32)
     if z
       if iszero(wkbtypebits & ewkbmaskbits)
-        wkbtype = wkbGeometryType(wkbtypebits)
+        wkbtypebits = wkbtypebits & 0x000000F # extended WKB
       else
-        wkbtype = wkbGeometryType(wkbtypebits - 1000)
+        wkbtypebits = wkbtypebits - 1000 # ISO WKB
       end
-    else
-      wkbtype = wkbGeometryType(wkbtypebits)
     end
-    wkbsimple(io, crs, wkbtype, z, bswap)
+    wkbsimple(io, crs, wkbtypebits, z, wkbbswap)
   end
   geomcollection
 end
 
 function _wkbtype(geometry)
   if geometry isa Point
-    return wkbPoint
+    return 1 # wkbPoint 
   elseif geometry isa Rope || geometry isa Ring
-    return wkbLineString
+    return 2 # wkbLineString
   elseif geometry isa PolyArea
-    return wkbPolygon
+    return 3 # wkbPolygon
   elseif geometry isa Multi
     fg = first(parent(geometry))
-    return wkbGeometryType(Int(_wkbtype(fg)) + 3)
-  else
-    return wkbGeometryCollection
+    return _wkbtype(fg) + 3 # wkbMulti
   end
 end
 
@@ -195,24 +179,24 @@ end
 #-------
 
 function _writewkbsimple(io, wkbtype, geom)
-  if isequal(wkbtype, wkbPolygon)
+  if isequal(wkbtype, 3) # wkbPolygon
     _wkbpolygon(io, [boundary(geom::PolyArea)])
-  elseif isequal(wkbtype, wkbLineString)
+  elseif isequal(wkbtype, 2) # wkbLineString
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
       return _wkbchainring(io, coordlist)
     end
     _wkbchainrope(io, coordlist)
-  elseif isequal(wkbtype, wkbPoint)
+  elseif isequal(wkbtype, 1) # wkbPoint
     coordinates = CoordRefSystems.raw(coords(geom))
     _wkbcoordinates(io, coordinates)
   else
-    throw(ErrorException("Well-Known Binary Geometry not supported: $wkbtype"))
+    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
 end
 
 function _wkbgeom(io, wkbtype, geom)
-  if UInt32(wkbtype) > 3
+  if wkbtype > 3
     _wkbmulti(io, wkbtype, geom)
   else
     _writewkbsimple(io, wkbtype, geom)
@@ -256,7 +240,7 @@ function _wkbmulti(io, multiwkbtype, geoms)
   write(io, htol(UInt32(length(parent(geoms)))))
   for sf in parent(geoms)
     write(io, one(UInt8))
-    write(io, UInt32(multiwkbtype) - 3)
-    _writewkbsimple(io, wkbGeometryType(UInt32(multiwkbtype) - 3), sf)
+    write(io, multiwkbtype - 3)
+    _writewkbsimple(io, multiwkbtype - 3, sf)
   end
 end

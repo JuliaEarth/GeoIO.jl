@@ -125,7 +125,7 @@ function creategpkgtables(db, table, domain, crs, geom)
     )
     # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
     if srid != 4326 && srid > 0
-      DBInterface.execute(  
+      DBInterface.execute(
         db,
         """
     INSERT INTO gpkg_spatial_ref_sys 

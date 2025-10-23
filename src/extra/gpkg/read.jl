@@ -6,13 +6,9 @@ function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   assertgpkg(db)
   geoms = gpkggeoms(db; layer)
-  table = gpkgvalues(db; layer)
+  table = gpkgtable(db; layer)
   DBInterface.close!(db)
-  if eltype(table) <: Nothing
-    return georef(nothing, geoms)
-  else
-    georef(table, geoms)
-  end
+  georef(table, geoms)
 end
 
 function assertgpkg(db)
@@ -26,20 +22,20 @@ function assertgpkg(db)
 
   # Requirement 10: must include a gpkg_spatial_ref_sys table
   # Requirement 13: must include a gpkg_contents table
-  tbcount = first(DBInterface.execute(
+
+  if first(DBInterface.execute(
     db,
     """
   SELECT COUNT(*) AS n FROM sqlite_master WHERE 
   name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
   type IN ('table', 'view');
     """
-  ))
-  if tbcount.n != 2
+  )).n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
 end
 
-function gpkgvalues(db, ; layer=1)
+function gpkgtable(db, ; layer=1)
   table = DBInterface.execute(
     db,
     """
@@ -55,14 +51,14 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     """
   )
   fields = nothing
-  table = map(table) do query
-    tn = query.table_name
+  table = map(table) do row
+    tn = row.table_name
     tableinfo = SQLite.tableinfo(db, tn).name
     # returns NamedTuple of AbstractVectors, also known as a "column table"
 
     # remove `column_name` field from tableinfo in-place
     # to avoid querying the geometry column that stores feature geometry
-    deleteat!(tableinfo, findall(x -> isequal(x, query.column_name), tableinfo))
+    deleteat!(tableinfo, findall(x -> isequal(x, row.column_name), tableinfo))
     columns = join(tableinfo, ", ")
 
     # keep the shortest set of fields if there is more than one feature table
@@ -131,10 +127,22 @@ AND g.m IN (0, 1, 2)
  LIMIT $layer;
     """
   )
-  featuretablegeoms = map((row.tn, row.cn, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, org, orgcoordsysid)
+  featuretablegeoms = map((row.tn, row.cn, row.crs, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, srsid, org, orgcoordsysid)
     # get feature geometry from geometry column in feature table
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
+
+    if iszero(srsid)
+      crs = LatLon{WGS84Latest}
+    elseif !isone(abs(srsid))
+      if org == "EPSG"
+        crs = CoordRefSystems.get(EPSG{orgcoordsysid})
+      elseif org == "ESRI"
+        crs = CoordRefSystems.get(ERSI{orgcoordsysid})
+      end
+    else
+      crs = Cartesian{NoDatum}
+    end
 
     gpkgblobs = filter(map(NamedTuple, gpkgbinary)) do row
       !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
@@ -147,49 +155,39 @@ AND g.m IN (0, 1, 2)
       io = IOBuffer(blob[1])
       seek(io, 3)
       flag = read(io, UInt8)
-      # Note that Julia does not convert the endianness for you.
-      # Use ntoh or ltoh for this purpose.
-      bswap = isone(flag & 0x01) ? ltoh : ntoh
-      srsid = bswap(read(io, Int32))
+
+      # envelope contents indicator code (3-bit unsigned integer)
       envelope = (flag & (0x07 << 1)) >> 1
-      envelopedims = 0
+      envelopecode = 0
       if !iszero(envelope)
         if isone(envelope)
-          envelopedims = 1 # 2D
+          envelopecode = 2 # 2D envelope [minx, maxx, miny, maxy], 32 bytes
         elseif isequal(2, envelope)
-          envelopedims = 2 # 2D+Z
+          envelopecode = 3 # 2D+Z envelope [minx, maxx, miny, maxy, minz, maxz], 48 bytes
         elseif isequal(3, envelope)
-          envelopedims = 3 # 2D+M is not supported
+          envelopecode = 4 # 2D+M envelope [minx, maxx, miny, maxy, minm, maxm] (is not supported)
         elseif isequal(4, envelope)
-          envelopedims = 4 # 2D+ZM is not supported
-        else
-          throw(ErrorException("exceeded dimensional limit for geometry, file may be corrupted or reader is broken"))
+          envelopecode = 5 # 2D+ZM envelope [minx, maxx, miny, maxy, minz, maxz, minm, maxm] (is not supported)
+        else # 5-7: invalid
+          throw(ErrorException("exceeded dimensional limit for geometry"))
         end
       end # else no envelope (space saving slower indexing option), 0 bytes
 
-      # header size in byte stream
-      headerlen = 8 + 8 * 4 * envelopedims
-      seek(io, headerlen)
+      headerlen = 8 + 8 * 2 * envelopecode # calculate header size in byte stream 
+      seek(io, headerlen) # skip reading envelope bytes
+      # start reading Well-Known Binary geometry
       wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
-      wkbtypebits = read(io, UInt32)
-      zextent = isequal(envelopedims, 2)
-      if zextent
-        wkbtype =
-          wkbtypebits & ewkbmaskbits ? wkbGeometryType(wkbtypebits & 0x000000F) : wkbGeometryType(wkbtypebits - 1000)
-      else
-        wkbtype = wkbGeometryType(wkbtypebits)
-      end
+      # Note that Julia does not convert the endianness for you.
+      # Use ntoh or ltoh for this purpose.
 
-      if iszero(srsid)
-        crs = LatLon{WGS84Latest}
-      elseif !isone(abs(srsid))
-        if org == "EPSG"
-          crs = CoordRefSystems.get(EPSG{orgcoordsysid})
-        elseif org == "ESRI"
-          crs = CoordRefSystems.get(ERSI{orgcoordsysid})
-        end
+      wkbtypebits = read(io, UInt32)
+      zextent = isequal(envelopecode, 3)
+      if zextent # if the geometry type is a 3D geometry type
+        # if WKBGeometry is specified in `extended WKB` remove the the dimensionality bit flag that indicates a Z dimension
+        wkbtype = !iszero(wkbtypebits & ewkbmaskbits) ? wkbtypebits & 0x000000F : wkbtypebits - 1000
+        # if WKBGeometry is specified in `ISO WKB` and we simply subtract the round number added to the type number that indicates a Z dimensions.
       else
-        crs = Cartesian{NoDatum}
+        wkbtype = wkbtypebits
       end
 
       geom = gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap)
