@@ -5,8 +5,8 @@
 function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   assertgpkg(db)
-  geoms = gpkggeoms(db; layer)
   table = gpkgtable(db; layer)
+  geoms = gpkggeoms(db; layer)
   DBInterface.close!(db)
   georef(table, geoms)
 end
