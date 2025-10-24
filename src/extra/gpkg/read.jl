@@ -50,32 +50,25 @@ lower(c.table_name) AND type IN ('table', 'view')) AS object_type
   c.data_type = 'features' LIMIT $layer
     """
   )
-  fields = nothing
-  table = map(table) do row
+  tb = map(table) do row
     tn = row.table_name
     tableinfo = SQLite.tableinfo(db, tn).name
     # returns NamedTuple of AbstractVectors, also known as a "column table"
-
-    # remove `column_name` field from tableinfo in-place
-    # to avoid querying the geometry column that stores feature geometry
+    
+    # if there are no aspatial fields in column table then return nothing to table
+    if isone(length(tableinfo))
+      return nothing
+    end
+    # remove `column_name` field from tableinfo to avoid querying the GeoPackage geometry column 
     deleteat!(tableinfo, findall(x -> isequal(x, row.column_name), tableinfo))
     columns = join(tableinfo, ", ")
 
-    # keep the shortest set of fields if there is more than one feature table
-    if isnothing(fields) || length(columns) < length(fields)
-      fields = columns
-    end
-
-    # if there are no fields in column table then return nothing to table
-    if iszero(length(fields))
-      return nothing
-    end
-    rowvals = map(DBInterface.execute(db, "SELECT $fields from $tn")) do rv
+    rowvals = map(DBInterface.execute(db, "SELECT $columns from $tn")) do rv
       NamedTuple(rv)
     end
     rowvals
   end
-  vcat(table...)
+  isnothing(first(tb)) ? first(tb) : vcat(tb...) 
 end
 
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
@@ -123,32 +116,30 @@ AND (SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND 
 AND g.srs_id = srs.srs_id
 AND g.srs_id = c.srs_id
 AND g.z IN (0, 1, 2)
-AND g.m IN (0, 1, 2)
+AND g.m = 0
  LIMIT $layer;
     """
   )
-  featuretablegeoms = map((row.tn, row.cn, row.crs, row.org, row.org_coordsys_id) for row in tb) do (tn, cn, srsid, org, orgcoordsysid)
+  firstrow = [row for row in first(tb)]
+  # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
+
+  srsid, org, orgcoordsysid = firstrow[3], firstrow[5], firstrow[6]
+  crs = Cartesian{NoDatum} # an srs_id of -1 uses undefined Cartesian CRS
+  if iszero(srsid) # an srs_id of 0 uses undefined Geographic CRS
+    crs = LatLon{WGS84Latest}
+  elseif !isone(abs(srsid))
+    if org == "EPSG"
+      crs = CoordRefSystems.get(EPSG{orgcoordsysid})
+    elseif org == "ESRI"
+      crs = CoordRefSystems.get(ERSI{orgcoordsysid})
+    end
+  end
+
+  featuretablegeoms = map((row.tn, row.cn) for row in tb) do (tn, cn)
     # get feature geometry from geometry column in feature table
     gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
     headerlen = 0
-
-    if iszero(srsid)
-      crs = LatLon{WGS84Latest}
-    elseif !isone(abs(srsid))
-      if org == "EPSG"
-        crs = CoordRefSystems.get(EPSG{orgcoordsysid})
-      elseif org == "ESRI"
-        crs = CoordRefSystems.get(ERSI{orgcoordsysid})
-      end
-    else
-      crs = Cartesian{NoDatum}
-    end
-
-    gpkgblobs = filter(map(NamedTuple, gpkgbinary)) do row
-      !ismissing(getfield(row, Symbol(cn))) # ignore all rows with missing geometries
-    end
-
-    geomcollection = map(gpkgblobs) do blob
+    geomcollection = map(gpkgbinary) do blob
       if blob[1][1:2] != UInt8[0x47, 0x50]
         @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
       end

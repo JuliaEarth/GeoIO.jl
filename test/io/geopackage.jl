@@ -38,7 +38,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test Set([n for n in names(gtb2) if n != "id"]) == Set(names(gtb1))
+    @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
     @test gtb2.code == gtb1.code
     @test gtb2.name == gtb1.name
@@ -49,7 +49,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test Set([n for n in names(gtb2) if n != "id"]) == Set(names(gtb1))
+    @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
     @test gtb2.code == gtb1.code
     @test gtb2.name == gtb1.name
@@ -60,7 +60,7 @@
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test Set([n for n in names(gtb2) if n != "id"]) == Set(names(gtb1))
+    @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
     @test gtb2.code == gtb1.code
     @test gtb2.name == gtb1.name

@@ -71,7 +71,6 @@
   file = joinpath(savedir, "gis-points.gpkg")
   GeoIO.save(file, gtpoint)
   gtb = GeoIO.load(file)
-  @test Set([n for n in names(gtb) if n != "id"]) == Set(names(gtpoint))
   @test gtb.geometry == gtpoint.geometry
   @test gtb.float == gtpoint.float
   @test gtb.int == gtpoint.int
@@ -80,7 +79,6 @@
   file = joinpath(savedir, "gis-rings.gpkg")
   GeoIO.save(file, gtring)
   gtb = GeoIO.load(file)
-  @test Set([n for n in names(gtb) if n != "id"]) == Set(names(gtring))
   @test gtb.geometry == gtring.geometry
   @test gtb.float == gtring.float
   @test gtb.int == gtring.int
@@ -89,7 +87,7 @@
   file = joinpath(savedir, "gis-polys.gpkg")
   GeoIO.save(file, gtpoly)
   gtb = GeoIO.load(file)
-  @test Set([n for n in names(gtb) if n != "id"]) == Set(names(gtpoly))
+  @test Set(names(gtb)) == Set(names(gtpoly))
   @test gtb.geometry == gtpoly.geometry
   @test gtb.float == gtpoly.float
   @test gtb.int == gtpoly.int
