@@ -5,14 +5,12 @@
 function gpkgread(fname; layer=1)
   db = SQLite.DB(fname)
   assertgpkg(db)
-  table = gpkgtable(db; layer)
-  geoms = gpkggeoms(db; layer)
+  table, geoms = gpkgtable(db; layer)
   DBInterface.close!(db)
   georef(table, geoms)
 end
 
 function assertgpkg(db)
-
   # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
   # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
   if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
@@ -22,7 +20,6 @@ function assertgpkg(db)
 
   # Requirement 10: must include a gpkg_spatial_ref_sys table
   # Requirement 13: must include a gpkg_contents table
-
   if first(DBInterface.execute(
     db,
     """
@@ -35,47 +32,9 @@ function assertgpkg(db)
   end
 end
 
-function gpkgtable(db, ; layer=1)
-  table = DBInterface.execute(
-    db,
-    """
-SELECT c.table_name, c.identifier, 
-g.column_name, g.geometry_type_name, g.z, g.m, c.min_x, c.min_y, 
-c.max_x, c.max_y, 
-(SELECT type FROM sqlite_master WHERE lower(name) = 
-lower(c.table_name) AND type IN ('table', 'view')) AS object_type 
-  FROM gpkg_geometry_columns g 
-  JOIN gpkg_contents c ON (g.table_name = c.table_name)
-  WHERE 
-  c.data_type = 'features' LIMIT $layer
-    """
-  )
-  tb = map(table) do row
-    tn = row.table_name
-    tableinfo = SQLite.tableinfo(db, tn).name
-    # returns NamedTuple of AbstractVectors, also known as a "column table"
-    
-    # if there are no aspatial fields in column table then return nothing to table
-    if isone(length(tableinfo))
-      return nothing
-    end
-    # remove `column_name` field from tableinfo to avoid querying the GeoPackage geometry column 
-    deleteat!(tableinfo, findall(x -> isequal(x, row.column_name), tableinfo))
-    columns = join(tableinfo, ", ")
-
-    rowvals = map(DBInterface.execute(db, "SELECT $columns from $tn")) do rv
-      NamedTuple(rv)
-    end
-    rowvals
-  end
-  isnothing(first(tb)) ? first(tb) : vcat(tb...) 
-end
-
+# According to Geometry Columns Table Requirements
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
 #------------------------------------------------------------------------------
-# # Requirement 21: a gpkg_contents table row with a "features" data_type
-# SHALL contain a gpkg_geometry_columns table
-#
 # Requirement 22: gpkg_geometry_columns table
 # SHALL contain one row record for the geometry column
 # in each vector feature data table
@@ -103,91 +62,159 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-function gpkggeoms(db, ; layer=1)
-  tb = DBInterface.execute(
+function gpkgtable(db, ; layer=1)
+  resultrows = DBInterface.execute(
+    # According to https://www.geopackage.org/spec/#r16 
+    # Values of the gpkg_contents table srs_id column 
+    # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
+    # According to https://www.geopackage.org/spec/#r18
+    # The gpkg_contents table SHALL contain a row 
+    # with a lowercase data_type column value of "features" 
+    # for each vector features user data table or view.
     db,
     """
-SELECT g.table_name AS tn, g.column_name AS cn, c.srs_id as crs, g.z as elev, srs.organization as org, srs.organization_coordsys_id as org_coordsys_id,
-( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
-FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
-JOIN gpkg_contents c ON ( g.table_name = c.table_name )
-WHERE c.data_type = 'features'
-AND (SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) IS NOT NULL
-AND g.srs_id = srs.srs_id
-AND g.srs_id = c.srs_id
-AND g.z IN (0, 1, 2)
-AND g.m = 0
- LIMIT $layer;
+    SELECT g.table_name AS tablename, g.column_name AS columnname, 
+      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
+      ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
+    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+    JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+    WHERE c.data_type = 'features'
+      AND object_type IS NOT NULL
+      AND g.srs_id = srs.srs_id
+      AND g.srs_id = c.srs_id
+      AND g.z IN (0, 1, 2)
+      AND g.m = 0
+    LIMIT $layer;
     """
   )
-  firstrow = [row for row in first(tb)]
-  # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
 
-  srsid, org, orgcoordsysid = firstrow[3], firstrow[5], firstrow[6]
-  crs = Cartesian{NoDatum} # an srs_id of -1 uses undefined Cartesian CRS
-  if iszero(srsid) # an srs_id of 0 uses undefined Geographic CRS
+  # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
+  firstrow = first(resultrows)
+
+  # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
+  # SHALL contain geometries with the srs_id specified 
+  # for the column by the gpkg_geometry_columns table srs_id column value.
+  srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
+  #  defaults to undefined Cartesian CRS
+  crs = Cartesian{NoDatum}
+  # an srs_id of 0 uses undefined Geographic CRS
+  if iszero(srsid)
     crs = LatLon{WGS84Latest}
-  elseif !isone(abs(srsid))
+    # if srs_id not equal to -1
+  elseif !iszero(srsid + 1)
+    # CRS assigned by the org 
     if org == "EPSG"
+      # orgcoordsysid is the numeric id of the CRS assigned by the org
       crs = CoordRefSystems.get(EPSG{orgcoordsysid})
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{orgcoordsysid})
     end
   end
 
-  featuretablegeoms = map((row.tn, row.cn) for row in tb) do (tn, cn)
-    # get feature geometry from geometry column in feature table
-    gpkgbinary = DBInterface.execute(db, "SELECT $cn FROM $tn;")
+  results = map((row.tablename, row.columnname) for row in resultrows) do (tablename, columnname)
+    # According to https://www.geopackage.org/spec/#r14
+    # The table_name column value in a gpkg_contents table row 
+    # SHALL contain the name of a SQLite table or view.
+    gpkgbinary = DBInterface.execute(db, "SELECT * FROM $tablename;")
+    # length of the GeoPackageBinaryHeader 
     headerlen = 0
-    geomcollection = map(gpkgbinary) do blob
-      if blob[1][1:2] != UInt8[0x47, 0x50]
+    geomcollection = map(gpkgbinary) do row
+      # According to https://www.geopackage.org/spec/#r30
+      # A feature table or view SHALL have only one geometry column.
+      columnindex = findfirst(==(Symbol(columnname)), keys(row))
+      rowvals = map(keys(row)[[begin:(columnindex - 1); (columnindex + 1):end]]) do key
+        key, getproperty(row, key)
+      end
+      # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
+      blob = getproperty(row, Symbol(columnname))
+
+      # According to https://www.geopackage.org/spec/#r19
+      # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
+      # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
+      if blob[1:2] != UInt8[0x47, 0x50]
         @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
       end
-      io = IOBuffer(blob[1])
+
+      # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format starting after byte[2] magic = 0x4750;
+      io = IOBuffer(blob)
+      # skip the magic string in header
       seek(io, 3)
+
+      # bit layout of GeoPackageBinary flags byte
+      # ---------------------------------------
+      # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
+      # use # R # R # X # Y # E # E # E # B #
+      # ---------------------------------------
+      # R: reserved for future use; set to 0
+      # X: GeoPackageBinary type
+      # Y: empty geometry flag
+      # E: envelope contents indicator code (3-bit unsigned integer)
+      # B: byte order for SRS_ID and envelope values in header
       flag = read(io, UInt8)
 
-      # envelope contents indicator code (3-bit unsigned integer)
+      # 0x07 is a 3-bit mask 0x00001110
+      # left-shift moves the 3-bit mask by one to align with E bits in flag layout
+      # bitwise AND operation isolates the E bits
+      # right-shift moves the E bits by one to align with the least significant bits
+      # results in a 3-bit unsigned integer
       envelope = (flag & (0x07 << 1)) >> 1
+
       envelopecode = 0
       if !iszero(envelope)
         if isone(envelope)
-          envelopecode = 2 # 2D envelope [minx, maxx, miny, maxy], 32 bytes
+          # 2D envelope [minx, maxx, miny, maxy], 32 bytes
+          envelopecode = 2
         elseif isequal(2, envelope)
-          envelopecode = 3 # 2D+Z envelope [minx, maxx, miny, maxy, minz, maxz], 48 bytes
+          # 2D+Z envelope [minx, maxx, miny, maxy, minz, maxz], 48 bytes
+          envelopecode = 3
         elseif isequal(3, envelope)
-          envelopecode = 4 # 2D+M envelope [minx, maxx, miny, maxy, minm, maxm] (is not supported)
+          # 2D+M envelope [minx, maxx, miny, maxy, minm, maxm] (is not supported)
+          envelopecode = 4
         elseif isequal(4, envelope)
-          envelopecode = 5 # 2D+ZM envelope [minx, maxx, miny, maxy, minz, maxz, minm, maxm] (is not supported)
-        else # 5-7: invalid
+          # 2D+ZM envelope [minx, maxx, miny, maxy, minz, maxz, minm, maxm] (is not supported)
+          envelopecode = 5
+        else
+          # 5-7: invalid
           throw(ErrorException("exceeded dimensional limit for geometry"))
         end
-      end # else no envelope (space saving slower indexing option), 0 bytes
+        # else no envelope (space saving slower indexing option), 0 bytes
+      end
 
-      headerlen = 8 + 8 * 2 * envelopecode # calculate header size in byte stream 
-      seek(io, headerlen) # skip reading envelope bytes
-      # start reading Well-Known Binary geometry
-      wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
+      # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
+      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[16*E] envelope
+      # where E is the code that indicates how many pairs of floating-point numbers exist in envelope
+      headerlen = 8 + 8 * 2 * envelopecode
+
+      # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
+      seek(io, headerlen)
+
       # Note that Julia does not convert the endianness for you.
       # Use ntoh or ltoh for this purpose.
+      wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
 
       wkbtypebits = read(io, UInt32)
       zextent = isequal(envelopecode, 3)
-      if zextent # if the geometry type is a 3D geometry type
-        # if WKBGeometry is specified in `extended WKB` remove the the dimensionality bit flag that indicates a Z dimension
-        wkbtype = !iszero(wkbtypebits & ewkbmaskbits) ? wkbtypebits & 0x000000F : wkbtypebits - 1000
-        # if WKBGeometry is specified in `ISO WKB` and we simply subtract the round number added to the type number that indicates a Z dimensions.
+      # if the geometry type is a 3D geometry type
+      if zextent
+        wkbtype = !iszero(wkbtypebits & ewkbmaskbits) ?
+          # if WKBGeometry is specified in `extended WKB` remove the the dimensionality bit flag that indicates a Z dimension
+          wkbtypebits & 0x000000F :
+          # if WKBGeometry is specified in `ISO WKB` and we simply subtract the round number added to the type number that indicates a Z dimensions.
+          wkbtypebits - 1000
       else
+        # WKBGeometry is specified in 'Standard WKB'
         wkbtype = wkbtypebits
       end
 
       geom = gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap)
       if !isnothing(geom)
-        geom
+        return (NamedTuple(rowvals), geom)
       end
     end
     geomcollection
   end
   # efficient method for concatenating arrays of arrays 
-  reduce(vcat, featuretablegeoms) # Future versions of Julia might change the reduce algorithm
+  table = reduce(vcat, results)
+  # unpack results to return results
+  getindex.(table, 1), getindex.(table, 2)
 end

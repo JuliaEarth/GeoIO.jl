@@ -16,9 +16,12 @@ function gpkgwrite(fname, geotable;)
   domain = GeoTables.domain(geotable)
   crs = GeoTables.crs(domain)
   geom = collect(domain)
+
   DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
   DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
+  
   creategpkgtables(db, table, domain, crs, geom)
+
   DBInterface.execute(db, "PRAGMA optimize;")
   # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should run "PRAGMA optimize;"
@@ -44,10 +47,13 @@ function creategpkgtables(db, table, domain, crs, geom)
     vcat(gpkgbinheader, take!(io))
   end
 
-  table =
+  features =
+  # if no values in table then store only geometry in features
     isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+    # else store the geometry as the first column and the remaining table columns in features
     [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
-  rows = Tables.rows(table)
+
+  rows = Tables.rows(features)
   sch = Tables.schema(rows)
   columns = [
     string(SQLite.esc_id(String(sch.names[i])), ' ', SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any))
@@ -62,8 +68,9 @@ function creategpkgtables(db, table, domain, crs, geom)
   params = chop(repeat("?,", length(sch.names)))
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
   stmt = SQLite.Stmt(db, "INSERT INTO features ($columns) VALUES ($params)";)
-  handle = SQLite._get_stmt_handle(stmt) # # used for holding references to bound statement values via bind!
-  SQLite.transaction(db) do # default mode = "DEFERRED"
+  # used for holding references to bound statement values via bind!
+  handle = SQLite._get_stmt_handle(stmt)
+  SQLite.transaction(db) do
     row = nothing
     if row === nothing
       state = iterate(rows)
@@ -74,9 +81,10 @@ function creategpkgtables(db, table, domain, crs, geom)
       Tables.eachcolumn(sch, row) do val, col, _
         SQLite.bind!(stmt, col, val)
       end
-      r = GC.@preserve row SQLite.C.sqlite3_step(handle) # Evaluate An SQL Statement
-      # the return value will be either SQLITE_BUSY, SQLITE_DONE, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
+      # Evaluates a SQL Statement and returns a value will be either SQLITE_BUSY, SQLITE_DONE, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
       # To ensure that a statement has "finished" is to invoke sqlite3_reset() or sqlite3_finalize().
+      r = GC.@preserve row SQLite.C.sqlite3_step(handle)
+
       if r == SQLite.C.SQLITE_DONE
         SQLite.C.sqlite3_reset(handle)
       elseif r != SQLite.C.SQLITE_ROW
@@ -95,6 +103,8 @@ function creategpkgtables(db, table, domain, crs, geom)
     minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
     z = paramdim(first(geom)) > 2 ? 1 : 0
 
+    # According to https://www.geopackage.org/spec/#r10
+    # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
     DBInterface.execute(
       db,
       """
@@ -125,6 +135,9 @@ function creategpkgtables(db, table, domain, crs, geom)
     )
     # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
     if srid != 4326 && srid > 0
+      # According to https://www.geopackage.org/spec/#r115
+      # This also conforms to the WKT for CRS extension
+      # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
       DBInterface.execute(
         db,
         """
@@ -137,6 +150,8 @@ function creategpkgtables(db, table, domain, crs, geom)
       )
     end
 
+    # According to https://www.geopackage.org/spec/#r13
+    # A GeoPackage SHALL include a gpkg_contents table
     DBInterface.execute(
       db,
       """
@@ -167,6 +182,9 @@ function creategpkgtables(db, table, domain, crs, geom)
       ["features", "features", "features", minx, miny, maxx, maxy, srid]
     )
 
+    # According to https://www.geopackage.org/spec/#r21
+    # A  GeoPackage with a gpkg_contents table row with a "features" data_type
+    # SHALL contain a gpkg_geometry_columns table 
     DBInterface.execute(
       db,
       """
@@ -197,7 +215,8 @@ function creategpkgtables(db, table, domain, crs, geom)
     )
 
     # https://www.geopackage.org/spec/#r77
-    # Extended GeoPackage requires spatial indexes on feature table geometry columns using the SQLite Virtual Table R-trees 
+    # Extended GeoPackage requires spatial indexes on feature table geometry columns
+    # using the SQLite Virtual Table R-trees 
     DBInterface.execute(
       db,
       """
