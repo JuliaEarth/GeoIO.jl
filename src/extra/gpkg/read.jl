@@ -11,15 +11,15 @@ function gpkgread(fname; layer=1)
 end
 
 function assertgpkg(db)
-  # Requirement 6: PRAGMA integrity_check returns a single row with the value 'ok'
-  # Requirement 7: PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
+  # According to https://www.geopackage.org/spec/#r6 and https://www.geopackage.org/spec/#r7
+  # PRAGMA integrity_check returns a single row with the value 'ok'
+  # PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
   if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
-
-  # Requirement 10: must include a gpkg_spatial_ref_sys table
-  # Requirement 13: must include a gpkg_contents table
+  # According to https://www.geopackage.org/spec/#r10 and https://www.geopackage.org/spec/#r13
+  # A GeoPackage SHALL include a 'gpkg_spatial_ref_sys' table and a 'gpkg_contents table'
   if first(DBInterface.execute(
     db,
     """
@@ -141,6 +141,7 @@ function gpkgtable(db, ; layer=1)
       seek(io, 3)
 
       # bit layout of GeoPackageBinary flags byte
+      # https://www.geopackage.org/spec/#flags_layout
       # ---------------------------------------
       # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
       # use # R # R # X # Y # E # E # E # B #
@@ -159,6 +160,7 @@ function gpkgtable(db, ; layer=1)
       # results in a 3-bit unsigned integer
       envelope = (flag & (0x07 << 1)) >> 1
 
+      # No envelope [] (space saving slower indexing option), 0 bytes
       envelopecode = 0
       if !iszero(envelope)
         if isone(envelope)
@@ -177,12 +179,10 @@ function gpkgtable(db, ; layer=1)
           # 5-7: invalid
           throw(ErrorException("exceeded dimensional limit for geometry"))
         end
-        # else no envelope (space saving slower indexing option), 0 bytes
       end
 
       # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[16*E] envelope
-      # where E is the code that indicates how many pairs of floating-point numbers exist in envelope
+      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[16×NumberOfAxes] envelope
       headerlen = 8 + 8 * 2 * envelopecode
 
       # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
@@ -208,6 +208,7 @@ function gpkgtable(db, ; layer=1)
 
       geom = gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap)
       if !isnothing(geom)
+        # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
         return (NamedTuple(rowvals), geom)
       end
     end
@@ -215,6 +216,6 @@ function gpkgtable(db, ; layer=1)
   end
   # efficient method for concatenating arrays of arrays 
   table = reduce(vcat, results)
-  # unpack results to return results
+  # unpack results to return aspatial and spatial results
   getindex.(table, 1), getindex.(table, 2)
 end
