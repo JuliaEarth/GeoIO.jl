@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function csvread(fname; lenunit, coords, kwargs...)
+function csvread(fname; lenunit, coords, crs=nothing, kwargs...)
   csv = CSV.File(fname; kwargs...)
   rows = Tables.rows(csv)
   cnames = Symbol.(coords)
@@ -16,7 +16,7 @@ function csvread(fname; lenunit, coords, kwargs...)
   end
 
   srows = Tables.subset(rows, sinds)
-  georef(srows, cnames; lenunit)
+  georef(srows, cnames; crs, lenunit)
 end
 
 function csvwrite(fname, geotable; coords=nothing, floatformat=nothing, kwargs...)
