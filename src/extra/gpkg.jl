@@ -17,4 +17,3 @@ end
 
 include("gpkg/wkb.jl")
 include("gpkg/read.jl")
-include("gpkg/write.jl")
