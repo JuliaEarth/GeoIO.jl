@@ -66,106 +66,105 @@ GeoIO GeoPackage writer supports X,Y,Z coordinate offset of 1000 (Z) for wkbGeom
 ``` 
 
 """
-const ewkbmaskbits = 0x40000000 | 0x80000000
 
-# Requirement 20: GeoPackage SHALL store feature table geometries
-#  with the basic simple feature geometry types
-# https://www.geopackage.org/spec140/index.html#geometry_types
+# According to https://www.geopackage.org/spec/#r20
+# GeoPackage SHALL store feature table geometries with the basic simple feature geometry types.
+# Geometry Types (Normative): https://www.geopackage.org/spec140/index.html#geometry_types
+# Note: this implementation supports (Core) Geometry Type Codes
 function gpkgwkbgeom(io, crs, wkbtype, zextent, bswap)
   if wkbtype > 3
+    # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
     elems = wkbmulti(io, crs, zextent, bswap)
     Multi(elems)
   else
+    # 0 - 3 [Geometry, Point, Linestring, Polygon]
     elem = wkbsimple(io, crs, wkbtype, zextent, bswap)
     elem
   end
 end
 
+#-------
+# WKB GEOMETRY READER UTILS
+#-------
+
+# read simple features from Well-Known Binary IO Buffer and return Concrete Geometry
 function wkbsimple(io, crs, wkbtype, zextent, bswap)
   if isequal(wkbtype, 1)
-    elem = wkbcoordinate(io, zextent, bswap)
-    Point(crs(elem...))
+    geom = wkbcoordinate(io, zextent, bswap)
+    # return point given coordinates with respect to CRS
+    Point(crs(geom...))
   elseif isequal(wkbtype, 2)
-    elem = wkblinestring(io, zextent, bswap)
-    if length(elem) >= 2 && first(elem) != last(elem)
-      Rope([Point(crs(coords...)) for coords in elem]...)
+    geom = wkblinestring(io, zextent, bswap)
+    if length(geom) >= 2 && first(geom) != last(geom)
+      # return open polygonal chain from sequence of points w.r.t CRS
+      Rope([Point(crs(points...)) for points in geom]...)
     else
-      Ring([Point(crs(coords...)) for coords in elem[1:(end - 1)]]...)
+      # return closed polygonal chain from sequence of points w.r.t CRS
+      Ring([Point(crs(points...)) for points in geom[1:(end - 1)]]...)
     end
   elseif isequal(wkbtype, 3)
-    elem = wkbpolygon(io, zextent, bswap)
-    rings = map(elem) do ring
+    geom = wkbpolygon(io, zextent, bswap)
+    rings = map(geom) do ring
       coords = map(ring) do point
         Point(crs(point...))
       end
       Ring(coords)
     end
-
     outerring = first(rings)
     holes = isone(length(rings)) ? rings[2:end] : Ring[]
+    # return polygonal area with outer ring, and optional inner rings
     PolyArea(outerring, holes...)
   end
 end
 
-function wkbcoordinate(io, z, bswap)
-  x = bswap(read(io, Float64))
-  y = bswap(read(io, Float64))
-  if z
+function wkbcoordinate(io, zextent, bswap)
+  x, y = bswap(read(io, Float64)), bswap(read(io, Float64))
+  if zextent
     z = bswap(read(io, Float64))
     return x, y, z
   end
-
   x, y
 end
 
-function wkblinestring(io, z, bswap)
+function wkblinestring(io, zextent, bswap)
   npoints = bswap(read(io, UInt32))
-
   points = map(1:npoints) do _
-    wkbcoordinate(io, z, bswap)
+    wkbcoordinate(io, zextent, bswap)
   end
   points
 end
 
-function wkbpolygon(io, z, bswap)
+function wkbpolygon(io, zextent, bswap)
   nrings = bswap(read(io, UInt32))
-
   rings = map(1:nrings) do _
-    wkblinestring(io, z, bswap)
+    wkblinestring(io, zextent, bswap)
   end
   rings
 end
 
-function wkbmulti(io, crs, z, bswap)
+function wkbmulti(io, crs, zextent, bswap)
   ngeoms = bswap(read(io, UInt32))
-
-  geomcollection = map(1:ngeoms) do _
+  geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(io, UInt8)) ? ltoh : ntoh
     wkbtypebits = read(io, UInt32)
-    if z
-      if iszero(wkbtypebits & ewkbmaskbits)
-        wkbtypebits = wkbtypebits & 0x000000F # extended WKB
-      else
-        wkbtypebits = wkbtypebits - 1000 # ISO WKB
+    # if 2D+Z the dimensionality flag is present
+    if zextent
+      if iszero(wkbtypebits & 0x80000000)
+        # Extended WKB: wkbtype + 0x80000000 = wkbTypeZ
+        wkbtypebits = wkbtypebits & 0x000000F
+      elseif wkbtypebits > 1000
+        # ISO WKB: wkbType + 1000 = wkbTypeZ
+        wkbtypebits = wkbtypebits - 1000
       end
     end
-    wkbsimple(io, crs, wkbtypebits, z, wkbbswap)
+    wkbsimple(io, crs, wkbtypebits, zextent, wkbbswap)
   end
-  geomcollection
+  geoms
 end
 
-function _wkbtype(geometry)
-  if geometry isa Point
-    return 1 # wkbPoint 
-  elseif geometry isa Rope || geometry isa Ring
-    return 2 # wkbLineString
-  elseif geometry isa PolyArea
-    return 3 # wkbPolygon
-  elseif geometry isa Multi
-    fg = first(parent(geometry))
-    return _wkbtype(fg) + 3 # wkbMulti
-  end
-end
+#-------
+# WKB GEOMETRY WRITER UTILS
+#-------
 
 function writewkbgeom(io, geom)
   wkbtype = _wkbtype(geom)
@@ -174,22 +173,40 @@ function writewkbgeom(io, geom)
   _wkbgeom(io, wkbtype, geom)
 end
 
-#-------
-# WKB GEOMETRY WRITER UTILS
-#-------
+
+function _wkbtype(geometry)
+  if geometry isa Point
+    # wkbPoint 
+    return 1
+  elseif geometry isa Rope || geometry isa Ring
+    # wkbLineString
+    return 2
+  elseif geometry isa PolyArea
+    # wkbPolygon
+    return 3
+  elseif geometry isa Multi
+    # wkbMulti
+    fg = first(parent(geometry))
+    return _wkbtype(fg) + 3
+  end
+end
 
 function _writewkbsimple(io, wkbtype, geom)
-  if isequal(wkbtype, 3) # wkbPolygon
-    _wkbpolygon(io, [boundary(geom::PolyArea)])
-  elseif isequal(wkbtype, 2) # wkbLineString
+  # wkbPolygon
+  if isequal(wkbtype, 3)
+    _wkbpolyarea(io, [boundary(geom::PolyArea)])
+  elseif isequal(wkbtype, 2)
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
+      # wkbLineString[length+1]
       return _wkbchainring(io, coordlist)
     end
+    # wkbLineString
     _wkbchainrope(io, coordlist)
-  elseif isequal(wkbtype, 1) # wkbPoint
+  elseif isequal(wkbtype, 1)
     coordinates = CoordRefSystems.raw(coords(geom))
-    _wkbcoordinates(io, coordinates)
+    # wkbPoint
+    _wkbpoint(io, coordinates)
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
@@ -203,44 +220,49 @@ function _wkbgeom(io, wkbtype, geom)
   end
 end
 
-function _wkbcoordinates(io, coords)
-  write(io, htol(coords[2]))
-  write(io, htol(coords[1]))
-  if length(coords) == 3
-    write(io, htol(coords[3]))
+function _wkbpoint(io, coordinates)
+  write(io, htol(coordinates[2]))
+  write(io, htol(coordinates[1]))
+  if length(coordinates) == 3
+    write(io, htol(coordinates[3]))
   end
 end
 
-function _wkbchainrope(io, coord_list)
-  write(io, htol(UInt32(length(coord_list))))
-  for n_coords in coord_list
-    coordinates = CoordRefSystems.raw(coords(n_coords))
-    _wkbcoordinates(io, coordinates)
+function _wkbchainrope(io, points)
+  write(io, htol(UInt32(length(points))))
+  for coordinates in points
+    point = CoordRefSystems.raw(coords(coordinates))
+    _wkbpoint(io, point)
   end
 end
 
-function _wkbchainring(io, coord_list)
-  write(io, htol(UInt32(length(coord_list) + 1)))
-  for n_coords in coord_list
-    coordinates = CoordRefSystems.raw(coords(n_coords))
-    _wkbcoordinates(io, coordinates)
+function _wkbchainring(io, points)
+  # add a point to close linestring
+  write(io, htol(UInt32(length(points) + 1)))
+  for point in points
+    point = CoordRefSystems.raw(coords(point))
+    _wkbpoint(io, point)
   end
-  _wkbcoordinates(io, CoordRefSystems.raw(first(coord_list) |> coords))
+  # write a point to close linestring
+  _wkbpoint(io, CoordRefSystems.raw(first(points) |> coords))
 end
 
-function _wkbpolygon(io, rings)
+function _wkbpolyarea(io, rings)
   write(io, htol(UInt32(length(rings))))
   for ring in rings
-    coord_list = vertices(ring)
-    _wkbchainring(io, coord_list)
+    points = vertices(ring)
+    _wkbchainrope(io, points)
   end
 end
 
 function _wkbmulti(io, multiwkbtype, geoms)
+  # `geoms` is treated as a single [`Geometry`]
+  # `parent(geoms)` returns the collection of geometries with the same types
   write(io, htol(UInt32(length(parent(geoms)))))
-  for sf in parent(geoms)
+  for geom in parent(geoms)
     write(io, one(UInt8))
+    # wkbGeometryType + 3 = Multi-wkbGeometryType
     write(io, multiwkbtype - 3)
-    _writewkbsimple(io, multiwkbtype - 3, sf)
+    _writewkbsimple(io, multiwkbtype - 3, geom)
   end
 end
