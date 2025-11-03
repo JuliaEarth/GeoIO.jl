@@ -89,11 +89,11 @@ end
 
 # read simple features from Well-Known Binary IO Buffer and return Concrete Geometry
 function wkbsimple(io, crs, wkbtype, zextent, bswap)
-  if isequal(wkbtype, 1)
+  if wkbtype == 1
     geom = wkbcoordinate(io, zextent, bswap)
     # return point given coordinates with respect to CRS
     Point(crs(geom...))
-  elseif isequal(wkbtype, 2)
+  elseif wkbtype == 2
     geom = wkblinestring(io, zextent, bswap)
     if length(geom) >= 2 && first(geom) != last(geom)
       # return open polygonal chain from sequence of points w.r.t CRS
@@ -102,7 +102,7 @@ function wkbsimple(io, crs, wkbtype, zextent, bswap)
       # return closed polygonal chain from sequence of points w.r.t CRS
       Ring([Point(crs(points...)) for points in geom[1:(end - 1)]]...)
     end
-  elseif isequal(wkbtype, 3)
+  elseif wkbtype == 3
     geom = wkbpolygon(io, zextent, bswap)
     rings = map(geom) do ring
       coords = map(ring) do point
@@ -111,7 +111,7 @@ function wkbsimple(io, crs, wkbtype, zextent, bswap)
       Ring(coords)
     end
     outerring = first(rings)
-    holes = isone(length(rings)) ? rings[2:end] : Ring[]
+    holes = length(rings) > 1 ? rings[2:end] : Ring[]
     # return polygonal area with outer ring, and optional inner rings
     PolyArea(outerring, holes...)
   end
@@ -193,9 +193,9 @@ end
 
 function _writewkbsimple(io, wkbtype, geom)
   # wkbPolygon
-  if isequal(wkbtype, 3)
+  if wkbtype == 3
     _wkbpolyarea(io, [boundary(geom::PolyArea)])
-  elseif isequal(wkbtype, 2)
+  elseif wkbtype == 2
     coordlist = vertices(geom)
     if typeof(geom) <: Ring
       # wkbLineString[length+1]
@@ -203,7 +203,7 @@ function _writewkbsimple(io, wkbtype, geom)
     end
     # wkbLineString
     _wkbchainrope(io, coordlist)
-  elseif isequal(wkbtype, 1)
+  elseif wkbtype == 1
     coordinates = CoordRefSystems.raw(coords(geom))
     # wkbPoint
     _wkbpoint(io, coordinates)
