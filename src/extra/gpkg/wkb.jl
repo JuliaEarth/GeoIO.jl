@@ -78,7 +78,7 @@ function gpkgwkbgeom(io, crs, wkbtype, zextent, bswap)
     Multi(elems)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
-    elem = wkbsimple(io, crs, wkbtype, zextent, bswap)
+    elem = wkbsingle(io, crs, wkbtype, zextent, bswap)
     elem
   end
 end
@@ -87,8 +87,8 @@ end
 # WKB GEOMETRY READER UTILS
 #-------
 
-# read simple features from Well-Known Binary IO Buffer and return Concrete Geometry
-function wkbsimple(io, crs, wkbtype, zextent, bswap)
+# read single features from Well-Known Binary IO Buffer and return Concrete Geometry
+function wkbsingle(io, crs, wkbtype, zextent, bswap)
   if wkbtype == 1
     geom = wkbcoordinate(io, zextent, bswap)
     # return point given coordinates with respect to CRS
@@ -118,7 +118,7 @@ function wkbsimple(io, crs, wkbtype, zextent, bswap)
 end
 
 function wkbcoordinate(io, zextent, bswap)
-  x, y = bswap(read(io, Float64)), bswap(read(io, Float64))
+  y, x = bswap(read(io, Float64)), bswap(read(io, Float64))
   if zextent
     z = bswap(read(io, Float64))
     return x, y, z
@@ -157,7 +157,7 @@ function wkbmulti(io, crs, zextent, bswap)
         wkbtypebits = wkbtypebits - 1000
       end
     end
-    wkbsimple(io, crs, wkbtypebits, zextent, wkbbswap)
+    wkbsingle(io, crs, wkbtypebits, zextent, wkbbswap)
   end
   geoms
 end

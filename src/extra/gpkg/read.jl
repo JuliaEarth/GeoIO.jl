@@ -63,7 +63,7 @@ end
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
 function gpkgtable(db, ; layer=1)
-  resultrows = DBInterface.execute(
+  rowtable = DBInterface.execute(
     # According to https://www.geopackage.org/spec/#r16 
     # Values of the gpkg_contents table srs_id column 
     # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
@@ -89,19 +89,18 @@ function gpkgtable(db, ; layer=1)
   )
 
   # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
-  firstrow = first(resultrows)
+  firstrow = first(rowtable)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified 
   # for the column by the gpkg_geometry_columns table srs_id column value.
   srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
-  #  defaults to undefined Cartesian CRS
-  crs = Cartesian{NoDatum}
+
   # an srs_id of 0 uses undefined Geographic CRS
   if iszero(srsid)
     crs = LatLon{WGS84Latest}
     # if srs_id not equal to -1
-  elseif !iszero(srsid + 1)
+  elseif srsid != -1
     # CRS assigned by the org 
     if org == "EPSG"
       # orgcoordsysid is the numeric id of the CRS assigned by the org
@@ -109,9 +108,12 @@ function gpkgtable(db, ; layer=1)
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{orgcoordsysid})
     end
+  else
+    # defaults to undefined Cartesian CRS
+    crs = Cartesian{NoDatum}
   end
 
-  results = map((row.tablename, row.columnname) for row in resultrows) do (tablename, columnname)
+  results = map((row.tablename, row.columnname) for row in rowtable) do (tablename, columnname)
     # According to https://www.geopackage.org/spec/#r14
     # The table_name column value in a gpkg_contents table row 
     # SHALL contain the name of a SQLite table or view.
