@@ -74,16 +74,16 @@ function gpkgtable(db, ; layer=1)
     db,
     """
     SELECT g.table_name AS tablename, g.column_name AS columnname, 
-      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
-      ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
+    c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
+    ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
     JOIN gpkg_contents c ON ( g.table_name = c.table_name )
     WHERE c.data_type = 'features'
-      AND object_type IS NOT NULL
-      AND g.srs_id = srs.srs_id
-      AND g.srs_id = c.srs_id
-      AND g.z IN (0, 1, 2)
-      AND g.m = 0
+    AND object_type IS NOT NULL
+    AND g.srs_id = srs.srs_id
+    AND g.srs_id = c.srs_id
+    AND g.z IN (0, 1, 2)
+    AND g.m = 0
     LIMIT $layer;
     """
   )
@@ -117,7 +117,10 @@ function gpkgtable(db, ; layer=1)
     # According to https://www.geopackage.org/spec/#r14
     # The table_name column value in a gpkg_contents table row 
     # SHALL contain the name of a SQLite table or view.
-    gpkgbinary = DBInterface.execute(db, "SELECT * FROM $tablename;")
+    tableinfo = SQLite.tableinfo(db, tablename)
+    # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
+    columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
+    gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
     # length of the GeoPackageBinaryHeader 
     headerlen = 0
     geomcollection = map(gpkgbinary) do row

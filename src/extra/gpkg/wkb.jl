@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    GeoIO.meshfromwkb(io, crs, wkbtype, haszextent, wkbbyteswap);
+    GeoIO.gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap);
 
 Flavors of WKB supported:
 
