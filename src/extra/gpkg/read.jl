@@ -164,54 +164,16 @@ function gpkgtable(db, ; layer=1)
       # right-shift moves the E bits by one to align with the least significant bits
       # results in a 3-bit unsigned integer
       envelope = (flag & (0x07 << 1)) >> 1
-
-      # No envelope [] (space saving slower indexing option), 0 bytes
-      envelopecode = 0
-      if !iszero(envelope)
-        if isone(envelope)
-          # 2D envelope [minx, maxx, miny, maxy], 32 bytes
-          envelopecode = 2
-        elseif isequal(2, envelope)
-          # 2D+Z envelope [minx, maxx, miny, maxy, minz, maxz], 48 bytes
-          envelopecode = 3
-        elseif isequal(3, envelope)
-          # 2D+M envelope [minx, maxx, miny, maxy, minm, maxm] (is not supported)
-          envelopecode = 4
-        elseif isequal(4, envelope)
-          # 2D+ZM envelope [minx, maxx, miny, maxy, minz, maxz, minm, maxm] (is not supported)
-          envelopecode = 5
-        else
-          # 5-7: invalid
-          throw(ErrorException("exceeded dimensional limit for geometry"))
-        end
-      end
-
+      
       # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[16×NumberOfAxes] envelope
-      headerlen = 8 + 8 * 2 * envelopecode
+      # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
+      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
+      headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
 
       # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
       seek(io, headerlen)
 
-      # Note that Julia does not convert the endianness for you.
-      # Use ntoh or ltoh for this purpose.
-      wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
-
-      wkbtypebits = read(io, UInt32)
-      zextent = isequal(envelopecode, 3)
-      # if the geometry type is a 3D geometry type
-      if zextent
-        wkbtype = !iszero(wkbtypebits & ewkbmaskbits) ?
-          # if WKBGeometry is specified in `extended WKB` remove the the dimensionality bit flag that indicates a Z dimension
-          wkbtypebits & 0x000000F :
-          # if WKBGeometry is specified in `ISO WKB` and we simply subtract the round number added to the type number that indicates a Z dimensions.
-          wkbtypebits - 1000
-      else
-        # WKBGeometry is specified in 'Standard WKB'
-        wkbtype = wkbtypebits
-      end
-
-      geom = gpkgwkbgeom(io, crs, wkbtype, zextent, wkbbyteswap)
+      geom = gpkgwkbgeom(io, crs)
       if !isnothing(geom)
         # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
         return (NamedTuple(rowvals), geom)
