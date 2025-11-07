@@ -17,8 +17,7 @@ function gpkgwkbgeom(io, crs)
 
   if wkbtype > 3
     # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    geoms = wkbmulti(io, crs, zextent, wkbbyteswap)
-    Multi(geoms)
+    wkbmulti(io, crs, zextent, wkbbyteswap)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
     wkbsingle(io, crs, wkbtype, zextent, wkbbyteswap)
@@ -28,58 +27,41 @@ end
 # read single features from Well-Known Binary IO Buffer and return Concrete Geometry
 function wkbsingle(io, crs, wkbtype, zextent, bswap)
   if wkbtype == 1
-    geom = wkbcoordinate(io, zextent, bswap)
-
-    # return point given coordinates
-    Point(crs(geom...))
+    wkb2point(io, crs, zextent, bswap)
   elseif wkbtype == 2
-    geom = wkblinestring(io, zextent, bswap)
-    if length(geom) >= 2 && first(geom) != last(geom)
-
-      # return open polygonal chain from sequence of points
-      Rope([Point(crs(points...)) for points in geom]...)
-    else
-
-      # return closed polygonal chain from sequence of points
-      Ring([Point(crs(points...)) for points in geom[1:(end - 1)]]...)
-    end
+    wkb2chain(io, crs, zextent, bswap)
   elseif wkbtype == 3
-    geom = wkbpolygon(io, zextent, bswap)
-    rings = map(geom) do ring
-      coords = map(ring) do point
-        Point(crs(point...))
-      end
-      Ring(coords)
-    end
-
-    # return a polygonal area from rings
-    PolyArea(rings)
+    wkb2poly(io, crs, zextent, bswap)
   end
 end
 
-function wkbcoordinate(io, zextent, bswap)
+function wkb2point(io, crs, zextent, bswap)
   y, x = bswap(read(io, Float64)), bswap(read(io, Float64))
   if zextent
     z = bswap(read(io, Float64))
     return x, y, z
   end
-  x, y
+  Point(crs(x, y))
 end
 
-function wkblinestring(io, zextent, bswap)
+function wkb2chain(io, crs, zextent, bswap)
   npoints = bswap(read(io, UInt32))
-  points = map(1:npoints) do _
-    wkbcoordinate(io, zextent, bswap)
+  chain = map(1:npoints) do _
+    wkb2point(io, crs, zextent, bswap)
   end
-  points
+  if length(chain) >= 2 && first(chain) != last(chain)
+    Rope(chain)
+  else
+    Ring(chain)
+  end
 end
 
-function wkbpolygon(io, zextent, bswap)
+function wkb2poly(io, crs, zextent, bswap)
   nrings = bswap(read(io, UInt32))
   rings = map(1:nrings) do _
-    wkblinestring(io, zextent, bswap)
+    wkb2chain(io, crs, zextent, bswap)
   end
-  rings
+  PolyArea(rings)
 end
 
 function wkbmulti(io, crs, zextent, bswap)
@@ -90,14 +72,12 @@ function wkbmulti(io, crs, zextent, bswap)
     # if 2D+Z the dimensionality flag is present
     if _haszextent(wkbtypebits)
       wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
-      zextent = true
+      wkbsingle(io, crs, wkbtype, true, wkbbswap)
     else
-      zextent = false
+      wkbsingle(io, crs, wkbtypebits, false, wkbbswap)
     end
-    # read single geometry from Well-Known Binary IO Buffer
-    wkbsingle(io, crs, wkbtype, zextent, wkbbswap)
   end
-  geoms
+  Multi(geoms)
 end
 
 function _haszextent(wkbtypebits)
