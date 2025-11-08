@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gpkgwkbgeom(io, crs)
+function wkbgeom(io, crs)
   # Note: the coordinates are subject to byte order rules specified here
   wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
   wkbtypebits = read(io, UInt32)
@@ -81,8 +81,5 @@ function wkbmulti(io, crs, zextent, bswap)
 end
 
 function _haszextent(wkbtypebits)
-  if !iszero(wkbtypebits & 0x80000000) || wkbtypebits > 1000
-    return true
-  end
-  return false
+  !iszero(wkbtypebits & 0x80000000) || wkbtypebits > 1000
 end

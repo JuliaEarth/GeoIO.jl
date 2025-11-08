@@ -32,6 +32,52 @@ function assertgpkg(db)
   end
 end
 
+function iohandle(row, geomcolumn)
+  # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
+  blob = getproperty(row, Symbol(geomcolumn))
+  # According to https://www.geopackage.org/spec/#r19
+  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
+  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
+  if blob[1:2] != [0x47, 0x50]
+    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  end
+  # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format
+  io = IOBuffer(blob)
+  # skip the magic string in header
+  seek(io, 3)
+  io
+end
+
+function skipheader(io)
+  # bit layout of GeoPackageBinary flags byte
+  # https://www.geopackage.org/spec/#flags_layout
+  # ---------------------------------------
+  # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
+  # use # R # R # X # Y # E # E # E # B #
+  # ---------------------------------------
+  # R: reserved for future use; set to 0
+  # X: GeoPackageBinary type
+  # Y: empty geometry flag
+  # E: envelope contents indicator code (3-bit unsigned integer)
+  # B: byte order for SRS_ID and envelope values in header
+  flag = read(io, UInt8)
+
+  # 0x07 is a 3-bit mask 0x00001110
+  # left-shift moves the 3-bit mask by one to align with E bits in flag layout
+  # bitwise AND operation isolates the E bits
+  # right-shift moves the E bits by one to align with the least significant bits
+  # results in a 3-bit unsigned integer
+  envelope = (flag & (0x07 << 1)) >> 1
+
+  # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
+  # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
+  # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
+  headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
+
+  # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
+  seek(io, headerlen)
+end
+
 # According to Geometry Columns Table Requirements
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
 #------------------------------------------------------------------------------
@@ -73,7 +119,7 @@ function gpkgtable(db, ; layer=1)
     # for each vector features user data table or view.
     db,
     """
-    SELECT g.table_name AS tablename, g.column_name AS columnname, 
+    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
     c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
     ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
     FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
@@ -90,12 +136,9 @@ function gpkgtable(db, ; layer=1)
 
   # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
   firstrow = first(rowtable)
-
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
-  # SHALL contain geometries with the srs_id specified 
-  # for the column by the gpkg_geometry_columns table srs_id column value.
+  # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
   srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
-
   # an srs_id of 0 uses undefined Geographic CRS
   if iszero(srsid)
     crs = LatLon{WGS84Latest}
@@ -113,7 +156,7 @@ function gpkgtable(db, ; layer=1)
     crs = Cartesian{NoDatum}
   end
 
-  results = map((row.tablename, row.columnname) for row in rowtable) do (tablename, columnname)
+  results = map((row.tablename, row.geomcolumn) for row in rowtable) do (tablename, geomcolumn)
     # According to https://www.geopackage.org/spec/#r14
     # The table_name column value in a gpkg_contents table row 
     # SHALL contain the name of a SQLite table or view.
@@ -121,68 +164,32 @@ function gpkgtable(db, ; layer=1)
     # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
     columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
     gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
-    # length of the GeoPackageBinaryHeader 
-    headerlen = 0
-    geomcollection = map(gpkgbinary) do row
+    resultrow = map(gpkgbinary) do row
       # According to https://www.geopackage.org/spec/#r30
       # A feature table or view SHALL have only one geometry column.
-      columnindex = findfirst(==(Symbol(columnname)), keys(row))
-      rowvals = map(keys(row)[[begin:(columnindex - 1); (columnindex + 1):end]]) do key
+      geomindex = findfirst(==(Symbol(geomcolumn)), keys(row))
+      rowvals = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
         key, getproperty(row, key)
       end
-      # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
-      blob = getproperty(row, Symbol(columnname))
 
-      # According to https://www.geopackage.org/spec/#r19
-      # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
-      # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-      if blob[1:2] != UInt8[0x47, 0x50]
-        @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
-      end
-
-      # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format starting after byte[2] magic = 0x4750;
-      io = IOBuffer(blob)
-      # skip the magic string in header
-      seek(io, 3)
-
-      # bit layout of GeoPackageBinary flags byte
-      # https://www.geopackage.org/spec/#flags_layout
-      # ---------------------------------------
-      # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
-      # use # R # R # X # Y # E # E # E # B #
-      # ---------------------------------------
-      # R: reserved for future use; set to 0
-      # X: GeoPackageBinary type
-      # Y: empty geometry flag
-      # E: envelope contents indicator code (3-bit unsigned integer)
-      # B: byte order for SRS_ID and envelope values in header
-      flag = read(io, UInt8)
-
-      # 0x07 is a 3-bit mask 0x00001110
-      # left-shift moves the 3-bit mask by one to align with E bits in flag layout
-      # bitwise AND operation isolates the E bits
-      # right-shift moves the E bits by one to align with the least significant bits
-      # results in a 3-bit unsigned integer
-      envelope = (flag & (0x07 << 1)) >> 1
-      
-      # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-      # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
-      # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
-      headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
-
-      # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
-      seek(io, headerlen)
-
-      geom = gpkgwkbgeom(io, crs)
+      # check for magic 'GP' string and create IOBuffer
+      io = iohandle(row, geomcolumn)
+      # skip the GeoPackageBinaryHeader to start reading Well-Known Binary geometry
+      skipheader(io)
+      geom = wkbgeom(io, crs)
       if !isnothing(geom)
         # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
         return (NamedTuple(rowvals), geom)
       end
     end
-    geomcollection
+    resultrow
   end
-  # efficient method for concatenating arrays of arrays 
+  # efficient method for concatenating arrays of arrays
   table = reduce(vcat, results)
-  # unpack results to return aspatial and spatial results
-  getindex.(table, 1), getindex.(table, 2)
+  # get the aspatial attributes
+  aspatial = getindex.(table, 1)
+  # find the NamedTuple with the maximum number of fields to ensure all fields are included
+  maxfields = argmax(length, aspatial)
+  emptytuple = NamedTuple(k => "" for k in keys(maxfields))
+  return [merge(emptytuple, f) for f in aspatial], getindex.(table, 2)
 end
