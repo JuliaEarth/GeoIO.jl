@@ -191,5 +191,5 @@ function gpkgtable(db, ; layer=1)
   # find the NamedTuple with the maximum number of fields to ensure all fields are included
   maxfields = argmax(length, aspatial)
   emptytuple = NamedTuple(k => "" for k in keys(maxfields))
-  return [merge(emptytuple, f) for f in aspatial], getindex.(table, 2)
+  [merge(emptytuple, f) for f in aspatial], getindex.(table, 2)
 end
