@@ -131,9 +131,9 @@ function gpkgextract(db, ; layer=1)
     end
 
     # create IOBuffer and seek geometry binary data
-    io = geomio(row, geomcolumn)
+    buff = wkbgeombuffer(row, geomcolumn)
 
-    geom = wkbgeom(io, crs)
+    geom = wkbgeom(buff, crs)
     if !isnothing(geom)
       # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
       return (NamedTuple(rowvals), geom)
@@ -144,7 +144,7 @@ function gpkgextract(db, ; layer=1)
   getindex.(table, 1), getindex.(table, 2)
 end
 
-function geomio(row, geomcolumn)
+function wkbgeombuffer(row, geomcolumn)
   # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
   io = IOBuffer(getproperty(row, Symbol(geomcolumn)))
 
