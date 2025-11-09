@@ -146,15 +146,15 @@ end
 
 function wkbgeombuffer(row, geomcolumn)
   # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
-  io = IOBuffer(getproperty(row, Symbol(geomcolumn)))
+  buff = IOBuffer(getproperty(row, Symbol(geomcolumn)))
 
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
   # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  read(io, UInt16) != 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  read(buff, UInt16) != 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
   # byte[1] version: 8-bit unsigned integer, 0 = version 1
-  read(io, UInt8)
+  read(buff, UInt8)
 
   # bit layout of GeoPackageBinary flags byte
   # https://www.geopackage.org/spec/#flags_layout
@@ -167,7 +167,7 @@ function wkbgeombuffer(row, geomcolumn)
   # Y: empty geometry flag
   # E: envelope contents indicator code (3-bit unsigned integer)
   # B: byte order for SRS_ID and envelope values in header
-  flag = read(io, UInt8)
+  flag = read(buff, UInt8)
 
   # 0x07 is a 3-bit mask 0x00001110
   # left-shift moves the 3-bit mask by one to align with E bits in flag layout
@@ -182,7 +182,7 @@ function wkbgeombuffer(row, geomcolumn)
   headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
 
   # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
-  seek(io, headerlen)
+  seek(buff, headerlen)
 
-  io
+  buff
 end
