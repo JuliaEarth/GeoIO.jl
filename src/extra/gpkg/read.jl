@@ -186,10 +186,16 @@ function gpkgtable(db, ; layer=1)
   end
   # efficient method for concatenating arrays of arrays
   table = reduce(vcat, results)
-  # get the aspatial attributes
-  aspatial = getindex.(table, 1)
-  # find the NamedTuple with the maximum number of fields to ensure all fields are included
-  maxfields = argmax(length, aspatial)
+  # separate aspatial attributes and spatial geometries
+  aspatial, spatial = getindex.(table, 1), getindex.(table, 2)
+  # if only one layer is requested, return as is (otherwise integrity of fields must be maintained for Tables.schema)
+  if isone(layer)
+    return aspatial, spatial
+  end
+  #  merge aspatial as a single NamedTuple to ensure all distinct fields are present for Tables.schema
+  maxfields = merge(first(aspatial), aspatial[2:end]...)
+  # replace the fields with with empty strings
   emptytuple = NamedTuple(k => "" for k in keys(maxfields))
-  [merge(emptytuple, f) for f in aspatial], getindex.(table, 2)
+  # overwrite the empty tuple with the actual values from each row in aspatial values
+  [merge(emptytuple, f) for f in aspatial], spatial
 end
