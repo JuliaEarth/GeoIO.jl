@@ -3,14 +3,16 @@
 # ------------------------------------------------------------------
 
 function gpkgread(fname; layer=1)
-  db = SQLite.DB(fname)
-  assertgpkg(db)
-  table, geoms = gpkgtable(db; layer)
+  db = gpkgdatabase(fname)
+  table, geoms = gpkgextract(db; layer)
   DBInterface.close!(db)
   georef(table, geoms)
 end
 
-function assertgpkg(db)
+function gpkgdatabase(fname)
+  # connect to SQLite database on disk
+  db = SQLite.DB(fname)
+
   # According to https://www.geopackage.org/spec/#r6 and https://www.geopackage.org/spec/#r7
   # PRAGMA integrity_check returns a single row with the value 'ok'
   # PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
@@ -18,6 +20,7 @@ function assertgpkg(db)
      !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
     throw(ErrorException("database integrity at risk or foreign key violation(s)"))
   end
+
   # According to https://www.geopackage.org/spec/#r10 and https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a 'gpkg_spatial_ref_sys' table and a 'gpkg_contents table'
   if first(DBInterface.execute(
@@ -30,21 +33,27 @@ function assertgpkg(db)
   )).n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
+
+  db
 end
 
 function iohandle(row, geomcolumn)
   # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
   blob = getproperty(row, Symbol(geomcolumn))
+
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
   # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
   if blob[1:2] != [0x47, 0x50]
     @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
   end
+
   # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format
   io = IOBuffer(blob)
+
   # skip the magic string in header
   seek(io, 3)
+
   io
 end
 
@@ -108,7 +117,7 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-function gpkgtable(db, ; layer=1)
+function gpkgextract(db, ; layer=1)
   rowtable = DBInterface.execute(
     # According to https://www.geopackage.org/spec/#r16 
     # Values of the gpkg_contents table srs_id column 
@@ -136,23 +145,21 @@ function gpkgtable(db, ; layer=1)
 
   # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
   firstrow = first(rowtable)
+
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
   srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
-  # an srs_id of 0 uses undefined Geographic CRS
+
+  # identify coordinate reference system from srsid
   if iszero(srsid)
     crs = LatLon{WGS84Latest}
-    # if srs_id not equal to -1
   elseif srsid != -1
-    # CRS assigned by the org 
     if org == "EPSG"
-      # orgcoordsysid is the numeric id of the CRS assigned by the org
       crs = CoordRefSystems.get(EPSG{orgcoordsysid})
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{orgcoordsysid})
     end
-  else
-    # defaults to undefined Cartesian CRS
+  else # defaults to Cartesian CRS with no datum
     crs = Cartesian{NoDatum}
   end
 
@@ -161,6 +168,7 @@ function gpkgtable(db, ; layer=1)
     # The table_name column value in a gpkg_contents table row 
     # SHALL contain the name of a SQLite table or view.
     tableinfo = SQLite.tableinfo(db, tablename)
+
     # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
     columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
     gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
@@ -174,8 +182,10 @@ function gpkgtable(db, ; layer=1)
 
       # check for magic 'GP' string and create IOBuffer
       io = iohandle(row, geomcolumn)
+
       # skip the GeoPackageBinaryHeader to start reading Well-Known Binary geometry
       skipheader(io)
+
       geom = wkbgeom(io, crs)
       if !isnothing(geom)
         # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
@@ -184,18 +194,24 @@ function gpkgtable(db, ; layer=1)
     end
     resultrow
   end
+
   # efficient method for concatenating arrays of arrays
   table = reduce(vcat, results)
+
   # separate aspatial attributes and spatial geometries
   values, geoms = getindex.(table, 1), getindex.(table, 2)
+
   # if only one layer is requested, return as is (otherwise integrity of fields must be maintained for Tables.schema)
   if isone(layer)
     return values, geoms
   end
+
   # merge aspatial as a single NamedTuple to ensure all distinct fields are present for Tables.schema
   mergetuple = merge(first(values), values[2:end]...)
+
   # replace the fields with with empty strings
   emptytuple = NamedTuple(k => "" for k in keys(mergetuple))
+
   # overwrite the empty tuple with the actual values from each row in aspatial values
   [merge(emptytuple, f) for f in values], geoms
 end
