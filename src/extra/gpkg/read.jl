@@ -93,16 +93,15 @@ function gpkgextract(db, ; layer=1)
     """
   )
 
-  # Note: first feature table that is read specifies the CRS to be used on all feature tables resulted from SELECT statement
-  firstrow = first(rowtable)
+  features = first(rowtable)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
-  tablename, geomcolumn = firstrow.tablename, firstrow.geomcolumn
-  srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
+  tablename, geomcolumn = features.tablename, features.geomcolumn
+  srsid, org, orgcoordsysid = features.srsid, features.org, features.orgcoordsysid
 
-  # identify coordinate reference system from srsid
   if iszero(srsid)
+    # srs_id of 0 SHALL be used for undefined geographic coordinate reference system based on WGS84
     crs = LatLon{WGS84Latest}
   elseif srsid != -1
     if org == "EPSG"
@@ -110,7 +109,8 @@ function gpkgextract(db, ; layer=1)
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{orgcoordsysid})
     end
-  else # defaults to Cartesian CRS with no datum
+  else
+    # srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
     crs = Cartesian{NoDatum}
   end
 
@@ -134,10 +134,9 @@ function gpkgextract(db, ; layer=1)
     buff = wkbgeombuffer(row, geomcolumn)
 
     geom = wkb2geom(buff, crs)
-    if !isnothing(geom)
-      # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
-      return (NamedTuple(rowvals), geom)
-    end
+
+    # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
+    return (NamedTuple(rowvals), geom)
   end
 
   # aspatial attributes and geometries
@@ -151,7 +150,7 @@ function wkbgeombuffer(row, geomcolumn)
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
   # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  read(buff, UInt16) != 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  read(buff, UInt16) == 0x5047 ? nothing : @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
   # byte[1] version: 8-bit unsigned integer, 0 = version 1
   read(buff, UInt8)
@@ -183,6 +182,4 @@ function wkbgeombuffer(row, geomcolumn)
 
   # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
   seek(buff, headerlen)
-
-  buff
 end
