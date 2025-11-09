@@ -67,7 +67,7 @@ end
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
-function gpkgextract(db, ; layer=1)
+function gpkgextract(db; layer=1)
   rowtable = DBInterface.execute(
     # According to https://www.geopackage.org/spec/#r16 
     # Values of the gpkg_contents table srs_id column 
