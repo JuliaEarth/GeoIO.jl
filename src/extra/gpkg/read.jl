@@ -133,7 +133,7 @@ function gpkgextract(db, ; layer=1)
     # create IOBuffer and seek geometry binary data
     buff = wkbgeombuffer(row, geomcolumn)
 
-    geom = wkbgeom(buff, crs)
+    geom = wkb2geom(buff, crs)
     if !isnothing(geom)
       # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
       return (NamedTuple(rowvals), geom)

@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function wkbgeom(io, crs)
+function wkb2geom(io, crs)
   # Note: the coordinates are subject to byte order rules specified here
   wkbbyteswap = isone(read(io, UInt8)) ? ltoh : ntoh
   wkbtypebits = read(io, UInt32)
@@ -17,15 +17,15 @@ function wkbgeom(io, crs)
 
   if wkbtype > 3
     # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkbmulti(io, crs, zextent, wkbbyteswap)
+    wkb2multi(io, crs, zextent, wkbbyteswap)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
-    wkbsingle(io, crs, wkbtype, zextent, wkbbyteswap)
+    wkb2single(io, crs, wkbtype, zextent, wkbbyteswap)
   end
 end
 
 # read single features from Well-Known Binary IO Buffer and return Concrete Geometry
-function wkbsingle(io, crs, wkbtype, zextent, bswap)
+function wkb2single(io, crs, wkbtype, zextent, bswap)
   if wkbtype == 1
     wkb2point(io, crs, zextent, bswap)
   elseif wkbtype == 2
@@ -64,7 +64,7 @@ function wkb2poly(io, crs, zextent, bswap)
   PolyArea(rings)
 end
 
-function wkbmulti(io, crs, zextent, bswap)
+function wkb2multi(io, crs, zextent, bswap)
   ngeoms = bswap(read(io, UInt32))
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(io, UInt8)) ? ltoh : ntoh
@@ -72,9 +72,9 @@ function wkbmulti(io, crs, zextent, bswap)
     # if 2D+Z the dimensionality flag is present
     if _haszextent(wkbtypebits)
       wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
-      wkbsingle(io, crs, wkbtype, true, wkbbswap)
+      wkb2single(io, crs, wkbtype, true, wkbbswap)
     else
-      wkbsingle(io, crs, wkbtypebits, false, wkbbswap)
+      wkb2single(io, crs, wkbtypebits, false, wkbbswap)
     end
   end
   Multi(geoms)
