@@ -41,18 +41,19 @@ function iohandle(row, geomcolumn)
   # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
   blob = getproperty(row, Symbol(geomcolumn))
 
-  # According to https://www.geopackage.org/spec/#r19
-  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
-  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  if blob[1:2] != [0x47, 0x50]
-    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
-  end
-
   # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format
   io = IOBuffer(blob)
 
-  # skip the magic string in header
-  seek(io, 3)
+  # According to https://www.geopackage.org/spec/#r19
+  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
+  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
+  magic = read(io, UInt16)
+  if magic != 0x5047  # 'GP'
+    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  end
+
+  # byte[1] version: 8-bit unsigned integer, 0 = version 1
+  read(io, UInt8)
 
   io
 end
@@ -139,7 +140,7 @@ function gpkgextract(db, ; layer=1)
     AND g.srs_id = c.srs_id
     AND g.z IN (0, 1, 2)
     AND g.m = 0
-    LIMIT $layer;
+    LIMIT 1 OFFSET ($layer-1);
     """
   )
 
@@ -148,6 +149,7 @@ function gpkgextract(db, ; layer=1)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
+  tablename, geomcolumn = firstrow.tablename, firstrow.geomcolumn
   srsid, org, orgcoordsysid = firstrow.srsid, firstrow.org, firstrow.orgcoordsysid
 
   # identify coordinate reference system from srsid
@@ -163,55 +165,35 @@ function gpkgextract(db, ; layer=1)
     crs = Cartesian{NoDatum}
   end
 
-  results = map((row.tablename, row.geomcolumn) for row in rowtable) do (tablename, geomcolumn)
-    # According to https://www.geopackage.org/spec/#r14
-    # The table_name column value in a gpkg_contents table row 
-    # SHALL contain the name of a SQLite table or view.
-    tableinfo = SQLite.tableinfo(db, tablename)
+  # According to https://www.geopackage.org/spec/#r14
+  # The table_name column value in a gpkg_contents table row 
+  # SHALL contain the name of a SQLite table or view.
+  tableinfo = SQLite.tableinfo(db, tablename)
 
-    # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
-    columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
-    gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
-    resultrow = map(gpkgbinary) do row
-      # According to https://www.geopackage.org/spec/#r30
-      # A feature table or view SHALL have only one geometry column.
-      geomindex = findfirst(==(Symbol(geomcolumn)), keys(row))
-      rowvals = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
-        key, getproperty(row, key)
-      end
-
-      # check for magic 'GP' string and create IOBuffer
-      io = iohandle(row, geomcolumn)
-
-      # skip the GeoPackageBinaryHeader to start reading Well-Known Binary geometry
-      skipheader(io)
-
-      geom = wkbgeom(io, crs)
-      if !isnothing(geom)
-        # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
-        return (NamedTuple(rowvals), geom)
-      end
+  # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
+  columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
+  gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
+  table = map(gpkgbinary) do row
+    # According to https://www.geopackage.org/spec/#r30
+    # A feature table or view SHALL have only one geometry column.
+    geomindex = findfirst(==(Symbol(geomcolumn)), keys(row))
+    rowvals = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
+      key, getproperty(row, key)
     end
-    resultrow
+
+    # check for magic 'GP' string and create IOBuffer
+    io = iohandle(row, geomcolumn)
+
+    # skip the GeoPackageBinaryHeader to start reading Well-Known Binary geometry
+    skipheader(io)
+
+    geom = wkbgeom(io, crs)
+    if !isnothing(geom)
+      # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
+      return (NamedTuple(rowvals), geom)
+    end
   end
 
-  # efficient method for concatenating arrays of arrays
-  table = reduce(vcat, results)
-
-  # separate aspatial attributes and spatial geometries
-  values, geoms = getindex.(table, 1), getindex.(table, 2)
-
-  # if only one layer is requested, return as is (otherwise integrity of fields must be maintained for Tables.schema)
-  if isone(layer)
-    return values, geoms
-  end
-
-  # merge aspatial as a single NamedTuple to ensure all distinct fields are present for Tables.schema
-  mergetuple = merge(first(values), values[2:end]...)
-
-  # replace the fields with with empty strings
-  emptytuple = NamedTuple(k => "" for k in keys(mergetuple))
-
-  # overwrite the empty tuple with the actual values from each row in aspatial values
-  [merge(emptytuple, f) for f in values], geoms
+  # aspatial attributes and geometries
+  getindex.(table, 1), getindex.(table, 2)
 end
