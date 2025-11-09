@@ -37,57 +37,6 @@ function gpkgdatabase(fname)
   db
 end
 
-function iohandle(row, geomcolumn)
-  # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
-  blob = getproperty(row, Symbol(geomcolumn))
-
-  # create in-memory I/O stream of GeoPackage SQL Geometry Binary Format
-  io = IOBuffer(blob)
-
-  # According to https://www.geopackage.org/spec/#r19
-  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
-  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  magic = read(io, UInt16)
-  if magic != 0x5047  # 'GP'
-    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
-  end
-
-  # byte[1] version: 8-bit unsigned integer, 0 = version 1
-  read(io, UInt8)
-
-  io
-end
-
-function skipheader(io)
-  # bit layout of GeoPackageBinary flags byte
-  # https://www.geopackage.org/spec/#flags_layout
-  # ---------------------------------------
-  # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
-  # use # R # R # X # Y # E # E # E # B #
-  # ---------------------------------------
-  # R: reserved for future use; set to 0
-  # X: GeoPackageBinary type
-  # Y: empty geometry flag
-  # E: envelope contents indicator code (3-bit unsigned integer)
-  # B: byte order for SRS_ID and envelope values in header
-  flag = read(io, UInt8)
-
-  # 0x07 is a 3-bit mask 0x00001110
-  # left-shift moves the 3-bit mask by one to align with E bits in flag layout
-  # bitwise AND operation isolates the E bits
-  # right-shift moves the E bits by one to align with the least significant bits
-  # results in a 3-bit unsigned integer
-  envelope = (flag & (0x07 << 1)) >> 1
-
-  # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-  # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
-  # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
-  headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
-
-  # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
-  seek(io, headerlen)
-end
-
 # According to Geometry Columns Table Requirements
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
 #------------------------------------------------------------------------------
@@ -181,11 +130,8 @@ function gpkgextract(db, ; layer=1)
       key, getproperty(row, key)
     end
 
-    # check for magic 'GP' string and create IOBuffer
-    io = iohandle(row, geomcolumn)
-
-    # skip the GeoPackageBinaryHeader to start reading Well-Known Binary geometry
-    skipheader(io)
+    # create IOBuffer and seek geometry binary data
+    io = geomio(row, geomcolumn)
 
     geom = wkbgeom(io, crs)
     if !isnothing(geom)
@@ -196,4 +142,47 @@ function gpkgextract(db, ; layer=1)
 
   # aspatial attributes and geometries
   getindex.(table, 1), getindex.(table, 2)
+end
+
+function geomio(row, geomcolumn)
+  # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
+  io = IOBuffer(getproperty(row, Symbol(geomcolumn)))
+
+  # According to https://www.geopackage.org/spec/#r19
+  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
+  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
+  read(io, UInt16) != 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+
+  # byte[1] version: 8-bit unsigned integer, 0 = version 1
+  read(io, UInt8)
+
+  # bit layout of GeoPackageBinary flags byte
+  # https://www.geopackage.org/spec/#flags_layout
+  # ---------------------------------------
+  # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
+  # use # R # R # X # Y # E # E # E # B #
+  # ---------------------------------------
+  # R: reserved for future use; set to 0
+  # X: GeoPackageBinary type
+  # Y: empty geometry flag
+  # E: envelope contents indicator code (3-bit unsigned integer)
+  # B: byte order for SRS_ID and envelope values in header
+  flag = read(io, UInt8)
+
+  # 0x07 is a 3-bit mask 0x00001110
+  # left-shift moves the 3-bit mask by one to align with E bits in flag layout
+  # bitwise AND operation isolates the E bits
+  # right-shift moves the E bits by one to align with the least significant bits
+  # results in a 3-bit unsigned integer
+  envelope = (flag & (0x07 << 1)) >> 1
+
+  # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
+  # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
+  # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
+  headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
+
+  # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
+  seek(io, headerlen)
+
+  io
 end
