@@ -100,18 +100,16 @@ function gpkgextract(db; layer=1)
   tablename, geomcolumn = features.tablename, features.geomcolumn
   srsid, org, orgcoordsysid = features.srsid, features.org, features.orgcoordsysid
 
-  if iszero(srsid)
-    # srs_id of 0 SHALL be used for undefined geographic coordinate reference system based on WGS84
+  if srsid == 0
     crs = LatLon{WGS84Latest}
-  elseif srsid != -1
+  elseif srsid == -1
+    crs = Cartesian{NoDatum}
+  else
     if org == "EPSG"
       crs = CoordRefSystems.get(EPSG{orgcoordsysid})
     elseif org == "ESRI"
       crs = CoordRefSystems.get(ERSI{orgcoordsysid})
     end
-  else
-    # srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-    crs = Cartesian{NoDatum}
   end
 
   # According to https://www.geopackage.org/spec/#r14
