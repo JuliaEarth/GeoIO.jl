@@ -68,7 +68,7 @@ end
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
 function gpkgextract(db; layer=1)
-  rowtable = DBInterface.execute(
+  featuretable = DBInterface.execute(
     # According to https://www.geopackage.org/spec/#r16 
     # Values of the gpkg_contents table srs_id column 
     # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
@@ -93,7 +93,7 @@ function gpkgextract(db; layer=1)
     """
   )
 
-  features = first(rowtable)
+  features = first(featuretable)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
@@ -148,7 +148,9 @@ function wkbgeombuffer(row, geomcolumn)
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
   # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  read(buff, UInt16) == 0x5047 ? nothing : @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  if read(buff, UInt16) == 0x5047
+    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  end
 
   # byte[1] version: 8-bit unsigned integer, 0 = version 1
   read(buff, UInt8)
