@@ -68,32 +68,34 @@ end
 # SHALL match the srs_id column value from the corresponding row in the
 # gpkg_contents table.
 function gpkgextract(db; layer=1)
-  featuretable = DBInterface.execute(
-    # According to https://www.geopackage.org/spec/#r16 
-    # Values of the gpkg_contents table srs_id column 
-    # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
-    # According to https://www.geopackage.org/spec/#r18
-    # The gpkg_contents table SHALL contain a row 
-    # with a lowercase data_type column value of "features" 
-    # for each vector features user data table or view.
-    db,
-    """
-    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
-    c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
-    ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
-    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
-    JOIN gpkg_contents c ON ( g.table_name = c.table_name )
-    WHERE c.data_type = 'features'
-    AND object_type IS NOT NULL
-    AND g.srs_id = srs.srs_id
-    AND g.srs_id = c.srs_id
-    AND g.z IN (0, 1, 2)
-    AND g.m = 0
-    LIMIT 1 OFFSET ($layer-1);
-    """
+  # get the first (and only) feature table returned in sqlite query results
+  # sqlite query results are forward-only iterators where each row is only valid when `iterate(rows)` is called
+  features = first(
+    DBInterface.execute(
+      # According to https://www.geopackage.org/spec/#r16 
+      # Values of the gpkg_contents table srs_id column 
+      # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
+      # According to https://www.geopackage.org/spec/#r18
+      # The gpkg_contents table SHALL contain a row 
+      # with a lowercase data_type column value of "features" 
+      # for each vector features user data table or view.
+      db,
+      """
+      SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
+      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
+      ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
+      FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+      JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+      WHERE c.data_type = 'features'
+      AND object_type IS NOT NULL
+      AND g.srs_id = srs.srs_id
+      AND g.srs_id = c.srs_id
+      AND g.z IN (0, 1, 2)
+      AND g.m = 0
+      LIMIT 1 OFFSET ($layer-1);
+      """
+    )
   )
-
-  features = first(featuretable)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
@@ -124,7 +126,7 @@ function gpkgextract(db; layer=1)
     # According to https://www.geopackage.org/spec/#r30
     # A feature table or view SHALL have only one geometry column.
     geomindex = findfirst(==(Symbol(geomcolumn)), keys(row))
-    rowvals = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
+    values = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
       key, getproperty(row, key)
     end
 
@@ -134,7 +136,7 @@ function gpkgextract(db; layer=1)
     geom = wkb2geom(buff, crs)
 
     # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
-    return (NamedTuple(rowvals), geom)
+    return (NamedTuple(values), geom)
   end
 
   # aspatial attributes and geometries
@@ -148,9 +150,7 @@ function wkbgeombuffer(row, geomcolumn)
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
   # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
-  if read(buff, UInt16) == 0x5047
-    @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
-  end
+  read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
   # byte[1] version: 8-bit unsigned integer, 0 = version 1
   read(buff, UInt8)

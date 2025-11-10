@@ -17,7 +17,7 @@ function wkb2geom(buff, crs)
 
   if wkbtype > 3
     # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkb2multi(buff, crs, zextent, wkbbyteswap)
+    wkb2multi(buff, crs, wkbbyteswap)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
     wkb2single(buff, crs, wkbtype, zextent, wkbbyteswap)
@@ -64,7 +64,7 @@ function wkb2poly(buff, crs, zextent, bswap)
   PolyArea(rings)
 end
 
-function wkb2multi(buff, crs, zextent, bswap)
+function wkb2multi(buff, crs, bswap)
   ngeoms = bswap(read(buff, UInt32))
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
