@@ -40,6 +40,15 @@ end
 # According to Geometry Columns Table Requirements
 # https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
 #------------------------------------------------------------------------------
+# Requirement 16: https://www.geopackage.org/spec/#r16 
+# Values of the gpkg_contents table srs_id column 
+# SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
+#
+# Requirement 18: https://www.geopackage.org/spec/#r18
+# The gpkg_contents table SHALL contain a row 
+# with a lowercase data_type column value of "features" 
+# for each vector features user data table or view.
+#
 # Requirement 22: gpkg_geometry_columns table
 # SHALL contain one row record for the geometry column
 # in each vector feature data table
@@ -52,9 +61,6 @@ end
 # SHALL be the name of a column in the table or view specified by the table_name
 # column value for that row.
 #
-# Requirement 25: The geometry_type_name value in a gpkg_geometry_columns row
-# SHALL be one of the uppercase geometry type names specified
-
 # Requirement 26: The srs_id value in a gpkg_geometry_columns table row
 # SHALL be an srs_id column value from the gpkg_spatial_ref_sys table.
 #
@@ -69,16 +75,8 @@ end
 # gpkg_contents table.
 function gpkgextract(db; layer=1)
   # get the first (and only) feature table returned in sqlite query results
-  # sqlite query results are forward-only iterators where each row is only valid when `iterate(rows)` is called
   metadata = first(
     DBInterface.execute(
-      # According to https://www.geopackage.org/spec/#r16 
-      # Values of the gpkg_contents table srs_id column 
-      # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
-      # According to https://www.geopackage.org/spec/#r18
-      # The gpkg_contents table SHALL contain a row 
-      # with a lowercase data_type column value of "features" 
-      # for each vector features user data table or view.
       db,
       """
       SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
