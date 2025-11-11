@@ -26,9 +26,9 @@ function gpkgdatabase(fname)
   if first(DBInterface.execute(
     db,
     """
-  SELECT COUNT(*) AS n FROM sqlite_master WHERE 
-  name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
-  type IN ('table', 'view');
+    SELECT COUNT(*) AS n FROM sqlite_master WHERE 
+    name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
+    type IN ('table', 'view');
     """
   )).n != 2
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
