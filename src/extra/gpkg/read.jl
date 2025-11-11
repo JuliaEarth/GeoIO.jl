@@ -70,7 +70,7 @@ end
 function gpkgextract(db; layer=1)
   # get the first (and only) feature table returned in sqlite query results
   # sqlite query results are forward-only iterators where each row is only valid when `iterate(rows)` is called
-  features = first(
+  metadata = first(
     DBInterface.execute(
       # According to https://www.geopackage.org/spec/#r16 
       # Values of the gpkg_contents table srs_id column 
@@ -99,9 +99,9 @@ function gpkgextract(db; layer=1)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
-  org = features.org
-  code = features.code
-  srsid = features.srsid
+  org = metadata.org
+  code = metadata.code
+  srsid = metadata.srsid
   if srsid == 0
     crs = LatLon{WGS84Latest}
   elseif srsid == -1
@@ -117,8 +117,8 @@ function gpkgextract(db; layer=1)
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
   # SHALL contain the name of a SQLite table or view.
-  tablename = features.tablename
-  geomcolumn = features.geomcolumn
+  tablename = metadata.tablename
+  geomcolumn = metadata.geomcolumn
   tableinfo = SQLite.tableinfo(db, tablename)
 
   # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
