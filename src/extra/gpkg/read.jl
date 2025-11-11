@@ -82,7 +82,7 @@ function gpkgextract(db; layer=1)
       db,
       """
       SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
-      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS orgcoordsysid,
+      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS code,
       ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
       FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
       JOIN gpkg_contents c ON ( g.table_name = c.table_name )
@@ -99,24 +99,26 @@ function gpkgextract(db; layer=1)
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
-  tablename, geomcolumn = features.tablename, features.geomcolumn
-  srsid, org, orgcoordsysid = features.srsid, features.org, features.orgcoordsysid
-
+  org = features.org
+  code = features.code
+  srsid = features.srsid
   if srsid == 0
     crs = LatLon{WGS84Latest}
   elseif srsid == -1
     crs = Cartesian{NoDatum}
   else
     if org == "EPSG"
-      crs = CoordRefSystems.get(EPSG{orgcoordsysid})
+      crs = CoordRefSystems.get(EPSG{code})
     elseif org == "ESRI"
-      crs = CoordRefSystems.get(ERSI{orgcoordsysid})
+      crs = CoordRefSystems.get(ERSI{code})
     end
   end
 
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
   # SHALL contain the name of a SQLite table or view.
+  tablename = features.tablename
+  geomcolumn = features.geomcolumn
   tableinfo = SQLite.tableinfo(db, tablename)
 
   # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
