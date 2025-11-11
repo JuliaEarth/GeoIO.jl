@@ -7,7 +7,7 @@ function wkb2geom(buff, crs)
   wkbbyteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
   wkbtypebits = read(buff, UInt32)
   # reader supports wkbGeometryType using the SFSQL 1.2 use offset of 1000 (Z) and SFSQL 1.1 that used a high-bit flag 0x80000000 (Z)
-  if _haszextent(wkbtypebits)
+  if !iszero(wkbtypebits & 0x80000000) || wkbtypebits > 1000
     wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
     zextent = true
   else
@@ -17,7 +17,7 @@ function wkb2geom(buff, crs)
 
   if wkbtype > 3
     # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkb2multi(buff, crs, wkbbyteswap)
+    wkb2multi(buff, crs, zextent, wkbbyteswap)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
     wkb2single(buff, crs, wkbtype, zextent, wkbbyteswap)
@@ -64,13 +64,13 @@ function wkb2poly(buff, crs, zextent, bswap)
   PolyArea(rings)
 end
 
-function wkb2multi(buff, crs, bswap)
+function wkb2multi(buff, crs, zextent, bswap)
   ngeoms = bswap(read(buff, UInt32))
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
     wkbtypebits = read(buff, UInt32)
     # if 2D+Z the dimensionality flag is present
-    if _haszextent(wkbtypebits)
+    if zextent
       wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
       wkb2single(buff, crs, wkbtype, true, wkbbswap)
     else
@@ -78,8 +78,4 @@ function wkb2multi(buff, crs, bswap)
     end
   end
   Multi(geoms)
-end
-
-function _haszextent(wkbtypebits)
-  !iszero(wkbtypebits & 0x80000000) || wkbtypebits > 1000
 end

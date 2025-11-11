@@ -61,14 +61,8 @@ end
 # SHALL be the name of a column in the table or view specified by the table_name
 # column value for that row.
 #
-# Requirement 26: The srs_id value in a gpkg_geometry_columns table row
-# SHALL be an srs_id column value from the gpkg_spatial_ref_sys table.
-#
-# Requirement 27: The z value in a gpkg_geometry_columns table row SHALL be one
-# of 0, 1, or 2.
-#
-# Requirement 28: The m value in a gpkg_geometry_columns table row SHALL be one
-# of 0, 1, or 2.
+# Requirement 25: The geometry_type_name value in a gpkg_geometry_columns row
+# SHALL be one of the uppercase geometry type names specified
 #
 # Requirement 146: The srs_id value in a gpkg_geometry_columns table row
 # SHALL match the srs_id column value from the corresponding row in the
@@ -80,27 +74,22 @@ function gpkgextract(db; layer=1)
       db,
       """
       SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
-      c.srs_id AS srsid, g.z, srs.organization AS org, srs.organization_coordsys_id AS code,
-      ( SELECT type FROM sqlite_master WHERE lower(name) = lower(c.table_name) AND type IN ('table', 'view')) AS object_type
+      c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
       FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
       JOIN gpkg_contents c ON ( g.table_name = c.table_name )
       WHERE c.data_type = 'features'
-      AND object_type IS NOT NULL
-      AND g.srs_id = srs.srs_id
       AND g.srs_id = c.srs_id
-      AND g.z IN (0, 1, 2)
-      AND g.m = 0
       LIMIT 1 OFFSET ($layer-1);
       """
     )
   )
-
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
   org = metadata.org
   code = metadata.code
   srsid = metadata.srsid
-  if srsid == 0
+
+  if srsid == 0 || srsid == 4326
     crs = LatLon{WGS84Latest}
   elseif srsid == -1
     crs = Cartesian{NoDatum}
@@ -108,7 +97,7 @@ function gpkgextract(db; layer=1)
     if org == "EPSG"
       crs = CoordRefSystems.get(EPSG{code})
     elseif org == "ESRI"
-      crs = CoordRefSystems.get(ERSI{code})
+      crs = CoordRefSystems.get(ESRI{code})
     end
   end
 
