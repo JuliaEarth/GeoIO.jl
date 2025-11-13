@@ -83,12 +83,12 @@ function gpkgextract(db; layer=1)
       """
     )
   )
+
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
   org = metadata.org
   code = metadata.code
   srsid = metadata.srsid
-
   if srsid == 0 || srsid == 4326
     crs = LatLon{WGS84Latest}
   elseif srsid == -1
