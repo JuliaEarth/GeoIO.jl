@@ -5,53 +5,80 @@
 function wkb2geom(buff, crs)
   byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
   typebits = read(buff, UInt32)
-  # supports wkbGeometryType according to
-  # SFSQL 1.1 high-bit flag 0x80000000 (Z)
-  # SFSQL 1.2 offset of 1000 (Z)
-  sfsql11 = iszero(typebits & 0x80000000)
-  sfsql12 = typebits > 1000
-  if !sfsql11 || sfsql12
-    wkbtype = sfsql11 ? typebits - 1000 : typebits & 0x7FFFFFFF
-    zextent = true
+  # Input variants of WKB supported are standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
+  if CoordRefSystems.ncoords(crs) == 3
+    # SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM) 
+    # to indicate the present of higher dimensional coordinates in a WKB geometry
+    if typebits > 3007
+      # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to indicate the presence of Z coordinates in a WKB geometry
+      # the high-bit flag 0x80000000 for Z (or 0x40000000 for M) is set and masking it off gives the standard WKB type
+      wkbtype = typebits & 0x7FFFFFFF
+    # check that the WKB typebits is not outside the SFSQL 1.2 Z encoding range (1001-1007)
+    elseif typebits <= 1007
+      # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
+      wkbtype = typebits - 1000
+    else
+      @error "Unsupported WKB Geometry Type with M or ZM dimension encoding: $typebits"
+    end
   else
+    # standard WKB typebits without Z dimension encoding
     wkbtype = typebits
-    zextent = false
   end
 
-  if wkbtype > 3
-    # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkb2multi(buff, crs, zextent, byteswap)
-  else
+  if wkbtype <= 3
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
-    wkb2single(buff, crs, wkbtype, zextent, byteswap)
+    wkb2single(buff, crs, wkbtype, byteswap)
+  else
+    # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
+    wkb2multi(buff, crs, byteswap)
   end
 end
 
 # read single features from Well-Known Binary IO Buffer and return Concrete Geometry
-function wkb2single(buff, crs, wkbtype, zextent, byteswap)
+function wkb2single(buff, crs, wkbtype, byteswap)
   if wkbtype == 1
-    wkb2point(buff, crs, zextent, byteswap)
+    wkb2point(buff, crs, byteswap)
   elseif wkbtype == 2
-    wkb2chain(buff, crs, zextent, byteswap)
+    wkb2chain(buff, crs, byteswap)
   elseif wkbtype == 3
-    wkb2poly(buff, crs, zextent, byteswap)
+    wkb2poly(buff, crs, byteswap)
+  else
+    error("Unsupported WKB Geometry Type: $wkbtype")
   end
 end
 
-function wkb2point(buff, crs, zextent, byteswap)
-  y = byteswap(read(buff, Float64))
-  x = byteswap(read(buff, Float64))
-  if zextent
+function wkb2point(buff, crs, byteswap)
+  coordinates = wkb2coords(buff, crs, byteswap)
+  Point(referencecoords(coordinates, crs))
+end
+
+function wkb2coords(buff, crs, byteswap)
+  if CoordRefSystems.ncoords(crs) == 2
+    x = byteswap(read(buff, Float64))
+    y = byteswap(read(buff, Float64))
+    return (x, y)
+  elseif CoordRefSystems.ncoords(crs) == 3
+    x = byteswap(read(buff, Float64))
+    y = byteswap(read(buff, Float64))
     z = byteswap(read(buff, Float64))
-    return x, y, z
+    return (x, y, z)
   end
-  Point(crs(x, y))
 end
 
-function wkb2chain(buff, crs, zextent, byteswap)
+function referencecoords(coordinates, crs)
+  if crs <: LatLon
+    crs(coordinates[2], coordinates[1])
+  elseif crs <: LatLonAlt
+    crs(coordinates[2], coordinates[1], coordinates[3])
+  else
+    crs(coordinates...)
+  end
+end
+
+function wkb2chain(buff, crs, byteswap)
   npoints = byteswap(read(buff, UInt32))
   chain = map(1:npoints) do _
-    wkb2point(buff, crs, zextent, byteswap)
+    wkb2point(buff, crs,  byteswap)
   end
   if length(chain) >= 2 && first(chain) != last(chain)
     Rope(chain)
@@ -60,26 +87,20 @@ function wkb2chain(buff, crs, zextent, byteswap)
   end
 end
 
-function wkb2poly(buff, crs, zextent, byteswap)
+function wkb2poly(buff, crs, byteswap)
   nrings = byteswap(read(buff, UInt32))
   rings = map(1:nrings) do _
-    wkb2chain(buff, crs, zextent, byteswap)
+    wkb2chain(buff, crs,  byteswap)
   end
   PolyArea(rings)
 end
 
-function wkb2multi(buff, crs, zextent, byteswap)
+function wkb2multi(buff, crs, byteswap)
   ngeoms = byteswap(read(buff, UInt32))
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
-    wkbtypebits = read(buff, UInt32)
-    # if 2D+Z the dimensionality flag is present
-    if zextent
-      wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
-      wkb2single(buff, crs, wkbtype, true, wkbbswap)
-    else
-      wkb2single(buff, crs, wkbtypebits, false, wkbbswap)
-    end
+    wkbtype = read(buff, UInt32)
+    wkb2single(buff, crs, wkbtype, wkbbswap)
   end
   Multi(geoms)
 end
