@@ -39,7 +39,8 @@ function wkb2single(buff, crs, wkbtype, zextent, byteswap)
 end
 
 function wkb2point(buff, crs, zextent, byteswap)
-  y, x = byteswap(read(buff, Float64)), byteswap(read(buff, Float64))
+  y = byteswap(read(buff, Float64))
+  x = byteswap(read(buff, Float64))
   if zextent
     z = byteswap(read(buff, Float64))
     return x, y, z
