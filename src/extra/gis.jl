@@ -50,6 +50,8 @@ function giswrite(fname, geotable; warn, kwargs...)
   elseif endswith(fname, ".parquet")
     CRS = crs(domain(geotable))
     GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
+  elseif endswith(fname, ".gpkg")
+    gpkgwrite(fname, geotable;)
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end
@@ -63,8 +65,6 @@ function gistable(fname; layer, numtype, kwargs...)
     return GJS.read(fname; numbertype=numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
-  elseif endswith(fname, ".gpkg")
-    return gpkgread(fname; layer, kwargs...)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     return AG.getlayer(data, layer - 1)

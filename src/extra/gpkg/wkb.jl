@@ -2,105 +2,111 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function wkb2geom(buff, crs)
-  byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
-  typebits = read(buff, UInt32)
-  # Input variants of WKB supported are standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
-  if CoordRefSystems.ncoords(crs) == 3
-    # SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM) 
-    # to indicate the present of higher dimensional coordinates in a WKB geometry
-    if typebits > 3007
-      # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to indicate the presence of Z coordinates in a WKB geometry
-      # the high-bit flag 0x80000000 for Z (or 0x40000000 for M) is set and masking it off gives the standard WKB type
-      wkbtype = typebits & 0x7FFFFFFF
-    # check that the WKB typebits is not outside the SFSQL 1.2 Z encoding range (1001-1007)
-    elseif typebits <= 1007
-      # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
-      wkbtype = typebits - 1000
-    else
-      @error "Unsupported WKB Geometry Type with M or ZM dimension encoding: $typebits"
-    end
-  else
-    # standard WKB typebits without Z dimension encoding
-    wkbtype = typebits
-  end
+function writewkbgeom(io, geom)
+  wkbtype = _wkbtype(geom)
+  write(io, htol(one(UInt8)))
+  write(io, htol(UInt32(wkbtype)))
+  geom2wkb(io, wkbtype, geom)
+end
 
-  if wkbtype <= 3
-    # 0 - 3 [Geometry, Point, Linestring, Polygon]
-    wkb2single(buff, crs, wkbtype, byteswap)
-  else
-    # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkb2multi(buff, crs, byteswap)
+
+function _wkbtype(geometry)
+  if geometry isa Point
+    # wkbPoint 
+    return 1
+  elseif geometry isa Rope || geometry isa Ring
+    # wkbLineString
+    return 2
+  elseif geometry isa PolyArea
+    # wkbPolygon
+    return 3
+  elseif geometry isa Multi
+    # wkbMulti
+    fg = first(parent(geometry))
+    return _wkbtype(fg) + 3
   end
 end
 
-# read single features from Well-Known Binary IO Buffer and return Concrete Geometry
-function wkb2single(buff, crs, wkbtype, byteswap)
-  if wkbtype == 1
-    wkb2point(buff, crs, byteswap)
+function geom2wkb(io, wkbtype, geom)
+  if wkbtype > 3
+    multi2wkb(io, wkbtype, geom)
+  else
+    single2wkb(io, wkbtype, geom)
+  end
+end
+
+
+function single2wkb(io, wkbtype, geom)
+  # wkbPolygon
+  if wkbtype == 3
+    poly2wkb(io, [boundary(geom::PolyArea)])
   elseif wkbtype == 2
-    wkb2chain(buff, crs, byteswap)
-  elseif wkbtype == 3
-    wkb2poly(buff, crs, byteswap)
+    coordlist = vertices(geom)
+    if typeof(geom) <: Ring
+      # wkbLineString[length+1]
+      return chainring2wkb(io, coordlist)
+    end
+    # wkbLineString
+    chainrope2wkb(io, coordlist)
+  elseif wkbtype == 1
+    # wkbPoint
+    point2wkb(io, geom)
   else
-    error("Unsupported WKB Geometry Type: $wkbtype")
+    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
 end
 
-function wkb2point(buff, crs, byteswap)
-  coordinates = wkb2coords(buff, crs, byteswap)
-  Point(referencecoords(coordinates, crs))
-end
-
-function wkb2coords(buff, crs, byteswap)
-  if CoordRefSystems.ncoords(crs) == 2
-    x = byteswap(read(buff, Float64))
-    y = byteswap(read(buff, Float64))
-    return (x, y)
-  elseif CoordRefSystems.ncoords(crs) == 3
-    x = byteswap(read(buff, Float64))
-    y = byteswap(read(buff, Float64))
-    z = byteswap(read(buff, Float64))
-    return (x, y, z)
-  end
-end
-
-function referencecoords(coordinates, crs)
-  if crs <: LatLon
-    crs(coordinates[2], coordinates[1])
-  elseif crs <: LatLonAlt
-    crs(coordinates[2], coordinates[1], coordinates[3])
+function point2wkb(io, geom)
+  coordinates = CoordRefSystems.raw(coords(geom))
+  if typeof(geom) <: LatLon
+    write(io, htol(coordinates[2]))
+    write(io, htol(coordinates[1]))
+  elseif typeof(geom) <: LatLonAlt
+    write(io, htol(coordinates[2]))
+    write(io, htol(coordinates[1]))
+    write(io, htol(coordinates[3]))
   else
-    crs(coordinates...)
+    write(io, htol(coordinates[1]))
+    write(io, htol(coordinates[2]))
+    if length(coordinates) == 3
+      write(io, htol(coordinates[3]))
+    end
   end
 end
 
-function wkb2chain(buff, crs, byteswap)
-  npoints = byteswap(read(buff, UInt32))
-  chain = map(1:npoints) do _
-    wkb2point(buff, crs,  byteswap)
-  end
-  if length(chain) >= 2 && first(chain) != last(chain)
-    Rope(chain)
-  else
-    Ring(chain)
+function chainrope2wkb(io, rope)
+  write(io, htol(UInt32(length(rope))))
+  for point in rope
+    point2wkb(io, point)
   end
 end
 
-function wkb2poly(buff, crs, byteswap)
-  nrings = byteswap(read(buff, UInt32))
-  rings = map(1:nrings) do _
-    wkb2chain(buff, crs,  byteswap)
+function chainring2wkb(io, ring)
+  # add a point to close linestring
+  write(io, htol(UInt32(length(ring) + 1)))
+  for point in ring
+    point2wkb(io, point)
   end
-  PolyArea(rings)
+  # write a point to close linestring
+  point2wkb(io, first(ring))
 end
 
-function wkb2multi(buff, crs, byteswap)
-  ngeoms = byteswap(read(buff, UInt32))
-  geoms = map(1:ngeoms) do _
-    wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
-    wkbtype = read(buff, UInt32)
-    wkb2single(buff, crs, wkbtype, wkbbswap)
+function poly2wkb(io, rings)
+  write(io, htol(UInt32(length(rings))))
+  for ring in rings
+    points = vertices(ring)
+    chainrope2wkb(io, points)
   end
-  Multi(geoms)
+end
+
+function multi2wkb(io, multiwkbtype, geoms)
+  # `geoms` is treated as a single [`Geometry`]
+  # `parent(geoms)` returns the collection of geometries with the same types
+  write(io, htol(UInt32(length(parent(geoms)))))
+  for geom in parent(geoms)
+    write(io, one(UInt8))
+    # wkbGeometryType + 3 = Multi-wkbGeometryType
+    write(io, multiwkbtype - 3)
+    single2wkb(io, multiwkbtype - 3, geom)
+  end
 end
