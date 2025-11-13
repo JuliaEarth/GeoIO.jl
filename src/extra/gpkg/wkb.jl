@@ -3,24 +3,27 @@
 # ------------------------------------------------------------------
 
 function wkb2geom(buff, crs)
-  # Note: the coordinates are subject to byte order rules specified here
-  wkbbyteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
-  wkbtypebits = read(buff, UInt32)
-  # reader supports wkbGeometryType using the SFSQL 1.2 use offset of 1000 (Z) and SFSQL 1.1 that used a high-bit flag 0x80000000 (Z)
-  if !iszero(wkbtypebits & 0x80000000) || wkbtypebits > 1000
-    wkbtype = iszero(wkbtypebits & 0x80000000) ? wkbtypebits - 1000 : wkbtypebits & 0x7FFFFFFF
+  byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
+  typebits = read(buff, UInt32)
+  # supports wkbGeometryType according to
+  # SFSQL 1.1 high-bit flag 0x80000000 (Z)
+  # SFSQL 1.2 offset of 1000 (Z)
+  sfsql11 = iszero(typebits & 0x80000000)
+  sfsql12 = typebits > 1000
+  if !sfsql11 || sfsql12
+    wkbtype = sfsql11 ? typebits - 1000 : typebits & 0x7FFFFFFF
     zextent = true
   else
-    wkbtype = wkbtypebits
+    wkbtype = typebits
     zextent = false
   end
 
   if wkbtype > 3
     # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
-    wkb2multi(buff, crs, zextent, wkbbyteswap)
+    wkb2multi(buff, crs, zextent, byteswap)
   else
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
-    wkb2single(buff, crs, wkbtype, zextent, wkbbyteswap)
+    wkb2single(buff, crs, wkbtype, zextent, byteswap)
   end
 end
 
