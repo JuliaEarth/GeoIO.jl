@@ -28,29 +28,29 @@ function wkb2geom(buff, crs)
 end
 
 # read single features from Well-Known Binary IO Buffer and return Concrete Geometry
-function wkb2single(buff, crs, wkbtype, zextent, bswap)
+function wkb2single(buff, crs, wkbtype, zextent, byteswap)
   if wkbtype == 1
-    wkb2point(buff, crs, zextent, bswap)
+    wkb2point(buff, crs, zextent, byteswap)
   elseif wkbtype == 2
-    wkb2chain(buff, crs, zextent, bswap)
+    wkb2chain(buff, crs, zextent, byteswap)
   elseif wkbtype == 3
-    wkb2poly(buff, crs, zextent, bswap)
+    wkb2poly(buff, crs, zextent, byteswap)
   end
 end
 
-function wkb2point(buff, crs, zextent, bswap)
-  y, x = bswap(read(buff, Float64)), bswap(read(buff, Float64))
+function wkb2point(buff, crs, zextent, byteswap)
+  y, x = byteswap(read(buff, Float64)), byteswap(read(buff, Float64))
   if zextent
-    z = bswap(read(buff, Float64))
+    z = byteswap(read(buff, Float64))
     return x, y, z
   end
   Point(crs(x, y))
 end
 
-function wkb2chain(buff, crs, zextent, bswap)
-  npoints = bswap(read(buff, UInt32))
+function wkb2chain(buff, crs, zextent, byteswap)
+  npoints = byteswap(read(buff, UInt32))
   chain = map(1:npoints) do _
-    wkb2point(buff, crs, zextent, bswap)
+    wkb2point(buff, crs, zextent, byteswap)
   end
   if length(chain) >= 2 && first(chain) != last(chain)
     Rope(chain)
@@ -59,16 +59,16 @@ function wkb2chain(buff, crs, zextent, bswap)
   end
 end
 
-function wkb2poly(buff, crs, zextent, bswap)
-  nrings = bswap(read(buff, UInt32))
+function wkb2poly(buff, crs, zextent, byteswap)
+  nrings = byteswap(read(buff, UInt32))
   rings = map(1:nrings) do _
-    wkb2chain(buff, crs, zextent, bswap)
+    wkb2chain(buff, crs, zextent, byteswap)
   end
   PolyArea(rings)
 end
 
-function wkb2multi(buff, crs, zextent, bswap)
-  ngeoms = bswap(read(buff, UInt32))
+function wkb2multi(buff, crs, zextent, byteswap)
+  ngeoms = byteswap(read(buff, UInt32))
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
     wkbtypebits = read(buff, UInt32)
