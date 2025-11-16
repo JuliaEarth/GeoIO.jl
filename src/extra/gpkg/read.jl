@@ -166,9 +166,9 @@ function wkbgeombuffer(row, geomcolumn)
 
   # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
   # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
-  # byte[2] magic + byte[1] version + byte[1] flags + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
-  headerlen = iszero(envelope) ? 8 : 8 + 8 * 2 * (envelope + 1)
+  # byte[2] magic + byte[1] version + byte[1] flag + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
+  skiplen = iszero(envelope) ? 4 : 4 + 8 * 2 * (envelope + 1)
 
   # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
-  seek(buff, headerlen)
+  skip(buff, skiplen)
 end
