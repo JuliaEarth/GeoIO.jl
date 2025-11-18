@@ -75,14 +75,22 @@ function referencecoords(coordinates, crs)
   end
 end
 
+function wkb2points(buff, npoints, crs, byteswap)
+  map(1:npoints) do _
+    coordinates = wkb2coords(buff, crs, byteswap)
+    Point(referencecoords(coordinates, crs))
+  end
+end
+
 function wkb2chain(buff, crs, byteswap)
   npoints = byteswap(read(buff, UInt32))
-  chain = map(1:npoints) do _
-    wkb2point(buff, crs,  byteswap)
-  end
-  if length(chain) >= 2 && first(chain) != last(chain)
+  chain = wkb2points(buff, npoints, crs, byteswap)
+  if length(chain) >= 2 && first(chain) == last(chain)
+    Ring(chain[1:end-1])
+  elseif length(chain) >= 2
     Rope(chain)
   else
+    # single point or closed single point
     Ring(chain)
   end
 end
