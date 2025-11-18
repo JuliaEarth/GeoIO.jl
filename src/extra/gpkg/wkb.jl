@@ -4,25 +4,22 @@
 
 function wkb2geom(buff, crs)
   byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
-  typebits = read(buff, UInt32)
+  wkbtype = read(buff, UInt32)
   # Input variants of WKB supported are standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
   if CoordRefSystems.ncoords(crs) == 3
     # SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM) 
     # to indicate the present of higher dimensional coordinates in a WKB geometry
-    if typebits > 3007
+    if wkbtype >= 1001 && wkbtype <= 1007
+      # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
+      wkbtype -= 1000
       # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to indicate the presence of Z coordinates in a WKB geometry
       # the high-bit flag 0x80000000 for Z (or 0x40000000 for M) is set and masking it off gives the standard WKB type
-      wkbtype = typebits & 0x7FFFFFFF
-    # check that the WKB typebits is not outside the SFSQL 1.2 Z encoding range (1001-1007)
-    elseif typebits <= 1007
-      # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
-      wkbtype = typebits - 1000
+    elseif wkbtype > 0x80000000
+      # the SFSQL 1.1  high-bit flag 0x80000000 (Z) is present and removing the flag reveals the standard WKB type
+      wkbtype -= 0x80000000
     else
-      @error "Unsupported WKB Geometry Type with M or ZM dimension encoding: $typebits"
+      @error "Unsupported WKB Geometry Type with M or ZM dimension encoding: $wkbtype"
     end
-  else
-    # standard WKB typebits without Z dimension encoding
-    wkbtype = typebits
   end
 
   if wkbtype <= 3
@@ -86,7 +83,7 @@ function wkb2chain(buff, crs, byteswap)
   npoints = byteswap(read(buff, UInt32))
   chain = wkb2points(buff, npoints, crs, byteswap)
   if length(chain) >= 2 && first(chain) == last(chain)
-    Ring(chain[1:end-1])
+    Ring(chain[1:(end - 1)])
   elseif length(chain) >= 2
     Rope(chain)
   else
@@ -98,7 +95,7 @@ end
 function wkb2poly(buff, crs, byteswap)
   nrings = byteswap(read(buff, UInt32))
   rings = map(1:nrings) do _
-    wkb2chain(buff, crs,  byteswap)
+    wkb2chain(buff, crs, byteswap)
   end
   PolyArea(rings)
 end

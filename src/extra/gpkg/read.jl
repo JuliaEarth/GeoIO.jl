@@ -69,20 +69,18 @@ end
 # gpkg_contents table.
 function gpkgextract(db; layer=1)
   # get the first (and only) feature table returned in sqlite query results
-  metadata = first(
-    DBInterface.execute(
-      db,
-      """
-      SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
-      c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
-      FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
-      JOIN gpkg_contents c ON ( g.table_name = c.table_name )
-      WHERE c.data_type = 'features'
-      AND g.srs_id = c.srs_id
-      LIMIT 1 OFFSET ($layer-1);
-      """
-    )
-  )
+  metadata = first(DBInterface.execute(
+    db,
+    """
+    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
+    c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
+    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+    JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+    WHERE c.data_type = 'features'
+    AND g.srs_id = c.srs_id
+    LIMIT 1 OFFSET ($layer-1);
+    """
+  ))
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
