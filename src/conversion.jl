@@ -4,6 +4,7 @@
 
 raw(coords::CRS) = coords.x, coords.y
 raw(coords::LatLon) = coords.lon, coords.lat
+raw(coords::LatLonAlt) = coords.lon, coords.lat, coords.alt
 
 # --------------------------------------
 # Minimum GeoInterface.jl to perform IO

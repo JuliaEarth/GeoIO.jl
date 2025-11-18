@@ -72,7 +72,7 @@ function gpkgextract(db; layer=1)
   metadata = first(DBInterface.execute(
     db,
     """
-    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
+    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, g.z as zextent,
     c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
     FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
     JOIN gpkg_contents c ON ( g.table_name = c.table_name )
@@ -88,7 +88,7 @@ function gpkgextract(db; layer=1)
   code = metadata.code
   srsid = metadata.srsid
   if srsid == 0 || srsid == 4326
-    crs = LatLon{WGS84Latest}
+    crs = isone(metadata.zextent) ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
   elseif srsid == -1
     crs = Cartesian{NoDatum}
   else
