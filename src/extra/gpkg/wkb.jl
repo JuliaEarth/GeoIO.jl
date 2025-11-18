@@ -6,22 +6,17 @@ function wkb2geom(buff, crs)
   byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
   wkbtype = read(buff, UInt32)
   # Input variants of WKB supported are standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
-  if CoordRefSystems.ncoords(crs) == 3
-    # SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM) 
-    # to indicate the present of higher dimensional coordinates in a WKB geometry
-    if wkbtype >= 1001 && wkbtype <= 1007
-      # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
-      wkbtype -= 1000
-      # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to indicate the presence of Z coordinates in a WKB geometry
-      # the high-bit flag 0x80000000 for Z (or 0x40000000 for M) is set and masking it off gives the standard WKB type
-    elseif wkbtype > 0x80000000
-      # the SFSQL 1.1  high-bit flag 0x80000000 (Z) is present and removing the flag reveals the standard WKB type
-      wkbtype -= 0x80000000
-    else
-      @error "Unsupported WKB Geometry Type with M or ZM dimension encoding: $wkbtype"
-    end
+  # SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM) 
+  # to indicate the present of higher dimensional coordinates in a WKB geometry
+  if wkbtype >= 1001 && wkbtype <= 1007
+    # the SFSQL 1.2 offset of 1000 (Z) is present and subtracting a round number of 1000 gives the standard WKB type
+    wkbtype -= UInt32(1000)
+    # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to indicate the presence of Z coordinates in a WKB geometry
+    # the high-bit flag 0x80000000 for Z (or 0x40000000 for M) is set and masking it off gives the standard WKB type
+  elseif wkbtype > 0x80000000
+    # the SFSQL 1.1  high-bit flag 0x80000000 (Z) is present and removing the flag reveals the standard WKB type
+    wkbtype -= 0x80000000
   end
-
   if wkbtype <= 3
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
     wkb2single(buff, crs, wkbtype, byteswap)
