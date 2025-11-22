@@ -13,81 +13,67 @@ function gpkgdatabase(fname)
   # connect to SQLite database on disk
   db = SQLite.DB(fname)
 
-  # According to https://www.geopackage.org/spec/#r6 and https://www.geopackage.org/spec/#r7
+  # According to https://www.geopackage.org/spec/#r6
   # PRAGMA integrity_check returns a single row with the value 'ok'
+  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok"
+    throw(ErrorException("database integrity at risk"))
+  end
+  # According to https://www.geopackage.org/spec/#r7
   # PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
-  if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok" ||
-     !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
-    throw(ErrorException("database integrity at risk or foreign key violation(s)"))
+  if !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
+    throw(ErrorException("foreign key violation(s)"))
   end
 
-  # According to https://www.geopackage.org/spec/#r10 and https://www.geopackage.org/spec/#r13
-  # A GeoPackage SHALL include a 'gpkg_spatial_ref_sys' table and a 'gpkg_contents table'
-  if first(DBInterface.execute(
-    db,
-    """
-    SELECT COUNT(*) AS n FROM sqlite_master WHERE 
-    name IN ('gpkg_spatial_ref_sys', 'gpkg_contents') AND 
-    type IN ('table', 'view');
-    """
-  )).n != 2
+  # According to https://www.geopackage.org/spec/#r10
+  # A GeoPackage SHALL include a 'gpkg_spatial_ref_sys' table
+  if isnothing(SQLite.tableinfo(db, "gpkg_spatial_ref_sys"))
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
-
+  # According to https://www.geopackage.org/spec/#r13
+  # A GeoPackage SHALL include a 'gpkg_contents` table
+  if isnothing(SQLite.tableinfo(db, "gpkg_contents"))
+    throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
+  end
   db
 end
 
-# According to Geometry Columns Table Requirements
-# https://www.geopackage.org/spec/#:~:text=2.1.5.1.2.%20Table%20Data%20Values
-#------------------------------------------------------------------------------
-# Requirement 16: https://www.geopackage.org/spec/#r16 
-# Values of the gpkg_contents table srs_id column 
-# SHALL reference values in the gpkg_spatial_ref_sys table srs_id column
-#
-# Requirement 18: https://www.geopackage.org/spec/#r18
-# The gpkg_contents table SHALL contain a row 
-# with a lowercase data_type column value of "features" 
-# for each vector features user data table or view.
-#
-# Requirement 22: gpkg_geometry_columns table
-# SHALL contain one row record for the geometry column
-# in each vector feature data table
-#
-# Requirement 23: gpkg_geometry_columns table_name column
-# SHALL reference values in the gpkg_contents table_name column
-# for rows with a data_type of 'features'
-#
-# Requirement 24: The column_name column value in a gpkg_geometry_columns row
-# SHALL be the name of a column in the table or view specified by the table_name
-# column value for that row.
-#
-# Requirement 25: The geometry_type_name value in a gpkg_geometry_columns row
-# SHALL be one of the uppercase geometry type names specified
-#
-# Requirement 146: The srs_id value in a gpkg_geometry_columns table row
-# SHALL match the srs_id column value from the corresponding row in the
-# gpkg_contents table.
 function gpkgextract(db; layer=1)
-  # get the first (and only) feature table returned in sqlite query results
-  metadata = first(DBInterface.execute(
-    db,
-    """
-    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
-    c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
-    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
-    JOIN gpkg_contents c ON ( g.table_name = c.table_name )
-    WHERE c.data_type = 'features'
-    AND g.srs_id = c.srs_id
-    LIMIT 1 OFFSET ($layer-1);
-    """
-  ))
+  # get the feature table or Any[] returned in sqlite query results
+  metadata = first(
+    DBInterface.execute(
+      db,
+      """
+      SELECT g.table_name AS tablename, g.column_name AS geomcolumn, 
+      c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
+      FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+      """ *
+      # According to https://www.geopackage.org/spec/#r24
+      # The column_name column value in a gpkg_geometry_columns row SHALL be the name of a column in the table or view specified by the table_name column value for that row.
+      """
+      JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+      """ *
+      # According to https://www.geopackage.org/spec/#r23
+      # gpkg_geometry_columns table_name column SHALL reference values in the gpkg_contents table_name column for rows with a data_type of 'features'
+      """
+      WHERE c.data_type = 'features'
+      """ *
+      # According to https://www.geopackage.org/spec/#r146
+      # The srs_id value in a gpkg_geometry_columns table row SHALL match the srs_id column value from the corresponding row in the gpkg_contents table.
+      """
+      AND g.srs_id = c.srs_id
+      LIMIT 1 OFFSET ($layer-1);
+      """
+    )
+  )
 
   # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
   # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
   org = metadata.org
   code = metadata.code
   srsid = metadata.srsid
-  if srsid == 0 || srsid == 4326
+  if srsid == 0
+    crs = LatLon{NoDatum}
+  elseif srsid == 4326
     crs = LatLon{WGS84Latest}
   elseif srsid == -1
     crs = Cartesian{NoDatum}
@@ -112,10 +98,7 @@ function gpkgextract(db; layer=1)
   table = map(gpkgbinary) do row
     # According to https://www.geopackage.org/spec/#r30
     # A feature table or view SHALL have only one geometry column.
-    geomindex = findfirst(==(Symbol(geomcolumn)), keys(row))
-    values = map(keys(row)[[begin:(geomindex - 1); (geomindex + 1):end]]) do key
-      key, getproperty(row, key)
-    end
+    values = [(key, getproperty(row, key)) for key in keys(row) if key != Symbol(geomcolumn)]
 
     # create IOBuffer and seek geometry binary data
     buff = wkbgeombuffer(row, geomcolumn)
@@ -123,11 +106,16 @@ function gpkgextract(db; layer=1)
     geom = wkb2geom(buff, crs)
 
     # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
-    return (NamedTuple(values), geom)
+    NamedTuple(values), geom
   end
-
+  # separate aspatial attributes into its own vector
+  aspatial = getindex.(table, 1)
+  # check if type of aspatial elements generated are calls to the macro for declaring `NamedTuple` types instead of `NamedTuple` types
+  if eltype(aspatial) == @NamedTuple{}
+    aspatial = nothing
+  end
   # aspatial attributes and geometries
-  getindex.(table, 1), getindex.(table, 2)
+  aspatial, getindex.(table, 2)
 end
 
 function wkbgeombuffer(row, geomcolumn)
