@@ -110,7 +110,7 @@ function gpkgextract(db; layer=1)
   end
   # separate aspatial attributes into its own vector
   aspatial = getindex.(table, 1)
-  
+
   # check if type of aspatial elements generated are calls to the macro for declaring `NamedTuple` types
   eltype(aspatial) != @NamedTuple{} || return nothing, getindex.(table, 2)
   # aspatial attributes and corresponding geometries
