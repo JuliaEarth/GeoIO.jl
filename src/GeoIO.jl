@@ -38,6 +38,10 @@ import PlyIO
 # CSV format
 import CSV
 
+# Database interfaces
+import DBInterface
+import SQLite
+
 # geostats formats
 import GslibIO
 
@@ -72,7 +76,7 @@ const CDMEXTS = [".grib", ".nc"]
 const FORMATS = [
   (extension=".csv", load="CSV.jl", save="CSV.jl"),
   (extension=".geojson", load="GeoJSON.jl", save="GeoJSON.jl"),
-  (extension=".gpkg", load="ArchGDAL.jl", save="ArchGDAL.jl"),
+  (extension=".gpkg", load="GeoIO.jl", save="ArchGDAL.jl"),
   (extension=".grib", load="GRIBDatasets.jl", save=""),
   (extension=".gslib", load="GslibIO.jl", save="GslibIO.jl"),
   (extension=".jpeg", load="ImageIO.jl", save="ImageIO.jl"),
@@ -127,6 +131,7 @@ include("extra/csv.jl")
 include("extra/gdal.jl")
 include("extra/geotiff.jl")
 include("extra/gis.jl")
+include("extra/gpkg.jl")
 include("extra/img.jl")
 include("extra/msh.jl")
 include("extra/obj.jl")

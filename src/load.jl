@@ -156,6 +156,11 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
     return cdmread(fname; kwargs...)
   end
 
+  # GeoPackage formats
+  if endswith(fname, ".gpkg")
+    return gpkgread(fname; layer, kwargs...)
+  end
+
   # GIS formats
   gisread(fname; repair, layer, numtype, kwargs...)
 end
