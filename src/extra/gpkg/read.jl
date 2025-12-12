@@ -120,11 +120,14 @@ function gpkgextract(db; layer=1)
     # retrieve attribute values as a named tuple
     vals = (; (col => Tables.getcolumn(row, col) for col in attribs)...)
 
-    # create IOBuffer and seek geometry binary data
-    buff = wkbgeombuffer(row, geomcolumn)
+    # retrieve geometry binary data as IO buffer
+    buff = IOBuffer(Tables.getcolumn(row, geomcolumn))
+
+    # seek start of geometry (e.g., discard envelope)
+    gbuff = seekgeom(buff)
 
     # convert buffer into Meshes.jl geometry
-    geom = wkb2geom(buff, crs)
+    geom = wkb2geom(gbuff, crs)
 
     vals, geom
   end
@@ -136,13 +139,12 @@ function gpkgextract(db; layer=1)
   table, geoms
 end
 
-function wkbgeombuffer(row, geomcolumn)
-  # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
-  buff = IOBuffer(getproperty(row, geomcolumn))
-
+function seekgeom(buff)
   # According to https://www.geopackage.org/spec/#r19
-  # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
-  # check the GeoPackageBinaryHeader for the first byte[2] to be 'GP' in ASCII
+  # A GeoPackage SHALL store feature table geometries in
+  # SQL BLOBs using the Standard GeoPackageBinary format
+  # check the GeoPackageBinaryHeader for the first byte[2]
+  # to be 'GP' in ASCII
   read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
   # byte[1] version: 8-bit unsigned integer, 0 = version 1
