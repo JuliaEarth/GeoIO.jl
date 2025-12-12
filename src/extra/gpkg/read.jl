@@ -18,6 +18,7 @@ function gpkgdatabase(fname)
   if first(DBInterface.execute(db, "PRAGMA integrity_check;")).integrity_check != "ok"
     throw(ErrorException("database integrity at risk"))
   end
+
   # According to https://www.geopackage.org/spec/#r7
   # PRAGMA foreign_key_check (w/ no parameter value) returns an empty result set
   if !(isempty(DBInterface.execute(db, "PRAGMA foreign_key_check;")))
@@ -29,11 +30,13 @@ function gpkgdatabase(fname)
   if isnothing(SQLite.tableinfo(db, "gpkg_spatial_ref_sys"))
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
+
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a 'gpkg_contents` table
   if isnothing(SQLite.tableinfo(db, "gpkg_contents"))
     throw(ErrorException("missing required metadata tables in the GeoPackage SQL database"))
   end
+
   db
 end
 
@@ -48,17 +51,23 @@ function gpkgextract(db; layer=1)
       FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
       """ *
       # According to https://www.geopackage.org/spec/#r24
-      # The column_name column value in a gpkg_geometry_columns row SHALL be the name of a column in the table or view specified by the table_name column value for that row.
+      # The column_name column value in a gpkg_geometry_columns row
+      # SHALL be the name of a column in the table or view specified
+      # by the table_name column value for that row.
       """
       JOIN gpkg_contents c ON ( g.table_name = c.table_name )
       """ *
       # According to https://www.geopackage.org/spec/#r23
-      # gpkg_geometry_columns table_name column SHALL reference values in the gpkg_contents table_name column for rows with a data_type of 'features'
+      # gpkg_geometry_columns table_name column SHALL reference values
+      # in the gpkg_contents table_name column for rows with a data_type
+      # of 'features'
       """
       WHERE c.data_type = 'features'
       """ *
       # According to https://www.geopackage.org/spec/#r146
-      # The srs_id value in a gpkg_geometry_columns table row SHALL match the srs_id column value from the corresponding row in the gpkg_contents table.
+      # The srs_id value in a gpkg_geometry_columns table row SHALL
+      # match the srs_id column value from the corresponding row in
+      # the gpkg_contents table.
       """
       AND g.srs_id = c.srs_id
       LIMIT 1 OFFSET ($layer-1);
@@ -66,8 +75,10 @@ function gpkgextract(db; layer=1)
     )
   )
 
-  # According to https://www.geopackage.org/spec/#r33, feature table geometry columns
-  # SHALL contain geometries with the srs_id specified for the column by the gpkg_geometry_columns table srs_id column value.
+  # According to https://www.geopackage.org/spec/#r33
+  # feature table geometry columns SHALL contain geometries
+  # with the srs_id specified for the column by the
+  # gpkg_geometry_columns table srs_id column value.
   org = metadata.org
   code = metadata.code
   srsid = metadata.srsid
@@ -92,10 +103,11 @@ function gpkgextract(db; layer=1)
   geomcolumn = metadata.geomcolumn
   tableinfo = SQLite.tableinfo(db, tablename)
 
-  # "pk" (either zero for columns that are not part of the primary key, or the 1-based index of the column within the primary key)
+  # pk is the index of the column within the primary key,
+  # or 0 for columns that are not part of the primary key
   columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
-  gpkgbinary = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
-  table = map(gpkgbinary) do row
+  gpkgtab = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
+  table = map(gpkgtab) do row
     # According to https://www.geopackage.org/spec/#r30
     # A feature table or view SHALL have only one geometry column.
     values = [(key, getproperty(row, key)) for key in keys(row) if key != Symbol(geomcolumn)]
@@ -105,7 +117,6 @@ function gpkgextract(db; layer=1)
 
     geom = wkb2geom(buff, crs)
 
-    # returns a tuple of the corresponding aspatial attributes and the geometries for each row in the feature table
     NamedTuple(values), geom
   end
   # separate aspatial attributes into its own vector
