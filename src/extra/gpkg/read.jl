@@ -76,7 +76,7 @@ function gpkgextract(db; layer=1)
   )
 
   # According to https://www.geopackage.org/spec/#r33
-  # feature table geometry columns SHALL contain geometries
+  # Feature table geometry columns SHALL contain geometries
   # with the srs_id specified for the column by the
   # gpkg_geometry_columns table srs_id column value.
   org = metadata.org
@@ -100,37 +100,45 @@ function gpkgextract(db; layer=1)
   # The table_name column value in a gpkg_contents table row 
   # SHALL contain the name of a SQLite table or view.
   tablename = metadata.tablename
-  geomcolumn = metadata.geomcolumn
-  tableinfo = SQLite.tableinfo(db, tablename)
 
+  # According to https://www.geopackage.org/spec/#r30
+  # A feature table or view SHALL have only one geometry column.
+  geomcolumn = metadata.geomcolumn |> Symbol
+
+  # Retrieve names of columns with attributes (i.e., ≠ geometry)
   # pk is the index of the column within the primary key,
   # or 0 for columns that are not part of the primary key
-  columns = [name for (name, pk) in zip(tableinfo.name, tableinfo.pk) if pk == 0]
-  gpkgtab = DBInterface.execute(db, "SELECT  $(join(columns, ',')) FROM $tablename;")
-  table = map(gpkgtab) do row
-    # According to https://www.geopackage.org/spec/#r30
-    # A feature table or view SHALL have only one geometry column.
-    values = [(key, getproperty(row, key)) for key in keys(row) if key != Symbol(geomcolumn)]
+  tabinfo = SQLite.tableinfo(db, tablename)
+  columns = [Symbol(name) for (name, pk) in zip(tabinfo.name, tabinfo.pk) if pk == 0]
+  attribs = setdiff(columns, [geomcolumn])
+
+  # load feature table from database
+  gpkgtable = DBInterface.execute(db, "SELECT $(join(columns, ',')) FROM $tablename;")
+
+  # extract attribute table and geometries
+  pairs = map(Tables.rows(gpkgtable)) do row
+    # retrieve attribute values as a named tuple
+    vals = (; (col => Tables.getcolumn(row, col) for col in attribs)...)
 
     # create IOBuffer and seek geometry binary data
     buff = wkbgeombuffer(row, geomcolumn)
 
+    # convert buffer into Meshes.jl geometry
     geom = wkb2geom(buff, crs)
 
-    NamedTuple(values), geom
+    vals, geom
   end
-  # separate aspatial attributes into its own vector
-  aspatial = getindex.(table, 1)
 
-  # check if type of aspatial elements generated are calls to the macro for declaring `NamedTuple` types
-  eltype(aspatial) != @NamedTuple{} || return nothing, getindex.(table, 2)
-  # aspatial attributes and corresponding geometries
-  aspatial, getindex.(table, 2)
+  # handle tables without attributes
+  table = isempty(attribs) ? nothing : first.(pairs)
+  geoms = GeometrySet(last.(pairs))
+
+  table, geoms
 end
 
 function wkbgeombuffer(row, geomcolumn)
   # get the column of SQL Geometry Binary specified by gpkg_geometry_columns table in column_name field
-  buff = IOBuffer(getproperty(row, Symbol(geomcolumn)))
+  buff = IOBuffer(getproperty(row, geomcolumn))
 
   # According to https://www.geopackage.org/spec/#r19
   # A GeoPackage SHALL store feature table geometries in SQL BLOBs using the Standard GeoPackageBinary format
