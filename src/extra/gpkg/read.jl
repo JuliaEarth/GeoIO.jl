@@ -139,15 +139,14 @@ function gpkgextract(db; layer=1)
   table, geoms
 end
 
+# According to https://www.geopackage.org/spec/#r19
+# A GeoPackage SHALL store feature table geometries in
+# SQL BLOBs using the Standard GeoPackageBinary format
 function seekgeom(buff)
-  # According to https://www.geopackage.org/spec/#r19
-  # A GeoPackage SHALL store feature table geometries in
-  # SQL BLOBs using the Standard GeoPackageBinary format
-  # check the GeoPackageBinaryHeader for the first byte[2]
-  # to be 'GP' in ASCII
+  # check the GeoPackageBinaryHeader for the 'GP' magic
   read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
-  # byte[1] version: 8-bit unsigned integer, 0 = version 1
+  # skip version (0 => version 1)
   read(buff, UInt8)
 
   # bit layout of GeoPackageBinary flags byte
@@ -163,18 +162,16 @@ function seekgeom(buff)
   # B: byte order for SRS_ID and envelope values in header
   flag = read(buff, UInt8)
 
-  # 0x07 is a 3-bit mask 0x00001110
-  # left-shift moves the 3-bit mask by one to align with E bits in flag layout
-  # bitwise AND operation isolates the E bits
-  # right-shift moves the E bits by one to align with the least significant bits
-  # results in a 3-bit unsigned integer
+  # 0x07 is the mask 0x00001110
   envelope = (flag & (0x07 << 1)) >> 1
 
   # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-  # envelope is [minx, maxx, miny, maxy, minz, maxz], 48 bytes or envelope is [minx, maxx, miny, maxy], 32 bytes or no envelope, 0 bytes
+  # [no envelope]                        =>  0 bytes
+  # [minx, maxx, miny, maxy]             => 32 bytes
+  # [minx, maxx, miny, maxy, minz, maxz] => 48 bytes
   # byte[2] magic + byte[1] version + byte[1] flag + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
   skiplen = iszero(envelope) ? 4 : 4 + 8 * 2 * (envelope + 1)
 
-  # Skip reading the double[] envelope and start reading Well-Known Binary geometry 
+  # skip reading the double[] envelope and start reading Well-Known Binary geometry 
   skip(buff, skiplen)
 end
