@@ -156,13 +156,19 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
     return cdmread(fname; kwargs...)
   end
 
-  # GeoPackage formats
-  if endswith(fname, ".gpkg")
-    return gpkgread(fname; layer, kwargs...)
+  # GIS formats
+  geotable = if endswith(fname, ".gpkg")
+    gpkgread(fname; layer, kwargs...)
+  else
+    gisread(fname; layer, numtype, kwargs...)
   end
 
-  # GIS formats
-  gisread(fname; repair, layer, numtype, kwargs...)
+  # repair geometries
+  if repair
+    geotable |> Repair(11) |> Repair(12)
+  else
+    geotable
+  end
 end
 
 """
