@@ -152,9 +152,9 @@ function seekgeom(buff)
   read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
 
   # skip version (0 => version 1)
-  read(buff, UInt8)
+  skip(buff, 1)
 
-  # bit layout of GeoPackageBinary flags byte
+  # bit layout of GeoPackageBinary flag byte
   # https://www.geopackage.org/spec/#flags_layout
   # ---------------------------------------
   # bit # 7 # 6 # 5 # 4 # 3 # 2 # 1 # 0 #
@@ -166,17 +166,13 @@ function seekgeom(buff)
   # E: envelope contents indicator code (3-bit unsigned integer)
   # B: byte order for SRS_ID and envelope values in header
   flag = read(buff, UInt8)
+  E = (flag & 0b00001110) >> 1
 
-  # inspect envelope bits
-  envelope = (flag & 0b00001110) >> 1
+  # skip srs id
+  skip(buff, 4)
 
-  # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
-  # [no envelope]                        =>  0 bytes
-  # [minx, maxx, miny, maxy]             => 32 bytes
-  # [minx, maxx, miny, maxy, minz, maxz] => 48 bytes
-  # byte[2] magic + byte[1] version + byte[1] flag + byte[4] srs_id + byte[(8*2)×(x,y{,z})] envelope
-  skiplen = iszero(envelope) ? 4 : 4 + 8 * 2 * (envelope + 1)
+  # skip envelope
+  E > 0 && skip(buff, 8 * 2 * (E + 1))
 
-  # skip reading the double[] envelope and start reading Well-Known Binary geometry 
-  skip(buff, skiplen)
+  buff
 end
