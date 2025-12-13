@@ -162,8 +162,8 @@ function seekgeom(buff)
   # B: byte order for SRS_ID and envelope values in header
   flag = read(buff, UInt8)
 
-  # 0x07 is the mask 0x00001110
-  envelope = (flag & (0x07 << 1)) >> 1
+  # inspect envelope bits
+  envelope = (flag & 0b00001110) >> 1
 
   # calculate GeoPackageBinaryHeader size in byte stream given extent of envelope:
   # [no envelope]                        =>  0 bytes
