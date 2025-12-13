@@ -165,8 +165,7 @@ function seekgeom(buff)
   # Y: empty geometry flag
   # E: envelope contents indicator code (3-bit unsigned integer)
   # B: byte order for SRS_ID and envelope values in header
-  flag = read(buff, UInt8)
-  E = (flag & 0b00001110) >> 1
+  E = (read(buff, UInt8) & 0b00001110) >> 1
 
   # skip srs id
   skip(buff, 4)
