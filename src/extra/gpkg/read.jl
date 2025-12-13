@@ -123,11 +123,16 @@ function gpkgextract(db; layer=1)
     # retrieve geometry binary data as IO buffer
     buff = IOBuffer(Tables.getcolumn(row, geomcolumn))
 
+    miss = findall(blob -> ismissing(blob), buff)
+    if !isempty(miss)
+       @warn "Dropping $(length(miss)) rows with missing geometries." 
+    end
+
     # seek start of geometry (e.g., discard envelope)
-    gbuff = seekgeom(buff)
+    wkbgeom = seekgeom(buff)
 
     # convert buffer into Meshes.jl geometry
-    geom = wkb2geom(gbuff, crs)
+    geom = wkb2geom(wkbgeom, crs)
 
     vals, geom
   end
