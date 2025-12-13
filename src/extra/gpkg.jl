@@ -132,7 +132,7 @@ function gpkgextract(db; layer=1)
     wkbgeom = seekgeom(buff)
 
     # convert buffer into Meshes.jl geometry
-    geom = wkb2geom(wkbgeom, crs)
+    geom = wkb2meshes(wkbgeom, crs)
 
     vals, geom
   end

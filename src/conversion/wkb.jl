@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function wkb2geom(buff, crs)
+function wkb2meshes(buff, crs)
   byteswap = isone(read(buff, UInt8)) ? ltoh : ntoh
   wkbtype = read(buff, UInt32)
   # Input variants of WKB supported are standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
