@@ -2,22 +2,12 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gisread(fname; repair, layer, numtype, kwargs...)
+function gisread(fname; layer, numtype, kwargs...)
   # extract Tables.jl table from GIS format
   table = gistable(fname; layer, numtype, kwargs...)
 
   # convert Tables.jl table to GeoTable
-  geotable = asgeotable(table)
-
-  # repair pipeline
-  pipeline = if repair
-    Repair(11) → Repair(12)
-  else
-    Identity()
-  end
-
-  # perform repairs
-  geotable |> pipeline
+  asgeotable(table)
 end
 
 function giswrite(fname, geotable; warn, kwargs...)
