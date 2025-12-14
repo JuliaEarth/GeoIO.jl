@@ -100,8 +100,7 @@ function wkb2multi(buff, crs, byteswap)
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
     wkbtype = read(buff, UInt32)
-    # normalize WKB type for single geometries
-    (wkbtype >= 4) ? wkb2single(buff, crs, wkbtype-3, wkbbswap) : wkb2single(buff, crs, wkbtype, wkbbswap)
+    wkb2single(buff, crs, wkbtype, wkbbswap)
   end
   Multi(geoms)
 end
