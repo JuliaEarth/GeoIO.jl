@@ -123,7 +123,8 @@ include("utils.jl")
 include("crsstrings.jl")
 
 # utilities for geometry conversion
-include("conversion.jl")
+include("conversion/gi.jl")
+include("conversion/wkb.jl")
 
 # extra code for backends
 include("extra/cdm.jl")
