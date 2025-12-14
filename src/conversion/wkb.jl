@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function writewkbgeom(io, geom)
+function meshes2wkb(io, geom)
   wkbtype = _wkbtype(geom)
   write(io, htol(one(UInt8)))
   write(io, htol(UInt32(wkbtype)))
