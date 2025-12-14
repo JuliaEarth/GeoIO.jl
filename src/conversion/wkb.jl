@@ -21,7 +21,7 @@ function wkb2meshes(buff, crs)
     # 0 - 3 [Geometry, Point, Linestring, Polygon]
     wkb2single(buff, crs, wkbtype, byteswap)
   else
-    # 4 - 7 [MultiPoint, MultiLinestring, MultiPolygon, GeometryCollection]
+    # 4 - 6 [MultiPoint, MultiLinestring, MultiPolygon]
     wkb2multi(buff, crs, byteswap)
   end
 end
@@ -100,7 +100,8 @@ function wkb2multi(buff, crs, byteswap)
   geoms = map(1:ngeoms) do _
     wkbbswap = isone(read(buff, UInt8)) ? ltoh : ntoh
     wkbtype = read(buff, UInt32)
-    wkb2single(buff, crs, wkbtype, wkbbswap)
+    # normalize WKB type for single geometries
+    (wkbtype >= 4) ? wkb2single(buff, crs, wkbtype-3, wkbbswap) : wkb2single(buff, crs, wkbtype, wkbbswap)
   end
   Multi(geoms)
 end

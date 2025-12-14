@@ -123,11 +123,6 @@ function gpkgextract(db; layer=1)
     # retrieve geometry binary data as IO buffer
     buff = IOBuffer(Tables.getcolumn(row, geomcolumn))
 
-    miss = findall(blob -> ismissing(blob), buff)
-    if !isempty(miss)
-       @warn "Dropping $(length(miss)) rows with missing geometries." 
-    end
-
     # seek start of geometry (e.g., discard envelope)
     wkbgeom = seekgeom(buff)
 
@@ -170,7 +165,10 @@ function seekgeom(buff)
   # skip srs id
   skip(buff, 4)
 
-  # skip envelope
+  # skip calculated envelope size given envelope code E
+  # Float64[no envelope]                        => skip 0 bytes
+  # Float64[minx, maxx, miny, maxy]             => skip 32 bytes
+  # Float64[minx, maxx, miny, maxy, minz, maxz] => skip 48 bytes
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 
   buff
