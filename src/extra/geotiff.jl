@@ -5,10 +5,12 @@
 function geotiffread(fname; kwargs...)
   geotiff = GeoTIFF.load(fname; kwargs...)
 
-  # georeferenced grid
-  pipe = _pipeline(geotiff)
+  # raw image
   img = GeoTIFF.image(geotiff)
-  domain = CartesianGrid(size(img)) |> pipe
+
+  # grid definition
+  meta = GeoTIFF.metadata(geotiff)
+  grid = CartesianGrid(size(img)) |> _pipeline(meta)
 
   # table with colors or channels
   table = if eltype(geotiff) <: Colorant
@@ -19,7 +21,7 @@ function geotiffread(fname; kwargs...)
     (; (Symbol(:channel, i) => channel(i) for i in 1:nchanels)...)
   end
 
-  georef(table, domain)
+  georef(table, grid)
 end
 
 function geotiffwrite(fname, geotable; kwargs...)
@@ -107,33 +109,7 @@ end
 # HELPER FUNCTIONS
 # -----------------
 
-function _pipeline(geotiff)
-  metadata = GeoTIFF.metadata(geotiff)
-  affine = _affine(metadata)
-  morpho = _morphological(metadata)
-  affine → morpho
-end
-
-function _morphological(metadata)
-  code = GeoTIFF.epsgcode(metadata)
-  if isnothing(code) || code == GeoTIFF.UserDefined || code == GeoTIFF.Undefined
-    Identity()
-  else
-    epsg = EPSG{Int(code)}
-    CRS = CoordRefSystems.get(epsg)
-    if CRS <: LatLon
-      Morphological() do coords
-        lon, lat = CoordRefSystems.raw(coords)
-        CRS(lat, lon)
-      end
-    else
-      Morphological() do coords
-        x, y = CoordRefSystems.raw(coords)
-        CRS(x, y)
-      end
-    end
-  end
-end
+_pipeline(meta) = _affine(meta) → _reinterpretcoords(meta)
 
 function _affine(metadata)
   A, b = GeoTIFF.affineparams2D(metadata)
@@ -142,6 +118,16 @@ function _affine(metadata)
     Identity()
   else
     Affine(A, b)
+  end
+end
+
+function _reinterpretcoords(metadata)
+  code = GeoTIFF.epsgcode(metadata)
+  if isnothing(code) || code == GeoTIFF.UserDefined || code == GeoTIFF.Undefined
+    Identity()
+  else
+    CRS = CoordRefSystems.get(EPSG{Int(code)})
+    ReinterpretCoords(Cartesian{NoDatum}, CRS)
   end
 end
 

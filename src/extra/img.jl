@@ -10,10 +10,10 @@ function imgread(fname; lenunit)
   transform = Translate(-dims[1], 0) → Rotate(-π / 2)
   # construct grid
   u = lengthunit(lenunit)
-  origin = ntuple(i -> 0.0u, length(dims))
-  spacing = ntuple(i -> 1.0u, length(dims))
-  domain = CartesianGrid(dims, origin, spacing) |> transform
-  georef(values, domain)
+  min = ntuple(i -> 0.0u, length(dims))
+  max = float.(dims) .* u
+  grid = CartesianGrid(min, max; dims)
+  georef(values, transform(grid))
 end
 
 function imgwrite(fname, geotable; kwargs...)

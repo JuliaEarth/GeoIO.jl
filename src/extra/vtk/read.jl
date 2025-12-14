@@ -131,7 +131,7 @@ function vtiread(fname; lenunit)
   inds = findall(!iszero, dims)
   origin = Tuple(ReadVTK.get_origin(vtk)) .* u
   spacing = Tuple(ReadVTK.get_spacing(vtk)) .* u
-  grid = CartesianGrid(dims[inds], origin[inds], spacing[inds])
+  grid = CartesianGrid(origin[inds], spacing[inds], GridTopology(dims[inds]))
 
   # extract data
   vtable, etable = _datatables(vtk)

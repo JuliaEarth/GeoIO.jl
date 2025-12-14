@@ -57,7 +57,7 @@
     # grid masked with a "mask" column
     file = joinpath(datadir, "maskedgrid.vti")
     gtb = GeoIO.load(file)
-    @test gtb.geometry isa Meshes.SubGrid
+    @test gtb.geometry isa SubGrid
     @test nelements(gtb.geometry) == 100
     @test isnothing(values(gtb))
 
