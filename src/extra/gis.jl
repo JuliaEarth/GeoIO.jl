@@ -2,22 +2,12 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gisread(fname; repair, layer, numtype, kwargs...)
+function gisread(fname; layer, numtype, kwargs...)
   # extract Tables.jl table from GIS format
   table = gistable(fname; layer, numtype, kwargs...)
 
   # convert Tables.jl table to GeoTable
-  geotable = asgeotable(table)
-
-  # repair pipeline
-  pipeline = if repair
-    Repair(11) → Repair(12)
-  else
-    Identity()
-  end
-
-  # perform repairs
-  geotable |> pipeline
+  asgeotable(table)
 end
 
 function giswrite(fname, geotable; warn, kwargs...)
@@ -63,6 +53,8 @@ function gistable(fname; layer, numtype, kwargs...)
     return GJS.read(fname; numbertype=numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
+  elseif endswith(fname, ".gpkg")
+    return gpkgtable(fname; layer)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     return AG.getlayer(data, layer - 1)
@@ -70,23 +62,37 @@ function gistable(fname; layer, numtype, kwargs...)
 end
 
 # helper function to convert Tables.jl table to GeoTable
-function asgeotable(table)
-  crs = GI.crs(table)
-  cols = Tables.columns(table)
+function asgeotable(rawtable)
+  # table of attributes and column of geometries
+  cols = Tables.columns(rawtable)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  etable = isempty(vars) ? nothing : namedtuple(vars, cols)
+  table = isempty(vars) ? nothing : namedtuple(vars, cols)
   geoms = Tables.getcolumn(cols, gcol)
-  # subset for missing geoms
+
+  # identify rows with missing geometries
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
   if !isempty(miss)
     @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
   end
   valid = setdiff(1:length(geoms), miss)
-  domain = geom2meshes.(geoms[valid], Ref(crs))
-  etable = isnothing(etable) || isempty(miss) ? etable : Tables.subset(etable, valid)
-  georef(etable, domain)
+
+  # subset table and geometries
+  stable = isnothing(table) || isempty(miss) ? table : Tables.subset(table, valid)
+  sgeoms = geoms[valid]
+
+  # convert to Meshes.jl geometries
+  mgeoms = if eltype(sgeoms) <: Geometry
+    # already a vector of Meshes.jl geometries
+    sgeoms
+  else
+    # convert geometries to Meshes.jl geometries
+    crs = GI.crs(rawtable)
+    [geom2meshes(geom, crs) for geom in sgeoms]
+  end
+
+  georef(stable, mgeoms)
 end
 
 # helper function to find the geometry column of a table
