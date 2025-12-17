@@ -110,7 +110,7 @@ function gpkgextract(db; layer=1)
   end
 
   # According to https://www.geopackage.org/spec/#r14
-  # The table_name column value in a gpkg_contents table row 
+  # The table_name column value in a gpkg_contents table row
   # SHALL contain the name of a SQLite table or view.
   tablename = metadata.tablename
 
