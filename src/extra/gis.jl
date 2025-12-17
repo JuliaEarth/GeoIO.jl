@@ -80,7 +80,7 @@ function asgeotable(rawtable)
 
   # subset table and geometries
   stable = isnothing(table) || isempty(miss) ? table : Tables.subset(table, valid)
-  sgeoms = geoms[valid]
+  sgeoms = collect(skipmissing(geoms[valid]))
 
   # convert to Meshes.jl geometries
   mgeoms = if eltype(sgeoms) <: Geometry
