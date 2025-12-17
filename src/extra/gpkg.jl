@@ -99,9 +99,8 @@ function gpkgextract(db; layer=1)
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
     z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
   elseif code in (0,-1)
-    # An srs_id of -1 contains an org of "NONE" and a code of -1
-    # An srs_id of 0 contains an org of "NONE" and a code of 0
-    # In the case srs_id is not the same as code, we shall map EPSG{srs_id} to a CRS type
+    # typically srs_id and code values are the same, however if code is undefined (0,-1)
+    # and if srs_id is defined then default to getting a CRS type given srs_id instead of code
     CoordRefSystems.get(EPSG{srsid})
   elseif org == "EPSG"
     CoordRefSystems.get(EPSG{code})
