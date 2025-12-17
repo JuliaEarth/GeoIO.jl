@@ -11,7 +11,8 @@ function wkb2meshes(buff, crs)
   wkbtype = read(buff, UInt32)
 
   # SQL/MM Part 3 and SFSQL 1.2 use offsets to 
-  # indicate the presence of higher dimensional coordinates in a WKB geometry
+  # indicate the presence of higher dimensional
+  # coordinates in a WKB geometry
   if wkbtype ≥ 1001 && wkbtype ≤ 1007
     # 1000 (Z)
     wkbtype -= UInt32(1000)
@@ -22,9 +23,15 @@ function wkb2meshes(buff, crs)
     # 3000 (ZM)
     wkbtype -= UInt32(3000)
   elseif wkbtype > 0x80000000
-    # 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag to
-    # indicate the presence of Z coordinates in a WKB geometry
+    # 99-402 was a short-lived extension to SFSQL 1.1
+    # that used a high-bit flag to indicate the presence
+    # of Z coordinates in a WKB geometry
     wkbtype -= 0x80000000
+  elseif wkbtype > 0x40000000
+    # The M coordinate value allows the application environment
+    # to associate some measure with the point values
+    # this high-bit flag indicates the presence of M dimension
+    wkbtype -= 0x40000000
   end
 
   # convert WKB geometry type to Meshes.jl type
@@ -36,7 +43,7 @@ function wkb2meshes(buff, crs)
     wkb2poly(buff, crs, swapbytes)
   elseif 4 ≤ wkbtype ≤ 6 # multi-geometries
     # do a recursive call to read inner geometries
-    ngeoms = swapbytes(read(buff, UInt32))
+    ngeoms = read(buff, UInt32)
     geoms = [wkb2meshes(buff, crs) for _ in 1:ngeoms]
     Multi(geoms)
   else

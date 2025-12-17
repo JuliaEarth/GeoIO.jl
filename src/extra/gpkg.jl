@@ -45,7 +45,7 @@ function gpkgextract(db; layer=1)
   layerinfo = DBInterface.execute(
     db,
     """
-    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, g.z, g.m,
+    SELECT g.table_name AS tablename, g.column_name AS geomcolumn, g.z,
     c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
     FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
     """ *
@@ -88,25 +88,22 @@ function gpkgextract(db; layer=1)
   # The z value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
   # 0: z values prohibited; 1: z values mandatory; 2: z values optional
   z = isone(metadata.z)
-  # According to https://www.geopackage.org/spec/#r28
-  # The m value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
-  # 0: m values prohibited; 1: m values mandatory; 2: m values optional
-  m = isone(metadata.m)
-  crs = if srsid == 0
+  crs = if srsid == 0 || srsid == 99999
     # An srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-    # no method matching `ellipsoid(::Type{NoDatum})`,  so default to WGS84Latest for conversion from spatial to geographic coordinates
-    z || m ? LatLonAlt{WGS84Latest} : LatLon{NoDatum}
-  elseif srsid == 4326
-    # An srs_id of 4326 SHALL correspond to WGS-84
-    z || m ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
+    # An srs_id of 99999 is recognized as a placeholder code, we will default to undefined geographic crs
+    z ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
   elseif srsid == -1
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-    z || m ? Cartesian3D{NoDatum} : Cartesian{NoDatum}
+    z ? Cartesian3D{NoDatum} : Cartesian{NoDatum}
   else
     if org == "EPSG"
       CoordRefSystems.get(EPSG{code})
     elseif org == "ESRI"
       CoordRefSystems.get(ESRI{code})
+    elseif srsid != code
+      # if org and code are undefined AND srs_id is not equal to 0, -1, 99999
+      # then srs_id shall be used to map a EPSG{srs_id} to a CRS type
+      CoordRefSystems.get(EPSG{srsid})
     else
       error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
     end
