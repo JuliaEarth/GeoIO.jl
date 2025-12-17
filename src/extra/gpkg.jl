@@ -80,7 +80,7 @@ function gpkgextract(db; layer=1)
   # Feature table geometry columns SHALL contain geometries
   # with the srs_id specified for the column by the
   # gpkg_geometry_columns table srs_id column value.
-  org = metadata.org
+  org = uppercase(metadata.org)
   code = metadata.code
   srsid = metadata.srsid
 
@@ -96,14 +96,17 @@ function gpkgextract(db; layer=1)
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
     z ? Cartesian3D{NoDatum} : Cartesian{NoDatum}
   else
-    if org == "EPSG"
+   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
+   # code is a numeric ID of the spatial reference system assigned by the organization
+    if org == "NONE" || code in (0, -1)
+      # The srs_id and code values are typically the same and have a constraint on NOT being NULL
+      # Given org and code are incongruent with srs_id then we shall default to using EPSG{srs_id}
+      CoordRefSystems.get(EPSG{srsid})
+    elseif org == "EPSG"
       CoordRefSystems.get(EPSG{code})
     elseif org == "ESRI"
       CoordRefSystems.get(ESRI{code})
-    elseif srsid != code
-      # if org and code are undefined AND srs_id is not equal to 0, -1, 99999
-      # then srs_id shall be used to map a EPSG{srs_id} to a CRS type
-      CoordRefSystems.get(EPSG{srsid})
+
     else
       error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
     end
