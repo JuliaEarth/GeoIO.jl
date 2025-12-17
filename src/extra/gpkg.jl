@@ -41,7 +41,7 @@ function gpkgdatabase(fname)
 end
 
 function gpkgextract(db; layer=1)
-  # get the feature table or Any[] returned in sqlite query results in alphabetical order by column names
+  # get the feature table given the layer number
   layerinfo = DBInterface.execute(
     db,
     """
