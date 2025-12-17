@@ -76,12 +76,15 @@ function gpkgextract(db; layer=1)
   isnothing(layerinfo) && throw(ErrorException("layer $layer not found in GeoPackage"))
   metadata = first(layerinfo)
 
+
+  # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
+  org = uppercase(metadata.org)
+  # code is a numeric ID of the spatial reference system assigned by the organization
+  code = metadata.code
   # According to https://www.geopackage.org/spec/#r33
   # Feature table geometry columns SHALL contain geometries
   # with the srs_id specified for the column by the
   # gpkg_geometry_columns table srs_id column value.
-  org = uppercase(metadata.org)
-  code = metadata.code
   srsid = metadata.srsid
 
   # According to https://www.geopackage.org/spec/#r27
@@ -94,22 +97,18 @@ function gpkgextract(db; layer=1)
     z ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
   elseif srsid == -1
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-    z ? Cartesian3D{NoDatum} : Cartesian{NoDatum}
+    z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
+  elseif code in (0,-1)
+    # An srs_id of -1 contains an org of "NONE" and a code of -1
+    # An srs_id of 0 contains an org of "NONE" and a code of 0
+    # In the case srs_id is not the same as code, we shall map EPSG{srs_id} to a CRS type
+    CoordRefSystems.get(EPSG{srsid})
+  elseif org == "EPSG"
+    CoordRefSystems.get(EPSG{code})
+  elseif org == "ESRI"
+    CoordRefSystems.get(ESRI{code})
   else
-   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
-   # code is a numeric ID of the spatial reference system assigned by the organization
-    if code in (0,-1)
-      # An srs_id of -1 contains an org of "NONE" and a code of -1
-      # An srs_id of 0 contains an org of "NONE" and a code of 0
-      # In the case srs_id is not the same as code, we shall map EPSG{srs_id} to a CRS type
-      CoordRefSystems.get(EPSG{srsid})
-    elseif org == "EPSG"
-      CoordRefSystems.get(EPSG{code})
-    elseif org == "ESRI"
-      CoordRefSystems.get(ESRI{code})
-    else
-      error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
-    end
+    error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
   end
 
   # According to https://www.geopackage.org/spec/#r14
