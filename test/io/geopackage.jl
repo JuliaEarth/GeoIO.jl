@@ -69,7 +69,7 @@
   @testset "missing" begin
     # note: GeoPackage may contain sqlite null for missing geometries
     file1 = joinpath(datadir, "gdal_sample.gpkg")
-    file2 = tempname(suffix=".gpkg")
+    file2 = tempname(;suffix=".gpkg")
 
     # point2d LatLon
     gtb1 = GeoIO.load(file1; layer=13)
