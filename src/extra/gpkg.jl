@@ -98,22 +98,22 @@ function gpkgextract(db; layer=1)
   else
    # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
    # code is a numeric ID of the spatial reference system assigned by the organization
-    if org == "NONE" || code in (0, -1)
-      # The srs_id and code values are typically the same and have a constraint on NOT being NULL
-      # Given org and code are incongruent with srs_id then we shall default to using EPSG{srs_id}
+    if code in (0,-1)
+      # An srs_id of -1 contains an org of "NONE" and a code of -1
+      # An srs_id of 0 contains an org of "NONE" and a code of 0
+      # In the case srs_id is not the same as code, we shall map EPSG{srs_id} to a CRS type
       CoordRefSystems.get(EPSG{srsid})
     elseif org == "EPSG"
       CoordRefSystems.get(EPSG{code})
     elseif org == "ESRI"
       CoordRefSystems.get(ESRI{code})
-
     else
       error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
     end
   end
 
   # According to https://www.geopackage.org/spec/#r14
-  # The table_name column value in a gpkg_contents table row
+  # The table_name column value in a gpkg_contents table row 
   # SHALL contain the name of a SQLite table or view.
   tablename = metadata.tablename
 
