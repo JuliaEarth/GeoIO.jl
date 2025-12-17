@@ -10,7 +10,7 @@ function wkb2meshes(buff, crs)
   # retrieve WKB geometry type
   wkbtype = read(buff, UInt32)
 
-  # SQL/MM Part 3 and SFSQL 1.2 use offsets to 
+  # SQL/MM Part 3 and SFSQL 1.2 use offsets to
   # indicate the presence of higher dimensional
   # coordinates in a WKB geometry
   if wkbtype ≥ 1001 && wkbtype ≤ 1007
