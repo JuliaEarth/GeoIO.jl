@@ -157,7 +157,14 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
   end
 
   # GIS formats
-  gisread(fname; repair, layer, numtype, kwargs...)
+  geotable = gisread(fname; layer, numtype, kwargs...)
+
+  # repair geometries
+  if repair
+    geotable |> Repair(11) |> Repair(12)
+  else
+    geotable
+  end
 end
 
 """

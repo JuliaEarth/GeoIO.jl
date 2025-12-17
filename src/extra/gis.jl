@@ -62,23 +62,38 @@ function gistable(fname; layer, numtype, kwargs...)
 end
 
 # helper function to convert Tables.jl table to GeoTable
-function asgeotable(table)
-  crs = GI.crs(table)
-  cols = Tables.columns(table)
+function asgeotable(rawtable)
+  # table of attributes and column of geometries
+  cols = Tables.columns(rawtable)
   names = Tables.columnnames(cols)
   gcol = geomcolumn(names)
   vars = setdiff(names, [gcol])
-  etable = isempty(vars) ? nothing : namedtuple(vars, cols)
+  table = isempty(vars) ? nothing : namedtuple(vars, cols)
   geoms = Tables.getcolumn(cols, gcol)
-  # subset for missing geoms
+
+  # identify rows with missing geometries
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
   if !isempty(miss)
     @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
   end
   valid = setdiff(1:length(geoms), miss)
-  domain = geom2meshes.(geoms[valid], Ref(crs))
-  etable = isnothing(etable) || isempty(miss) ? etable : Tables.subset(etable, valid)
-  georef(etable, domain)
+
+  # subset table and geometries
+  stable = isnothing(table) || isempty(miss) ? table : Tables.subset(table, valid)
+  sgeoms = collect(skipmissing(geoms[valid]))
+
+  # convert to Meshes.jl geometries
+  mgeoms = if eltype(sgeoms) <: Geometry
+    # already a vector of Meshes.jl geometries
+    sgeoms
+  else
+    # convert geometries to Meshes.jl geometries
+    crs = GI.crs(rawtable)
+    println("crs::",crs)
+    [geom2meshes(geom, crs) for geom in sgeoms]
+  end
+
+  georef(stable, mgeoms)
 end
 
 # helper function to find the geometry column of a table

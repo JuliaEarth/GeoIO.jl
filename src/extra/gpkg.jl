@@ -5,7 +5,7 @@
 # According to https://www.geopackage.org/spec/#r2
 # a GeoPackage should contain "GPKG" in ASCII in 
 # "application_id" field of SQLite db header
-const GPKG_APPLICATION_ID = Int(0x47504B47)
+const GPKG_APPLICATION_ID = 0x47504B47
 const GPKG_1_4_VERSION = 10400
 
 # If the geometry type_name value is "GEOMETRY" then the feature table geometry column 
@@ -60,7 +60,7 @@ function creategpkgtables(db, table, domain, crs, geom)
   gpkgbinary = map(geom) do feature
     gpkgbinheader = writegpkgheader(srsid, feature)
     io = IOBuffer()
-    writewkbgeom(io, feature)
+    meshes2wkb(io, feature)
     vcat(gpkgbinheader, take!(io))
   end
 
@@ -323,7 +323,7 @@ function creategpkgtables(db, table, domain, crs, geom)
         (table_name, column_name, extension_name, definition, scope)
         VALUES 
         ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only');
-        """
+      """
     )
   end
 end
