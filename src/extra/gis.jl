@@ -55,6 +55,8 @@ function gistable(fname; layer, numtype, kwargs...)
     return GJS.read(fname; numbertype=numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
+  elseif endswith(fname, ".gpkg")
+    return gpkgtable(fname; layer)
   else # fallback to GDAL
     data = AG.read(fname; kwargs...)
     return AG.getlayer(data, layer - 1)
@@ -89,7 +91,6 @@ function asgeotable(rawtable)
   else
     # convert geometries to Meshes.jl geometries
     crs = GI.crs(rawtable)
-    println("crs::",crs)
     [geom2meshes(geom, crs) for geom in sgeoms]
   end
 
