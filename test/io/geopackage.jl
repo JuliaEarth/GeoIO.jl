@@ -93,10 +93,10 @@
     @test gtb2.geometry == gtb1.geometry
 
     # point3d LatLon
-    # gtb1 = GeoIO.load(file1; layer=14)
-    # GeoIO.save(file2, gtb1)
-    # gtb2 = GeoIO.load(file2)
-    # @test Set(names(gtb2)) == Set(names(gtb1))
-    # @test gtb2.geometry == gtb1.geometry
+    gtb1 = GeoIO.load(file1; layer=6)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test gtb2.geometry == gtb1.geometry
   end
 end
