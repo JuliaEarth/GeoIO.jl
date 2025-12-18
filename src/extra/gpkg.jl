@@ -76,7 +76,6 @@ function gpkgextract(db; layer=1)
   isnothing(layerinfo) && throw(ErrorException("layer $layer not found in GeoPackage"))
   metadata = first(layerinfo)
 
-
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
   org = uppercase(metadata.org)
   # code is a numeric ID of the spatial reference system assigned by the organization
@@ -98,7 +97,7 @@ function gpkgextract(db; layer=1)
   elseif srsid == -1
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
     z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
-  elseif code in (0,-1)
+  elseif code in (0, -1)
     # typically srs_id and code values are the same, however if code is undefined (0,-1)
     # and if srs_id is defined then default to getting a CRS type given srs_id instead of code
     CoordRefSystems.get(EPSG{srsid})
