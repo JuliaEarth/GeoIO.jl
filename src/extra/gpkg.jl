@@ -455,16 +455,14 @@ function creategpkgtables(db, table, domain, crs, geoms)
     # The index data structure needs to be manually populated, updated and queried.
     stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
     handle = SQLite._get_stmt_handle(stmt)
-    geomcount = 0
-    bboxes = map(geoms) do geom
-      geomcount+=1
+    bboxes = map(enumerate(geoms)) do (i, geom)
       bbox = boundingbox(geom)
       mincoords = CoordRefSystems.raw(coords(bbox.min))
       maxcoords = CoordRefSystems.raw(coords(bbox.max))
       # min-value and max-value pairs (stored as 32-bit floating point numbers)
       minx, maxx, miny, maxy = mincoords[1], maxcoords[1], mincoords[2], maxcoords[2]
        # virtual table 64-bit signed integer primary key id column
-      SQLite.bind!(stmt, 1, geomcount)
+      SQLite.bind!(stmt, 1, i)
       # min/max x/y parameters
       SQLite.bind!(stmt, 2, minx)
       SQLite.bind!(stmt, 3, maxx)
@@ -532,7 +530,7 @@ function writegpkgheader(srsid, geom)
   bbox = boundingbox(geom)
 
   # [minx, maxx, miny, maxy]
-  if srsid != 0
+  if srsid != -1
     write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
     write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
     write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
