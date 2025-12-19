@@ -69,8 +69,8 @@
   @testset "missing" begin
     # note: GeoPackage may contain sqlite null for missing geometries
     file1 = joinpath(datadir, "gdal_sample.gpkg")
-    file2 = tempname() * ".gpkg"
 
+    file2 = tempname() * ".gpkg"
     # point2d LatLon
     gtb1 = GeoIO.load(file1; layer=13)
     GeoIO.save(file2, gtb1)
@@ -78,6 +78,7 @@
     @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
 
+    file2 = tempname() * ".gpkg"
     # linestring2d EPSG{4326}
     gtb1 = GeoIO.load(file1; layer=5)
     GeoIO.save(file2, gtb1)
@@ -85,6 +86,7 @@
     @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
 
+    file2 = tempname() * ".gpkg"
     # polygon2d EPSG{32631}
     gtb1 = GeoIO.load(file1; layer=15)
     GeoIO.save(file2, gtb1)
@@ -92,6 +94,7 @@
     @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
 
+    file2 = tempname() * ".gpkg"
     # point3d LatLon
     gtb1 = GeoIO.load(file1; layer=6)
     GeoIO.save(file2, gtb1)

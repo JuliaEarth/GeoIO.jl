@@ -197,7 +197,7 @@ const GPKG_1_4_VERSION = 10400
 # If the geometry type_name value is "GEOMETRY" then the feature table geometry column
 # MAY contain geometries of any allowed geometry type
 function SQLite.sqlitetype_(::Type{Vector{UInt8}})
-  return "GEOMETRY"
+  "GEOMETRY"
 end
 
 function gpkgwrite(fname, geotable;)
@@ -232,31 +232,28 @@ function gpkgwrite(fname, geotable;)
   DBInterface.close!(db)
 end
 
-function creategpkgtables(db, table, domain, crs, geom)
+function creategpkgtables(db, table, domain, crs, geoms)
   if crs <: Cartesian
     org = ""
     srsid = -1
-  elseif crs <: LatLon
-    org = "EPSG"
-    srsid = 4326
   else
-    org = string(CoordRefSystems.code(crs))[1:4]
-    srsid = parse(Int32, string(CoordRefSystems.code(crs))[6:(end - 1)])
+    org = "EPSG"
+    srsid = first(CoordRefSystems.code(crs).parameters)
   end
-  gpkgbinary = map(geom) do feature
-    gpkgbinheader = writegpkgheader(srsid, feature)
-    io = IOBuffer()
-    meshes2wkb(io, feature)
-    vcat(gpkgbinheader, take!(io))
+  gpkgbinary = map(geoms) do geom
+    gpkgbinheader = writegpkgheader(srsid, geom)
+    buff = IOBuffer()
+    meshes2wkb(buff, geom)
+    vcat(gpkgbinheader, take!(buff))
   end
 
-  features =
+  layer =
   # if no values in table then store only geometry in features
     isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     # else store the geometry as the first column and the remaining table columns in features
     [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
 
-  rows = Tables.rows(features)
+  rows = Tables.rows(layer)
   sch = Tables.schema(rows)
   columns = [
     string(SQLite.esc_id(String(sch.names[i])), ' ', SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any))
@@ -275,7 +272,7 @@ function creategpkgtables(db, table, domain, crs, geom)
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
   # Note: the `sql` statement is not actually executed, but only compiled
   # mainly for usage where the same statement is executed multiple times with different parameters bound as values
-  stmt = SQLite.Stmt(db, "INSERT INTO features ($columns) VALUES ($params)";)
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)";)
 
   # used for holding references to bound statement values via bind!
   handle = SQLite._get_stmt_handle(stmt)
@@ -327,7 +324,7 @@ function creategpkgtables(db, table, domain, crs, geom)
     minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
     # 0: z values prohibited; 1: z values mandatory;
     # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-    z = paramdim(first(geom)) > 2 ? 1 : 0
+    z = paramdim(first(geoms)) > 2 ? 1 : 0
 
     # According to https://www.geopackage.org/spec/#r10
     # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
@@ -452,25 +449,22 @@ function creategpkgtables(db, table, domain, crs, geom)
       rtree(id, minx, maxx, miny, maxy)
       """
     )
-    bboxes = map(geom) do ft
-      bbox = boundingbox(ft)
-      mincoords = CoordRefSystems.raw(coords(bbox.min))
-      maxcoords = CoordRefSystems.raw(coords(bbox.max))
-      minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
-      return (minx, maxx, miny, maxy)
-    end
-
     # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
     # And provides a significant performance advantage for searches with basic envelope spatial criteria
     # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
     # The index data structure needs to be manually populated, updated and queried.
     stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
     handle = SQLite._get_stmt_handle(stmt)
-    for i in 1:length(gpkgbinary)
+    geomcount = 0
+    bboxes = map(geoms) do geom
+      geomcount+=1
+      bbox = boundingbox(geom)
+      mincoords = CoordRefSystems.raw(coords(bbox.min))
+      maxcoords = CoordRefSystems.raw(coords(bbox.max))
       # min-value and max-value pairs (stored as 32-bit floating point numbers)
-      minx, maxx, miny, maxy = bboxes[i]
-      # virtual table 64-bit signed integer primary key id column
-      SQLite.bind!(stmt, 1, i)
+      minx, maxx, miny, maxy = mincoords[1], maxcoords[1], mincoords[2], maxcoords[2]
+       # virtual table 64-bit signed integer primary key id column
+      SQLite.bind!(stmt, 1, geomcount)
       # min/max x/y parameters
       SQLite.bind!(stmt, 2, minx)
       SQLite.bind!(stmt, 3, maxx)
@@ -515,33 +509,45 @@ function creategpkgtables(db, table, domain, crs, geom)
 end
 
 function writegpkgheader(srsid, geom)
-  io = IOBuffer()
+  buff = IOBuffer()
   # 'GP' in ASCII
-  write(io, [0x47, 0x50])
+  write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
-  write(io, zero(UInt8))
+  write(buff, zero(UInt8))
 
-  # bit layout of GeoPackageBinary flags byte indicates:
-  # The geometry header includes an envelope [minx, maxx, miny, maxy]
-  # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header.
-  flagsbyte = UInt8(0x07 >> 1)
-  write(io, flagsbyte)
+  if paramdim(geom) == 3
+    # bit layout of GeoPackageBinary flags byte indicates:
+    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
+    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
+    write(buff, 0b00000101)
+  else
+    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
+    write(buff, 0b00000011)
+  end
 
   # write the SRS ID, with the endianness specified by the byte order flag
-  write(io, htol(Int32(srsid)))
+  write(buff, htol(Int32(srsid)))
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
   bbox = boundingbox(geom)
+
   # [minx, maxx, miny, maxy]
-  write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
-  write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
-  write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
-  write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
-  if paramdim(geom) >= 3
+  if srsid != 0
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
+  else
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
+  end
+  if paramdim(geom) == 3
     # [..., minz, maxz]
-    write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[3])))
-    write(io, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[3])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[3])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[3])))
   end
 
-  return take!(io)
+  take!(buff)
 end
