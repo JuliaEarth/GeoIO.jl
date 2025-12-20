@@ -524,14 +524,14 @@ function writegpkgheader(srsid, geom)
   bbox = boundingbox(geom)
 
   # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[2])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[2])))
   if paramdim(geom) == 3
     # [..., minz, maxz]
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[3])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[3])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[3])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[3])))
   end
 
   take!(buff)
