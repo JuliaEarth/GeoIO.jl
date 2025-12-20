@@ -86,3 +86,76 @@ function wkb2coords(buff, crs, swapbytes)
     crs(xyz...)
   end
 end
+
+_wkbtype(::Point) = 0x00000001
+_wkbtype(::Chain) = 0x00000002
+_wkbtype(::Polygon) = 0x00000003
+_wkbtype(::MultiPoint) = 0x00000004
+_wkbtype(::MultiSegment) = 0x00000005
+_wkbtype(::MultiRope) = 0x00000005
+_wkbtype(::MultiRing) = 0x00000005
+_wkbtype(::MultiPolygon) = 0x00000006
+
+function meshes2wkb(buff, geoms)
+  wkbtype = _wkbtype(geoms)
+  # wkbByteOrder = Little Endian
+  write(buff, one(UInt8))
+  # wkbGeometryType
+  write(buff, wkbtype)
+
+  if wkbtype == 1
+    point2wkb(buff, geoms)
+  elseif wkbtype == 2
+    chain2wkb(buff, geoms)
+  elseif wkbtype == 3
+    poly2wkb(buff, geoms)
+  elseif 4 ≤ wkbtype ≤ 6
+    # `geoms` is treated as a single [`Geometry`]
+    # `parent(geoms)` returns the collection of geometries with the same types
+    write(buff, UInt32(length(parent(geoms))))
+    foreach(geom -> meshes2wkb(buff, geom), parent(geoms))
+  else
+    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
+  end
+end
+
+function point2wkb(buff, geom)
+  crs = typeof(coords(geom))
+  xyz = CoordRefSystems.raw(coords(geom))
+  if crs <: LatLon
+    write(buff, htol(xyz[1]))
+    write(buff, htol(xyz[2]))
+  elseif crs <: LatLonAlt
+    write(buff, htol(xyz[1]))
+    write(buff, htol(xyz[2]))
+    write(buff, htol(xyz[3]))
+  else
+    write(buff, htol(xyz[2]))
+    write(buff, htol(xyz[1]))
+    if length(xyz) == 3
+      write(buff, htol(xyz[3]))
+    end
+  end
+end
+
+function chain2wkb(buff, geom)
+    npoints = nvertices(geom)
+    points = vertices(geom)
+    if isclosed(geom)
+      write(buff, UInt32(npoints + 1))
+      foreach(point -> point2wkb(buff, point), points)
+      # close geometry for ring
+      point2wkb(buff, first(points))
+    else
+      write(buff, UInt32(npoints))
+      foreach(point -> point2wkb(buff, point), points)
+    end
+end
+
+function poly2wkb(buff, geom)
+    # Linear rings are components of the polygon type, and the byte order
+    # and the geometry type are implicit in their location in the polygon structure
+    linearrings = rings(geom)
+    write(buff, UInt32(length(linearrings)))
+    foreach(ring -> chain2wkb(buff, ring), linearrings)
+end
