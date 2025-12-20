@@ -56,7 +56,7 @@ wkb2point(buff, crs, swapbytes) = Point(wkb2coords(buff, crs, swapbytes))
 wkb2points(buff, npoints, crs, swapbytes) = [wkb2point(buff, crs, swapbytes) for _ in 1:npoints]
 
 function wkb2chain(buff, crs, swapbytes)
-  npoints = swapbytes(read(buff, UInt32))
+  npoints = read(buff, UInt32)
   points = wkb2points(buff, npoints, crs, swapbytes)
   if first(points) == last(points)
     while first(points) == last(points) && length(points) ≥ 2
@@ -69,7 +69,7 @@ function wkb2chain(buff, crs, swapbytes)
 end
 
 function wkb2poly(buff, crs, swapbytes)
-  nrings = swapbytes(read(buff, UInt32))
+  nrings = read(buff, UInt32)
   rings = [wkb2chain(buff, crs, swapbytes) for _ in 1:nrings]
   PolyArea(rings)
 end
