@@ -194,12 +194,6 @@ end
 const GPKG_APPLICATION_ID = 0x47504B47
 const GPKG_1_4_VERSION = 10400
 
-# If the geometry type_name value is "GEOMETRY" then the feature table geometry column
-# MAY contain geometries of any allowed geometry type
-function SQLite.sqlitetype_(::Type{Vector{UInt8}})
-  "GEOMETRY"
-end
-
 function gpkgwrite(fname, geotable;)
   db = SQLite.DB(fname)
 
@@ -210,11 +204,6 @@ function gpkgwrite(fname, geotable;)
   # if there is an operating system crash or power failure.
   DBInterface.execute(db, "PRAGMA synchronous=0")
 
-  table = values(geotable)
-  domain = GeoTables.domain(geotable)
-  crs = GeoTables.crs(domain)
-  geom = collect(domain)
-
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version" field
@@ -222,7 +211,7 @@ function gpkgwrite(fname, geotable;)
   DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
   DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
 
-  creategpkgtables(db, table, domain, crs, geom)
+  creategpkgtables(db, geotable)
 
   # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should run "PRAGMA optimize;"
@@ -232,13 +221,18 @@ function gpkgwrite(fname, geotable;)
   DBInterface.close!(db)
 end
 
-function creategpkgtables(db, table, domain, crs, geoms)
+function creategpkgtables(db, geotable)
+  table = values(geotable)
+  domain = GeoTables.domain(geotable)
+  crs = GeoTables.crs(domain)
+  geoms = collect(domain)
+
   if crs <: Cartesian
     org = ""
     srsid = -1
   else
     org = "EPSG"
-    srsid = first(CoordRefSystems.code(crs).parameters)
+    srsid = CoordRefSystems.code(crs).parameters[1]
   end
   gpkgbinary = map(geoms) do geom
     gpkgbinheader = writegpkgheader(srsid, geom)
@@ -317,9 +311,9 @@ function creategpkgtables(db, table, domain, crs, geoms)
     # collect bounding box for all content in geotable
     bbox = boundingbox(domain)
     # bounding box minimum easting or longitude, and northing or latitude
-    mincoords = CoordRefSystems.raw(coords(bbox.min))
+    mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
     # bounding box maximum easting or longitude, and northing or latitude
-    maxcoords = CoordRefSystems.raw(coords(bbox.max))
+    maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
     # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
     minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
     # 0: z values prohibited; 1: z values mandatory;
@@ -530,17 +524,10 @@ function writegpkgheader(srsid, geom)
   bbox = boundingbox(geom)
 
   # [minx, maxx, miny, maxy]
-  if srsid != -1
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
-  else
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
-  end
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[2])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.max))[2])))
   if paramdim(geom) == 3
     # [..., minz, maxz]
     write(buff, htol(Float64(CoordRefSystems.raw(coords(bbox.min))[3])))
