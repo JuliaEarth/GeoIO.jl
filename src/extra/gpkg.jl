@@ -188,12 +188,6 @@ function skipgpkgheader!(buff)
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 end
 
-# According to https://www.geopackage.org/spec/#r2
-# a GeoPackage should contain "GPKG" in ASCII in
-# "application_id" field of SQLite db header
-const GPKG_APPLICATION_ID = 0x47504B47
-const GPKG_1_4_VERSION = 10400
-
 function gpkgwrite(fname, geotable;)
   db = SQLite.DB(fname)
 
@@ -207,9 +201,9 @@ function gpkgwrite(fname, geotable;)
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version" field
-  # of the SQLite database header to indicate that it is a GeoPackage
-  DBInterface.execute(db, "PRAGMA application_id = $GPKG_APPLICATION_ID ")
-  DBInterface.execute(db, "PRAGMA user_version = $GPKG_1_4_VERSION ")
+  # of the SQLite db header to indicate that it is a GeoPackage
+  DBInterface.execute(db, "PRAGMA application_id = 0x47504B47 ")
+  DBInterface.execute(db, "PRAGMA user_version = 10400 ")
 
   creategpkgtables(db, geotable)
 
@@ -220,6 +214,16 @@ function gpkgwrite(fname, geotable;)
 
   DBInterface.close!(db)
 end
+
+
+_sqlgeomtype(::Point) = "POINT"
+_sqlgeomtype(::Chain) = "LINESTRING"
+_sqlgeomtype(::Polygon) = "POLYGON"
+_sqlgeomtype(::MultiPoint) = "MULTIPOINT"
+_sqlgeomtype(::MultiSegment) = "MULTILINESTRING"
+_sqlgeomtype(::MultiRope) = "MULTILINESTRING"
+_sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
+
 
 function creategpkgtables(db, geotable)
   table = values(geotable)
@@ -250,10 +254,13 @@ function creategpkgtables(db, geotable)
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
   columns = [
-    string(SQLite.esc_id(String(sch.names[i])), ' ', SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any))
+    string(
+        SQLite.esc_id(String(sch.names[i])),
+        ' ',
+        # use core sql geometry types for geometries with simple feature geometry types (excluding GeometryCollection)
+        sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : _sqlgeomtype(first(geoms)))
     for i in eachindex(sch.names)
   ]
-
   # https://www.geopackage.org/spec/#r29
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.

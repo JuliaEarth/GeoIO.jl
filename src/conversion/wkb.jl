@@ -90,15 +90,18 @@ end
 _wkbtype(::Point) = 0x00000001
 _wkbtype(::Chain) = 0x00000002
 _wkbtype(::Polygon) = 0x00000003
-_wkbtype(m::Multi) = _wkbtype(first(parent(m))) + 0x00000003
-
+_wkbtype(::MultiPoint) = 0x00000004
+_wkbtype(::MultiSegment) = 0x00000005
+_wkbtype(::MultiRope) = 0x00000005
+_wkbtype(::MultiRing) = 0x00000005
+_wkbtype(::MultiPolygon) = 0x00000006
 
 function meshes2wkb(buff, geoms)
   wkbtype = _wkbtype(geoms)
   # wkbByteOrder = Little Endian
   write(buff, one(UInt8))
   # wkbGeometryType
-  write(buff, UInt32(wkbtype))
+  write(buff, wkbtype)
 
   if wkbtype == 1
     point2wkb(buff, geoms)
@@ -110,7 +113,7 @@ function meshes2wkb(buff, geoms)
     # `geoms` is treated as a single [`Geometry`]
     # `parent(geoms)` returns the collection of geometries with the same types
     write(buff, UInt32(length(parent(geoms))))
-    foreach(geom -> geom2wkb(buff, geom), parent(geoms))
+    foreach(geom -> meshes2wkb(buff, geom), parent(geoms))
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
