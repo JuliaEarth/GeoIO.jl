@@ -236,7 +236,7 @@ function creategpkgtables(db, geotable)
     srsid = -1
   else
     org = "EPSG"
-    srsid = CoordRefSystems.code(crs).parameters[1]
+    srsid = CoordRefSystems.integer(CoordRefSystems.code(crs))
   end
   gpkgbinary = map(geoms) do geom
     gpkgbinheader = writegpkgheader(srsid, geom)

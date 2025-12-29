@@ -96,66 +96,64 @@ _wkbtype(::MultiRope) = 0x00000005
 _wkbtype(::MultiRing) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 
-function meshes2wkb(buff, geoms)
-  wkbtype = _wkbtype(geoms)
+function meshes2wkb(buff, geom)
+  wkbtype = _wkbtype(geom)
   # wkbByteOrder = Little Endian
   write(buff, one(UInt8))
   # wkbGeometryType
   write(buff, wkbtype)
 
-  if wkbtype == 1
-    point2wkb(buff, geoms)
-  elseif wkbtype == 2
-    chain2wkb(buff, geoms)
-  elseif wkbtype == 3
-    poly2wkb(buff, geoms)
+  if 1 ≤ wkbtype ≤ 3
+    write(buff, geom)
   elseif 4 ≤ wkbtype ≤ 6
-    # `geoms` is treated as a single [`Geometry`]
-    # `parent(geoms)` returns the collection of geometries with the same types
-    write(buff, UInt32(length(parent(geoms))))
-    foreach(geom -> meshes2wkb(buff, geom), parent(geoms))
+    # `geom` is treated as a single [`Geometry`]
+    # `parent(geom)` returns the collection of geometries with the same types
+    write(buff, UInt32(length(parent(geom))))
+    for g in parent(geom)
+        meshes2wkb(buff, g)
+    end
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
 end
 
-function point2wkb(buff, geom)
-  crs = typeof(coords(geom))
-  xyz = CoordRefSystems.raw(coords(geom))
+function Base.write(io::IO, point::Point)
+  c = coords(point)
+  crs = typeof(c)
   if crs <: LatLon
-    write(buff, htol(xyz[1]))
-    write(buff, htol(xyz[2]))
+    write(io, htol(ustrip(c.lon)))
+    write(io, htol(ustrip(c.lat)))
   elseif crs <: LatLonAlt
-    write(buff, htol(xyz[1]))
-    write(buff, htol(xyz[2]))
-    write(buff, htol(xyz[3]))
+    write(io, htol(ustrip(c.lon)))
+    write(io, htol(ustrip(c.lat)))
+    write(io, htol(ustrip(c.alt)))
   else
-    write(buff, htol(xyz[2]))
-    write(buff, htol(xyz[1]))
-    if length(xyz) == 3
-      write(buff, htol(xyz[3]))
+    write(io, htol(ustrip(c.x)))
+    write(io, htol(ustrip(c.y)))
+    if crs <: Cartesian3D
+      write(io, htol(ustrip(c.z)))
     end
   end
 end
 
-function chain2wkb(buff, geom)
-    npoints = nvertices(geom)
-    points = vertices(geom)
-    if isclosed(geom)
-      write(buff, UInt32(npoints + 1))
-      foreach(point -> point2wkb(buff, point), points)
+function Base.write(io::IO, chain::Chain)
+    npoints = nvertices(chain)
+    points = vertices(chain)
+    if isclosed(chain)
+      write(io, UInt32(npoints + 1))
+      foreach(point -> Base.write(io, point), points)
       # close geometry for ring
-      point2wkb(buff, first(points))
+      Base.write(io, first(points))
     else
-      write(buff, UInt32(npoints))
-      foreach(point -> point2wkb(buff, point), points)
+      write(io, UInt32(npoints))
+      foreach(point -> Base.write(io, point), points)
     end
 end
 
-function poly2wkb(buff, geom)
+function Base.write(io::IO, poly::PolyArea)
     # Linear rings are components of the polygon type, and the byte order
     # and the geometry type are implicit in their location in the polygon structure
-    linearrings = rings(geom)
-    write(buff, UInt32(length(linearrings)))
-    foreach(ring -> chain2wkb(buff, ring), linearrings)
+    linearrings = rings(poly)
+    write(io, UInt32(length(linearrings)))
+    foreach(ring -> Base.write(io, ring), linearrings)
 end
