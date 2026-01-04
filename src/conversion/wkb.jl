@@ -2,6 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# -------------------------------------
+# WKB (Well-Known Binary) -> Meshes.jl
+# -------------------------------------
+
 # supports standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
 function wkb2meshes(buff, crs)
   # swap bytes of coordinates if necessary
@@ -87,6 +91,32 @@ function wkb2coords(buff, crs, swapbytes)
   end
 end
 
+# -------------------------------------
+# Meshes.jl -> WKB (Well-Known Binary)
+# -------------------------------------
+
+function meshes2wkb(buff, geom)
+  wkbtype = _wkbtype(geom)
+
+  # wkbByteOrder = Little Endian
+  write(buff, one(UInt8))
+
+  # wkbGeometryType
+  write(buff, wkbtype)
+
+  if 1 ≤ wkbtype ≤ 3
+    _meshes2wkb(buff, geom)
+  elseif 4 ≤ wkbtype ≤ 6
+    gs = parent(geom)
+    write(buff, UInt32(length(gs)))
+    for g in gs
+      _meshes2wkb(buff, g)
+    end
+  else
+    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
+  end
+end
+
 _wkbtype(::Point) = 0x00000001
 _wkbtype(::Rope) = 0x00000002
 _wkbtype(::Ring) = 0x00000002
@@ -96,56 +126,33 @@ _wkbtype(::MultiRope) = 0x00000005
 _wkbtype(::MultiRing) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 
-function meshes2wkb(buff, geom)
-  wkbtype = _wkbtype(geom)
-  # wkbByteOrder = Little Endian
-  write(buff, one(UInt8))
-  # wkbGeometryType
-  write(buff, wkbtype)
-
-  if 1 ≤ wkbtype ≤ 3
-    _meshes2wkb(buff, geom)
-  elseif 4 ≤ wkbtype ≤ 6
-    # `geom` is treated as a single [`Geometry`]
-    # `parent(geom)` returns the collection of geometries with the same types
-    write(buff, UInt32(length(parent(geom))))
-    for g in parent(geom)
-        _meshes2wkb(buff, g)
-    end
-  else
-    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
-  end
-end
-
-function _meshes2wkb(buff, point::Point)
-  _meshes2wkb(buff, coords(point))
-end
+_meshes2wkb(buff, point::Point) = _meshes2wkb(buff, coords(point))
 
 function _meshes2wkb(buff, c::LatLon)
-    write(buff, htol(ustrip(c.lon)))
-    write(buff, htol(ustrip(c.lat)))
+  write(buff, htol(ustrip(c.lon)))
+  write(buff, htol(ustrip(c.lat)))
 end
 
 function _meshes2wkb(buff, c::LatLonAlt)
-    write(buff, htol(ustrip(c.lon)))
-    write(buff, htol(ustrip(c.lat)))
-    write(buff, htol(ustrip(c.alt)))
+  write(buff, htol(ustrip(c.lon)))
+  write(buff, htol(ustrip(c.lat)))
+  write(buff, htol(ustrip(c.alt)))
 end
 
 function _meshes2wkb(buff, c::CoordRefSystems.Projected)
-    write(buff, htol(ustrip(c.x)))
-    write(buff, htol(ustrip(c.y)))
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
 end
 
 function _meshes2wkb(buff, c::Cartesian2D)
-    write(buff, htol(ustrip(c.x)))
-    write(buff, htol(ustrip(c.y)))
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
 end
 
 function _meshes2wkb(buff, c::Cartesian3D)
-    write(buff, htol(ustrip(c.x)))
-    write(buff, htol(ustrip(c.y)))
-    write(buff, htol(ustrip(c.z)))
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
+  write(buff, htol(ustrip(c.z)))
 end
 
 function _meshes2wkb(buff, chain::Chain)
