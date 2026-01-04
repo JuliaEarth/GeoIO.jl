@@ -104,7 +104,7 @@ function meshes2wkb(buff, geom)
   write(buff, wkbtype)
 
   if 1 ≤ wkbtype ≤ 3
-    write(buff, geom)
+    _meshes2wkb(buff, geom)
   elseif 4 ≤ wkbtype ≤ 6
     # `geom` is treated as a single [`Geometry`]
     # `parent(geom)` returns the collection of geometries with the same types
