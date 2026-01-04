@@ -88,8 +88,8 @@ function wkb2coords(buff, crs, swapbytes)
 end
 
 _wkbtype(::Point) = 0x00000001
-_wkbtype(::Ring) = 0x00000002
 _wkbtype(::Rope) = 0x00000002
+_wkbtype(::Ring) = 0x00000002
 _wkbtype(::Polygon) = 0x00000003
 _wkbtype(::MultiPoint) = 0x00000004
 _wkbtype(::MultiRope) = 0x00000005
