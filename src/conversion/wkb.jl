@@ -173,9 +173,9 @@ function _meshes2wkb(buff, chain::Chain)
 end
 
 function _meshes2wkb(buff, poly::PolyArea)
-    # Linear rings are components of the polygon type, and the byte order
-    # and the geometry type are implicit in their location in the polygon structure
-    linearrings = rings(poly)
-    write(buff, UInt32(length(linearrings)))
-    foreach(ring -> _meshes2wkb(buff, ring), linearrings)
+    rs = rings(poly)
+    write(buff, UInt32(length(rs)))
+    for r in rs
+      _meshes2wkb(buff, r)
+    end
 end
