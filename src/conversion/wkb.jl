@@ -142,7 +142,7 @@ function _meshes2wkb(buff, c::Cartesian2D)
     write(buff, htol(ustrip(c.y)))
 end
 
-function _meshes2wkb(buff, c::Cartestian3D)
+function _meshes2wkb(buff, c::Cartesian3D)
     write(buff, htol(ustrip(c.x)))
     write(buff, htol(ustrip(c.y)))
     write(buff, htol(ustrip(c.z)))
