@@ -156,17 +156,20 @@ function _meshes2wkb(buff, c::Cartesian3D)
 end
 
 function _meshes2wkb(buff, chain::Chain)
-    npoints = nvertices(chain)
-    points = vertices(chain)
-    if isclosed(chain)
-      write(buff, UInt32(npoints + 1))
-      foreach(point -> _meshes2wkb(buff, point), points)
-      # close geometry for ring
-      _meshes2wkb(buff, first(points))
-    else
-      write(buff, UInt32(npoints))
-      foreach(point -> _meshes2wkb(buff, point), points)
+  npoints = nvertices(chain)
+  points = vertices(chain)
+  if isclosed(chain)
+    write(buff, UInt32(npoints + 1))
+    for point in points
+      _meshes2wkb(buff, point)
     end
+    _meshes2wkb(buff, first(points))
+  else
+    write(buff, UInt32(npoints))
+    for point in points
+      _meshes2wkb(buff, point)
+    end
+  end
 end
 
 function _meshes2wkb(buff, poly::PolyArea)
