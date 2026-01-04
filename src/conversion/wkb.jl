@@ -132,7 +132,12 @@ function _meshes2wkb(buff, c::LatLonAlt)
     write(buff, htol(ustrip(c.alt)))
 end
 
-function _meshes2wkb(buff, c::Projected)
+function _meshes2wkb(buff, c::CoordRefSystems.Projected)
+    write(buff, htol(ustrip(c.x)))
+    write(buff, htol(ustrip(c.y)))
+end
+
+function _meshes2wkb(buff, c::Cartesian2D)
     write(buff, htol(ustrip(c.x)))
     write(buff, htol(ustrip(c.y)))
 end
