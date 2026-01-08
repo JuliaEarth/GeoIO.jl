@@ -117,7 +117,6 @@ function meshes2wkb(buff, geom)
   end
 end
 
-
 _wkbtype(::Point) = 0x00000001
 _wkbtype(::Chain) = 0x00000002
 _wkbtype(::Polygon) = 0x00000003
@@ -172,9 +171,9 @@ function _meshes2wkb(buff, chain::Chain)
 end
 
 function _meshes2wkb(buff, poly::PolyArea)
-    rs = rings(poly)
-    write(buff, UInt32(length(rs)))
-    for r in rs
-      _meshes2wkb(buff, r)
-    end
+  rs = rings(poly)
+  write(buff, UInt32(length(rs)))
+  for r in rs
+    _meshes2wkb(buff, r)
+  end
 end
