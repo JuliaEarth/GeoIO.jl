@@ -117,13 +117,12 @@ function meshes2wkb(buff, geom)
   end
 end
 
+
 _wkbtype(::Point) = 0x00000001
-_wkbtype(::Rope) = 0x00000002
-_wkbtype(::Ring) = 0x00000002
+_wkbtype(::Chain) = 0x00000002
 _wkbtype(::Polygon) = 0x00000003
 _wkbtype(::MultiPoint) = 0x00000004
 _wkbtype(::MultiRope) = 0x00000005
-_wkbtype(::MultiRing) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 
 _meshes2wkb(buff, point::Point) = _meshes2wkb(buff, coords(point))

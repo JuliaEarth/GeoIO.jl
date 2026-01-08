@@ -205,7 +205,7 @@ function gpkgwrite(fname, geotable;)
   DBInterface.execute(db, "PRAGMA application_id = 0x47504B47 ")
   DBInterface.execute(db, "PRAGMA user_version = 10400 ")
 
-  creategpkgtables(db, geotable)
+  writegpkgtables(db, geotable)
 
   # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should run "PRAGMA optimize;"
@@ -215,38 +215,95 @@ function gpkgwrite(fname, geotable;)
   DBInterface.close!(db)
 end
 
-
 _sqlgeomtype(::Point) = "POINT"
 _sqlgeomtype(::Chain) = "LINESTRING"
 _sqlgeomtype(::Polygon) = "POLYGON"
 _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
-_sqlgeomtype(::MultiSegment) = "MULTILINESTRING"
 _sqlgeomtype(::MultiRope) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
+gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
+gpkgspatialrefsys(::Cartesian) =  "NONE",-1,""
 
-function creategpkgtables(db, geotable)
-  table = values(geotable)
-  domain = GeoTables.domain(geotable)
-  crs = GeoTables.crs(domain)
-  geoms = collect(domain)
+function meshes2gpkgbinary(srsid, geoms)
+    # store feature geometries in SQL BLOBS using GeoPackageBinary format
+    map(geoms) do geom
+      gpkgbinheader = writegpkgbinaryheader(srsid, geom)
+      buff = IOBuffer()
+      meshes2wkb(buff, geom)
+      vcat(gpkgbinheader, take!(buff))
+    end
+end
 
-  if crs <: Cartesian
-    org = ""
-    srsid = -1
+function writegpkgbinaryheader(srsid, geom)
+  buff = IOBuffer()
+  # 'GP' in ASCII
+  write(buff, [0x47, 0x50])
+  # 8-bit unsigned integer, 0 = version 1
+  write(buff, zero(UInt8))
+
+  if paramdim(geom) == 3
+    # bit layout of GeoPackageBinary flags byte indicates:
+    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
+    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
+    write(buff, 0b00000101)
   else
-    org = "EPSG"
-    srsid = CoordRefSystems.integer(CoordRefSystems.code(crs))
-  end
-  gpkgbinary = map(geoms) do geom
-    gpkgbinheader = writegpkgheader(srsid, geom)
-    buff = IOBuffer()
-    meshes2wkb(buff, geom)
-    vcat(gpkgbinheader, take!(buff))
+    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
+    write(buff, 0b00000011)
   end
 
+  # write the SRS ID, with the endianness specified by the byte order flag
+  write(buff, htol(Int32(srsid)))
+
+  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
+  bbox = boundingbox(geom)
+
+  # [minx, maxx, miny, maxy]
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[1])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[2])))
+  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[2])))
+  if paramdim(geom) == 3
+    # [..., minz, maxz]
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[3])))
+    write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[3])))
+  end
+
+  take!(buff)
+end
+
+function writegpkgtables(db, geotable)
+  domain = GeoTables.domain(geotable)
+  org, srsid, srswkt = gpkgspatialrefsys(GeoTables.crs(domain))
+  geoms = collect(domain)
+  table = values(geotable)
+
+  # an explicit write transaction is started by statements like CREATE, DELETE, DROP, INSERT, or UPDATE
+  # the default transaction behavior is DEFERRED.
+  # DEFERRED means that the transaction does not actually start until the database is first accessed
+  SQLite.transaction(db) do
+    # create and insert into required metadata table `gpkg_spatial_ref_sys`
+    writegpkgspatialrefsys(db, org, srsid, srswkt)
+    # create and insert into required metadata table `gpkg_contents`
+    writegpkgcontents(db, domain, srsid)
+    # 0: z values prohibited; 1: z values mandatory;
+    # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
+    z = paramdim(first(geoms)) > 2 ? 1 : 0
+    # create and insert into `gpkg_geometry_columns` table
+    # identifies the geometry columns and geometry types in user data tables
+    writegpkggeomcolumns(db, srsid, z)
+    # create and insert vector feature user data tables
+    writegpkgfeaturetable(db, srsid, table, geoms)
+    # implement spatial indexes on geometry columns using SQLite Virtual Table R-tree extension
+    writegpkgrteeindexes(db, geoms)
+  end
+end
+
+function writegpkgfeaturetable(db, srsid, table, geoms)
+  # GeoPackage SQL Geometry Binary Format
+  gpkgbinary = meshes2gpkgbinary(srsid, geoms)
   layer =
-  # if no values in table then store only geometry in features
+    # if no values in table then store only geometry in features
     isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     # else store the geometry as the first column and the remaining table columns in features
     [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
@@ -266,7 +323,6 @@ function creategpkgtables(db, geotable)
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
   DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')));")
-
   # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
   # generate the comma-separated list of escaped column names for the SQL query
@@ -274,58 +330,42 @@ function creategpkgtables(db, geotable)
   # Note: the `sql` statement is not actually executed, but only compiled
   # mainly for usage where the same statement is executed multiple times with different parameters bound as values
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)";)
-
   # used for holding references to bound statement values via bind!
   handle = SQLite._get_stmt_handle(stmt)
-
-  # an explicit write transaction is started by statements like CREATE, DELETE, DROP, INSERT, or UPDATE
-  # the default transaction behavior is DEFERRED.
-  # DEFERRED means that the transaction does not actually start until the database is first accessed
-  SQLite.transaction(db) do
-    row = nothing
-    if row === nothing
-      # advance the iterator to obtain the next element
-      state = iterate(rows)
-      # exit transaction if iterator is empty
-      state === nothing && return
-      row, st = state
+  row = nothing
+  if row === nothing
+    # advance the iterator to obtain the next element
+    state = iterate(rows)
+    # exit transaction if iterator is empty
+    state === nothing && return
+    row, st = state
+  end
+  while true
+    # bind the values of the current row to the prepared SQL statement
+    Tables.eachcolumn(sch, row) do val, col, _
+      SQLite.bind!(stmt, col, val)
     end
-    while true
-      # bind the values of the current row to the prepared SQL statement
-      Tables.eachcolumn(sch, row) do val, col, _
-        SQLite.bind!(stmt, col, val)
-      end
-
-      # executes the prepared statement and GC.@preserve prevents the 'row' object from being garbage collected
-      r = GC.@preserve row SQLite.C.sqlite3_step(handle)
-      if r == SQLite.C.SQLITE_DONE
-        # insertion successful, reset for next execution
-        SQLite.C.sqlite3_reset(handle)
-      elseif r != SQLite.C.SQLITE_ROW
-        # error occurred (e.g., SQLITE_BUSY, SQLITE_ERROR, or others).
-        # throw a Julia-specific SQLite exception after resetting the statement handle.
-        e = SQLite.sqliteexception(db, stmt)
-        SQLite.C.sqlite3_reset(handle)
-        throw(e)
-      end
-      # advance to the next row
-      state = iterate(rows, st)
-      # break the loop if iterator is exhausted
-      state === nothing && break
-      row, st = state
+    # executes the prepared statement and GC.@preserve prevents the 'row' object from being garbage collected
+    r = GC.@preserve row SQLite.C.sqlite3_step(handle)
+    if r == SQLite.C.SQLITE_DONE
+      # insertion successful, reset for next execution
+      SQLite.C.sqlite3_reset(handle)
+    elseif r != SQLite.C.SQLITE_ROW
+      # error occurred (e.g., SQLITE_BUSY, SQLITE_ERROR, or others).
+      # throw a Julia-specific SQLite exception after resetting the statement handle.
+      e = SQLite.sqliteexception(db, stmt)
+      SQLite.C.sqlite3_reset(handle)
+      throw(e)
     end
+    # advance to the next row
+    state = iterate(rows, st)
+    # break the loop if iterator is exhausted
+    state === nothing && break
+    row, st = state
+  end
+end
 
-    # collect bounding box for all content in geotable
-    bbox = boundingbox(domain)
-    # bounding box minimum easting or longitude, and northing or latitude
-    mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
-    # bounding box maximum easting or longitude, and northing or latitude
-    maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
-    # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
-    minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
-    # 0: z values prohibited; 1: z values mandatory;
-    # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-    z = paramdim(first(geoms)) > 2 ? 1 : 0
+function writegpkgspatialrefsys(db, org, srsid, srswkt)
 
     # According to https://www.geopackage.org/spec/#r10
     # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
@@ -370,9 +410,20 @@ function creategpkgtables(db, geotable)
             VALUES
             (?, ?, ?, ?, ?, ?, ?);
         """,
-        ["", srsid, org, srsid, CoordRefSystems.wkt2(crs), "", CoordRefSystems.wkt2(crs)]
+        ["", srsid, org, srsid, srswkt, "", srswkt]
       )
     end
+end
+
+function writegpkgcontents(db, domain, srsid)
+    # collect bounding box for all content in geotable
+    bbox = boundingbox(domain)
+    # bounding box minimum easting or longitude, and northing or latitude
+    mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
+    # bounding box maximum easting or longitude, and northing or latitude
+    maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
+    # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
+    minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
 
     # According to https://www.geopackage.org/spec/#r13
     # A GeoPackage SHALL include a gpkg_contents table
@@ -405,7 +456,9 @@ function creategpkgtables(db, geotable)
       """,
       ["features", "features", "features", minx, miny, maxx, maxy, srsid]
     )
+end
 
+function writegpkggeomcolumns(db, srsid, z)
     # According to https://www.geopackage.org/spec/#r21
     # A  GeoPackage with a gpkg_contents table row with a "features" data_type
     # SHALL contain a gpkg_geometry_columns table
@@ -426,7 +479,6 @@ function creategpkgtables(db, geotable)
     );
     """
     )
-
     DBInterface.execute(
       db,
       """
@@ -437,7 +489,9 @@ function creategpkgtables(db, geotable)
       """,
       ["features", "geom", "GEOMETRY", srsid, z, 0]
     )
+end
 
+function writegpkgrteeindexes(db, geoms)
     # https://www.geopackage.org/spec/#r77
     # Extended GeoPackage requires spatial indexes on feature table geometry columns
     # using the SQLite Virtual Table R-trees
@@ -471,7 +525,7 @@ function creategpkgtables(db, geotable)
       SQLite.bind!(stmt, 5, maxy)
 
       # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
-      r = GC.@preserve row SQLite.C.sqlite3_step(handle)
+      r = SQLite.C.sqlite3_step(handle)
       if r != SQLite.C.SQLITE_DONE
         e = SQLite.sqliteexception(db, stmt)
         SQLite.C.sqlite3_reset(handle)
@@ -504,42 +558,4 @@ function creategpkgtables(db, geotable)
         ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only');
       """
     )
-  end
-end
-
-function writegpkgheader(srsid, geom)
-  buff = IOBuffer()
-  # 'GP' in ASCII
-  write(buff, [0x47, 0x50])
-  # 8-bit unsigned integer, 0 = version 1
-  write(buff, zero(UInt8))
-
-  if paramdim(geom) == 3
-    # bit layout of GeoPackageBinary flags byte indicates:
-    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
-    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
-    write(buff, 0b00000101)
-  else
-    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
-    write(buff, 0b00000011)
-  end
-
-  # write the SRS ID, with the endianness specified by the byte order flag
-  write(buff, htol(Int32(srsid)))
-
-  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
-  bbox = boundingbox(geom)
-
-  # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[2])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[2])))
-  if paramdim(geom) == 3
-    # [..., minz, maxz]
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[3])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[3])))
-  end
-
-  take!(buff)
 end
