@@ -222,7 +222,7 @@ _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiRope) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
-gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
+gpkgspatialrefsys(::Type{T}) where {T<:Union{CoordRefSystems.Geographic,CoordRefSystems.Projected}} = "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) =  "NONE",-1,""
 
 function meshes2gpkgbinary(srsid, geoms)
