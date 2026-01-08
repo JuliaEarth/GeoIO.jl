@@ -222,14 +222,9 @@ _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiRope) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
-<<<<<<< HEAD
-gpkgspatialrefsys(::Type{T}) where {T<:Union{CoordRefSystems.Geographic,CoordRefSystems.Projected}} = "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
-gpkgspatialrefsys(::Cartesian) =  "NONE",-1,""
-=======
 gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
   "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
->>>>>>> cdb27d1f5287ad09210ef5c89f25f5abb0ae992f
 
 function meshes2gpkgbinary(srsid, geoms)
   # store feature geometries in SQL BLOBS using GeoPackageBinary format
