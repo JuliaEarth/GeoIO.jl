@@ -99,7 +99,7 @@ _wkbtype(::Point) = 0x00000001
 _wkbtype(::Chain) = 0x00000002
 _wkbtype(::Polygon) = 0x00000003
 _wkbtype(::MultiPoint) = 0x00000004
-_wkbtype(::MultiRope) = 0x00000005
+_wkbtype(::MultiChain) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 
 function meshes2wkb(buff, geom)
