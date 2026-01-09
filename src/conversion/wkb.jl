@@ -95,6 +95,13 @@ end
 # Meshes.jl -> WKB (Well-Known Binary)
 # -------------------------------------
 
+_wkbtype(::Point) = 0x00000001
+_wkbtype(::Chain) = 0x00000002
+_wkbtype(::Polygon) = 0x00000003
+_wkbtype(::MultiPoint) = 0x00000004
+_wkbtype(::MultiRope) = 0x00000005
+_wkbtype(::MultiPolygon) = 0x00000006
+
 function meshes2wkb(buff, geom)
   wkbtype = _wkbtype(geom)
 
@@ -116,13 +123,6 @@ function meshes2wkb(buff, geom)
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
   end
 end
-
-_wkbtype(::Point) = 0x00000001
-_wkbtype(::Chain) = 0x00000002
-_wkbtype(::Polygon) = 0x00000003
-_wkbtype(::MultiPoint) = 0x00000004
-_wkbtype(::MultiRope) = 0x00000005
-_wkbtype(::MultiPolygon) = 0x00000006
 
 _meshes2wkb(buff, point::Point) = _meshes2wkb(buff, coords(point))
 
@@ -170,7 +170,7 @@ function _meshes2wkb(buff, chain::Chain)
   end
 end
 
-function _meshes2wkb(buff, poly::PolyArea)
+function _meshes2wkb(buff, poly::Polygon)
   rs = rings(poly)
   write(buff, UInt32(length(rs)))
   for r in rs
