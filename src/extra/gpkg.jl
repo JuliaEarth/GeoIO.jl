@@ -188,28 +188,30 @@ function skipgpkgheader!(buff)
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 end
 
-function gpkgwrite(fname, geotable;)
+function gpkgwrite(fname, geotable)
   db = SQLite.DB(fname)
 
   # https://sqlite.org/pragma.html#pragma_synchronous
   # Commits can be orders of magnitude faster with
-  # Setting PRAGMA synchronous=OFF but,
-  # can cause the database to go corrupt
-  # if there is an operating system crash or power failure.
+  # Setting PRAGMA synchronous=OFF but, can cause
+  # the database to go corrupt if there is an
+  # operating system crash or power failure.
   DBInterface.execute(db, "PRAGMA synchronous=0")
 
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
-  # in the "application_id" field and an appropriate value in "user_version" field
-  # of the SQLite db header to indicate that it is a GeoPackage
+  # in the "application_id" field and an appropriate value in "user_version"
+  # field of the SQLite db header to indicate that it is a GeoPackage
   DBInterface.execute(db, "PRAGMA application_id = 0x47504B47 ")
   DBInterface.execute(db, "PRAGMA user_version = 10400 ")
 
+  # write geotable to database
   writegpkgtables(db, geotable)
 
   # https://sqlite.org/pragma.html#pragma_optimize
-  # Applications with short-lived database connections should run "PRAGMA optimize;"
-  # just once, prior to closing each database connection.
+  # Applications with short-lived database connections should
+  # run "PRAGMA optimize;" just once, prior to closing each
+  # database connection.
   DBInterface.execute(db, "PRAGMA optimize;")
 
   DBInterface.close!(db)
@@ -219,7 +221,7 @@ _sqlgeomtype(::Point) = "POINT"
 _sqlgeomtype(::Chain) = "LINESTRING"
 _sqlgeomtype(::Polygon) = "POLYGON"
 _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
-_sqlgeomtype(::MultiRope) = "MULTILINESTRING"
+_sqlgeomtype(::MultiChain) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
 gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
