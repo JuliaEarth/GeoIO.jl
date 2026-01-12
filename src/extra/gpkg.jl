@@ -212,73 +212,14 @@ function gpkgwrite(fname, geotable)
   # Applications with short-lived database connections should
   # run "PRAGMA optimize;" just once, prior to closing each
   # database connection.
-  DBInterface.execute(db, "PRAGMA optimize;")
+  DBInterface.execute(db, "PRAGMA optimize")
 
   DBInterface.close!(db)
 end
 
-_sqlgeomtype(::Point) = "POINT"
-_sqlgeomtype(::Chain) = "LINESTRING"
-_sqlgeomtype(::Polygon) = "POLYGON"
-_sqlgeomtype(::MultiPoint) = "MULTIPOINT"
-_sqlgeomtype(::MultiChain) = "MULTILINESTRING"
-_sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
-
-gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
-  "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
-gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
-
-function meshes2gpkgbinary(srsid, geoms)
-  # store feature geometries in SQL BLOBS using GeoPackageBinary format
-  map(geoms) do geom
-    gpkgbinheader = writegpkgbinaryheader(srsid, geom)
-    buff = IOBuffer()
-    meshes2wkb(buff, geom)
-    vcat(gpkgbinheader, take!(buff))
-  end
-end
-
-function writegpkgbinaryheader(srsid, geom)
-  buff = IOBuffer()
-  # 'GP' in ASCII
-  write(buff, [0x47, 0x50])
-  # 8-bit unsigned integer, 0 = version 1
-  write(buff, zero(UInt8))
-
-  if paramdim(geom) == 3
-    # bit layout of GeoPackageBinary flags byte indicates:
-    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
-    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
-    write(buff, 0b00000101)
-  else
-    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
-    write(buff, 0b00000011)
-  end
-
-  # write the SRS ID, with the endianness specified by the byte order flag
-  write(buff, htol(Int32(srsid)))
-
-  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
-  bbox = boundingbox(geom)
-
-  # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[1])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[2])))
-  write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[2])))
-  if paramdim(geom) == 3
-    # [..., minz, maxz]
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(minimum(bbox)))[3])))
-    write(buff, htol(Float64(CoordRefSystems.raw(coords(maximum(bbox)))[3])))
-  end
-
-  take!(buff)
-end
-
 function writegpkgtables(db, geotable)
-  domain = GeoTables.domain(geotable)
-  org, srsid, srswkt = gpkgspatialrefsys(GeoTables.crs(domain))
-  geoms = collect(domain)
+  dom = domain(geotable)
+  org, srsid, srswkt = gpkgspatialrefsys(crs(dom))
   table = values(geotable)
 
   # an explicit write transaction is started by statements like CREATE, DELETE, DROP, INSERT, or UPDATE
@@ -288,19 +229,23 @@ function writegpkgtables(db, geotable)
     # create and insert into required metadata table `gpkg_spatial_ref_sys`
     writegpkgspatialrefsys(db, org, srsid, srswkt)
     # create and insert into required metadata table `gpkg_contents`
-    writegpkgcontents(db, domain, srsid)
+    writegpkgcontents(db, dom, srsid)
     # 0: z values prohibited; 1: z values mandatory;
     # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-    z = paramdim(first(geoms)) > 2 ? 1 : 0
+    z = paramdim(first(dom)) > 2 ? 1 : 0
     # create and insert into `gpkg_geometry_columns` table
     # identifies the geometry columns and geometry types in user data tables
     writegpkggeomcolumns(db, srsid, z)
     # create and insert vector feature user data tables
-    writegpkgfeaturetable(db, srsid, table, geoms)
+    writegpkgfeaturetable(db, srsid, table, dom)
     # implement spatial indexes on geometry columns using SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes(db, geoms)
+    writegpkgrteeindexes(db, dom)
   end
 end
+
+gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
+    "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
+gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 function writegpkgfeaturetable(db, srsid, table, geoms)
   # GeoPackage SQL Geometry Binary Format
@@ -366,6 +311,57 @@ function writegpkgfeaturetable(db, srsid, table, geoms)
     # break the loop if iterator is exhausted
     state === nothing && break
     row, st = state
+  end
+end
+
+function meshes2gpkgbinary(srsid, geoms)
+  # store feature geometries in SQL BLOBS specified by GeoPackageBinary format
+  map(geoms) do geom
+    buff = IOBuffer()
+    writegpkgbinaryheader(buff, srsid, geom)
+    meshes2wkb(buff, geom)
+    take!(buff)
+  end
+end
+
+_sqlgeomtype(::Point) = "POINT"
+_sqlgeomtype(::Chain) = "LINESTRING"
+_sqlgeomtype(::Polygon) = "POLYGON"
+_sqlgeomtype(::MultiPoint) = "MULTIPOINT"
+_sqlgeomtype(::MultiChain) = "MULTILINESTRING"
+_sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
+
+function writegpkgbinaryheader(buff, srsid, geom)
+  # 'GP' in ASCII
+  write(buff, [0x47, 0x50])
+  # 8-bit unsigned integer, 0 = version 1
+  write(buff, zero(UInt8))
+
+  if paramdim(geom) == 3
+    # bit layout of GeoPackageBinary flags byte indicates:
+    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
+    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
+    write(buff, 0b00000101)
+  else
+    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
+    write(buff, 0b00000011)
+  end
+
+  # write the SRS ID, with the endianness specified by the byte order flag
+  write(buff, htol(Int32(srsid)))
+
+  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
+  bbox = boundingbox(geom)
+  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
+  # [minx, maxx, miny, maxy]
+  write(buff, htol(Float64(cmin[1])))
+  write(buff, htol(Float64(cmax[1])))
+  write(buff, htol(Float64(cmin[2])))
+  write(buff, htol(Float64(cmax[2])))
+  if paramdim(geom) == 3
+    # [..., minz, maxz]
+    write(buff, htol(Float64(cmin[3])))
+    write(buff, htol(Float64(cmax[3])))
   end
 end
 
