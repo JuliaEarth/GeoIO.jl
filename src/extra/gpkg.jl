@@ -202,8 +202,8 @@ function gpkgwrite(fname, geotable)
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version"
   # field of the SQLite db header to indicate that it is a GeoPackage
-  DBInterface.execute(db, "PRAGMA application_id = 0x47504B47 ")
-  DBInterface.execute(db, "PRAGMA user_version = 10400 ")
+  DBInterface.execute(db, "PRAGMA application_id = 0x47504B47")
+  DBInterface.execute(db, "PRAGMA user_version = 10400")
 
   # write geotable to database
   writegpkgtables(db, geotable)
@@ -219,42 +219,173 @@ end
 
 function writegpkgtables(db, geotable)
   dom = domain(geotable)
-  org, srsid, srswkt = gpkgspatialrefsys(crs(dom))
-  table = values(geotable)
-
   # an explicit write transaction is started by statements like CREATE, DELETE, DROP, INSERT, or UPDATE
   # the default transaction behavior is DEFERRED.
   # DEFERRED means that the transaction does not actually start until the database is first accessed
   SQLite.transaction(db) do
     # create and insert into required metadata table `gpkg_spatial_ref_sys`
-    writegpkgspatialrefsys(db, org, srsid, srswkt)
+    writegpkgspatialrefsys(db, crs(dom))
     # create and insert into required metadata table `gpkg_contents`
-    writegpkgcontents(db, dom, srsid)
-    # 0: z values prohibited; 1: z values mandatory;
-    # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-    z = paramdim(first(dom)) > 2 ? 1 : 0
+    writegpkgcontents(db, dom)
     # create and insert into `gpkg_geometry_columns` table
     # identifies the geometry columns and geometry types in user data tables
-    writegpkggeomcolumns(db, srsid, z)
+    writegpkggeomcolumns(db, crs(dom))
     # create and insert vector feature user data tables
-    writegpkgfeaturetable(db, srsid, table, dom)
+    writegpkgfeaturetable(db, geotable)
     # implement spatial indexes on geometry columns using SQLite Virtual Table R-tree extension
     writegpkgrteeindexes(db, dom)
   end
 end
+function writegpkgspatialrefsys(db, crs)
 
-gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
-    "EPSG", CoordRefSystems.integer(CoordRefSystems.code(T)), CoordRefSystems.wkt2(T)
+  org, srsid, srswkt = gpkgspatialrefsys(crs)
+
+  # According to https://www.geopackage.org/spec/#r10
+  # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
+  DBInterface.execute(
+    db,
+    """
+  CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
+          srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
+          organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
+          definition  TEXT NOT NULL, description TEXT,
+          definition_12_063 TEXT NOT NULL
+  )
+  """
+  )
+
+  #  According to https://www.geopackage.org/spec/#r11
+  # The gpkg_spatial_ref_sys table SHALL contain at a minimum
+  # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
+  # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
+  # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
+  DBInterface.execute(
+    db,
+    """
+  INSERT OR REPLACE INTO gpkg_spatial_ref_sys
+      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+      VALUES
+      ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+      ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]')
+    """
+  )
+  # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
+  if srsid != 4326 && srsid > 0
+    # According to https://www.geopackage.org/spec/#r115
+    # This conforms to the Well-Known Text for Coordinate Reference Systems extension
+    # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
+    DBInterface.execute(
+      db,
+      """
+  INSERT OR REPLACE INTO gpkg_spatial_ref_sys
+          (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+          VALUES
+          (?, ?, ?, ?, ?, ?, ?)
+      """,
+      ["", srsid, org, srsid, srswkt, "", srswkt]
+    )
+  end
+end
+
+gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
-function writegpkgfeaturetable(db, srsid, table, geoms)
+gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
+
+function writegpkgcontents(db, dom)
+  srsid = gpkgsrsid(crs(dom))
+  # collect bounding box for all content in geotable
+  bbox = boundingbox(dom)
+  # bounding box minimum easting or longitude, and northing or latitude
+  mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
+  # bounding box maximum easting or longitude, and northing or latitude
+  maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
+  # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
+  minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
+
+  # According to https://www.geopackage.org/spec/#r13
+  # A GeoPackage SHALL include a gpkg_contents table
+  DBInterface.execute(
+    db,
+    """
+  CREATE TABLE IF NOT EXISTS gpkg_contents (
+          table_name TEXT NOT NULL PRIMARY KEY,
+          data_type TEXT NOT NULL,
+          identifier TEXT UNIQUE NOT NULL,
+          description TEXT DEFAULT '',
+          last_change DATETIME NOT NULL DEFAULT
+          (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          min_x DOUBLE, min_y DOUBLE,
+          max_x DOUBLE, max_y DOUBLE,
+          srs_id INTEGER,
+          CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
+          gpkg_spatial_ref_sys(srs_id)
+  )
+  """
+  )
+
+  DBInterface.execute(
+    db,
+    """
+  INSERT OR REPLACE INTO gpkg_contents
+          (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
+          VALUES
+          (?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    ["features", "features", "features", minx, miny, maxx, maxy, srsid]
+  )
+end
+
+function writegpkggeomcolumns(db, crs)
+  srsid = gpkgsrsid(crs)
+
+  # 0: z values prohibited; 1: z values mandatory;
+  # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
+  z = CoordRefSystems.ncoords(crs) > 2 ? 1 : 0
+  # According to https://www.geopackage.org/spec/#r21
+  # A  GeoPackage with a gpkg_contents table row with a "features" data_type
+  # SHALL contain a gpkg_geometry_columns table
+  DBInterface.execute(
+    db,
+    """
+  CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
+        table_name TEXT NOT NULL,
+        column_name TEXT NOT NULL,
+        geometry_type_name TEXT NOT NULL,
+        srs_id INTEGER NOT NULL,
+        z TINYINT NOT NULL,
+        m TINYINT NOT NULL,
+        CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+        CONSTRAINT uk_gc_table_name UNIQUE (table_name),
+        CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+        CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
+  )
+  """
+  )
+  DBInterface.execute(
+    db,
+    """
+  INSERT OR REPLACE INTO gpkg_geometry_columns
+          (table_name, column_name, geometry_type_name, srs_id, z, m)
+          VALUES
+          (?, ?, ?, ?, ?, ?)
+    """,
+    ["features", "geom", "GEOMETRY", srsid, z, 0]
+  )
+end
+
+function writegpkgfeaturetable(db, geotable)
+  dom = domain(geotable)
+  tab = values(geotable)
+  srsid = gpkgsrsid(crs(dom))
   # GeoPackage SQL Geometry Binary Format
-  gpkgbinary = meshes2gpkgbinary(srsid, geoms)
+  gpkgbinary = meshes2gpkgbinary(srsid, dom)
   layer =
   # if no values in table then store only geometry in features
-    isnothing(table) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+    isnothing(tab) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
     # else store the geometry as the first column and the remaining table columns in features
-    [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(table), gpkgbinary)]
+    [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
 
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
@@ -264,21 +395,21 @@ function writegpkgfeaturetable(db, srsid, table, geoms)
       ' ',
       # use core sql geometry types for geometries with simple feature geometry types (excluding GeometryCollection)
       sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) :
-      _sqlgeomtype(first(geoms))
+      _sqlgeomtype(first(dom))
     ) for i in eachindex(sch.names)
   ]
   # https://www.geopackage.org/spec/#r29
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-  DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')));")
+  DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')))")
   # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
   # generate the comma-separated list of escaped column names for the SQL query
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
   # Note: the `sql` statement is not actually executed, but only compiled
   # mainly for usage where the same statement is executed multiple times with different parameters bound as values
-  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)";)
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)")
   # used for holding references to bound statement values via bind!
   handle = SQLite._get_stmt_handle(stmt)
   row = nothing
@@ -365,132 +496,6 @@ function writegpkgbinaryheader(buff, srsid, geom)
   end
 end
 
-function writegpkgspatialrefsys(db, org, srsid, srswkt)
-
-  # According to https://www.geopackage.org/spec/#r10
-  # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
-  DBInterface.execute(
-    db,
-    """
-  CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
-          srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
-          organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
-          definition  TEXT NOT NULL, description TEXT,
-          definition_12_063 TEXT NOT NULL
-  );
-  """
-  )
-
-  #  According to https://www.geopackage.org/spec/#r11
-  # The gpkg_spatial_ref_sys table SHALL contain at a minimum
-  # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
-  # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-  # 3. the record with an srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-  DBInterface.execute(
-    db,
-    """
-  INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-      VALUES
-      ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-      ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]');
-    """
-  )
-  # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
-  if srsid != 4326 && srsid > 0
-    # According to https://www.geopackage.org/spec/#r115
-    # This conforms to the Well-Known Text for Coordinate Reference Systems extension
-    # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
-    DBInterface.execute(
-      db,
-      """
-  INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-          (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-          VALUES
-          (?, ?, ?, ?, ?, ?, ?);
-      """,
-      ["", srsid, org, srsid, srswkt, "", srswkt]
-    )
-  end
-end
-
-function writegpkgcontents(db, domain, srsid)
-  # collect bounding box for all content in geotable
-  bbox = boundingbox(domain)
-  # bounding box minimum easting or longitude, and northing or latitude
-  mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
-  # bounding box maximum easting or longitude, and northing or latitude
-  maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
-  # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
-  minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
-
-  # According to https://www.geopackage.org/spec/#r13
-  # A GeoPackage SHALL include a gpkg_contents table
-  DBInterface.execute(
-    db,
-    """
-  CREATE TABLE IF NOT EXISTS gpkg_contents (
-          table_name TEXT NOT NULL PRIMARY KEY,
-          data_type TEXT NOT NULL,
-          identifier TEXT UNIQUE NOT NULL,
-          description TEXT DEFAULT '',
-          last_change DATETIME NOT NULL DEFAULT
-          (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-          min_x DOUBLE, min_y DOUBLE,
-          max_x DOUBLE, max_y DOUBLE,
-          srs_id INTEGER,
-          CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
-          gpkg_spatial_ref_sys(srs_id)
-  );
-  """
-  )
-
-  DBInterface.execute(
-    db,
-    """
-  INSERT OR REPLACE INTO gpkg_contents
-          (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
-          VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?);
-    """,
-    ["features", "features", "features", minx, miny, maxx, maxy, srsid]
-  )
-end
-
-function writegpkggeomcolumns(db, srsid, z)
-  # According to https://www.geopackage.org/spec/#r21
-  # A  GeoPackage with a gpkg_contents table row with a "features" data_type
-  # SHALL contain a gpkg_geometry_columns table
-  DBInterface.execute(
-    db,
-    """
-  CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
-        table_name TEXT NOT NULL,
-        column_name TEXT NOT NULL,
-        geometry_type_name TEXT NOT NULL,
-        srs_id INTEGER NOT NULL,
-        z TINYINT NOT NULL,
-        m TINYINT NOT NULL,
-        CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-        CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-        CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-        CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
-  );
-  """
-  )
-  DBInterface.execute(
-    db,
-    """
-  INSERT OR REPLACE INTO gpkg_geometry_columns
-          (table_name, column_name, geometry_type_name, srs_id, z, m)
-          VALUES
-          (?, ?, ?, ?, ?, ?);
-    """,
-    ["features", "geom", "GEOMETRY", srsid, z, 0]
-  )
-end
-
 function writegpkgrteeindexes(db, geoms)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
@@ -555,7 +560,7 @@ function writegpkgrteeindexes(db, geoms)
   INSERT OR REPLACE INTO gpkg_extensions
       (table_name, column_name, extension_name, definition, scope)
       VALUES
-      ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only');
+      ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')
     """
   )
 end
