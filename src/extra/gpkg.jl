@@ -224,10 +224,9 @@ function writegpkgtables(db, geotable)
     # metadata tables
     writegpkgspatialrefsys(db, crs(dom))
     writegpkgcontents(db, dom)
-
-    # data tables
-    # identifies the geometry columns and geometry types in user data tables
     writegpkggeomcolumns(db, crs(dom))
+
+    # data table
     writegpkgfeaturetable(db, geotable)
 
     # spatial indexes on geometry columns
