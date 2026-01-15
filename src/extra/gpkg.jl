@@ -403,7 +403,7 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
 
   # GeoPackage SQL Geometry Binary Format
   gpkgbinary = map(dom) do geom
-      meshes2gpkgbinary(srsid, geom, bbox)
+    meshes2gpkgbinary(srsid, geom, bbox)
   end
 
   layer =
@@ -472,8 +472,6 @@ function meshes2gpkgbinary(srsid, geom, bbox)
   meshes2wkb!(buff, geom)
   take!(buff)
 end
-
-
 
 _sqlgeomtype(::Point) = "POINT"
 _sqlgeomtype(::Chain) = "LINESTRING"
