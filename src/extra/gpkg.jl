@@ -358,8 +358,6 @@ function writegpkgcontents(db, dom, bbox)
   )
 end
 
-
-
 function writegpkggeomcolumns(db, dom, geomtype)
   srsid = gpkgsrsid(crs(dom))
 
@@ -456,7 +454,7 @@ function creategpkgfeaturetable(db, sch, geomtype)
 end
 
 function buildfeaturetableinsert(db, sch)
- # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
+  # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
   # generate the comma-separated list of escaped column names for the SQL query
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
