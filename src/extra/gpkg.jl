@@ -219,7 +219,7 @@ end
 
 function writegpkgtables(db, geotable)
   dom = domain(geotable)
-  bbox = boundingbox(dom)
+  bbox = gpkgboundingbox(crs(dom), dom)
   SQLite.transaction(db) do
     # metadata tables
     writegpkgspatialrefsys(db, crs(dom))
@@ -236,6 +236,36 @@ function writegpkgtables(db, geotable)
     # SQLite Virtual Table R-tree extension
     writegpkgrteeindexes(db, bbox)
   end
+end
+
+function gpkgboundingbox(::Type{T}, dom) where {T<:LatLon}
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
+end
+
+function gpkgboundingbox(::Type{T}, dom) where {T<:LatLonAlt}
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
+end
+
+function gpkgboundingbox(::Type{T}, dom) where {T<:Cartesian2D}
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+end
+
+function gpkgboundingbox(::Type{T}, dom) where {T<:Cartesian3D}
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
+end
+
+function gpkgboundingbox(::Type{T}, dom) where {T<:CoordRefSystems.Projected}
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 end
 
 function writegpkgspatialrefsys(db, crs)
@@ -295,8 +325,7 @@ gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 
 function writegpkgcontents(db, dom, bbox)
   srsid = gpkgsrsid(crs(dom))
-  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
-  minx, maxx, miny, maxy = cmin[1], cmax[1], cmin[2], cmax[2]
+  minx, maxx, miny, maxy = bbox
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -388,8 +417,7 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
   stmt, handle = buildfeaturetableinsert(db, sch)
-  row, st = iterate(rows)
-  while true
+  for row in rows
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
       SQLite.bind!(stmt, col, val)
@@ -402,15 +430,9 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
     elseif r != SQLite.C.SQLITE_ROW
       # error occurred (e.g., SQLITE_BUSY, SQLITE_ERROR, or others).
       # throw a Julia-specific SQLite exception after resetting the statement handle.
-      e = SQLite.sqliteexception(db, stmt)
       SQLite.C.sqlite3_reset(handle)
-      throw(e)
+      throw(SQLite.sqliteexception(db, stmt))
     end
-    # advance to the next row
-    state = iterate(rows, st)
-    # break the loop if iterator is exhausted and no elements remain
-    state === nothing && break
-    row, st = state
   end
 end
 
@@ -480,16 +502,15 @@ function gpkgbinaryheader!(buff, srsid, geom, bbox)
   write(buff, htol(Int32(srsid)))
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
-  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
   # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(cmin[1])))
-  write(buff, htol(Float64(cmax[1])))
-  write(buff, htol(Float64(cmin[2])))
-  write(buff, htol(Float64(cmax[2])))
+  write(buff, htol(Float64(bbox[1])))
+  write(buff, htol(Float64(bbox[2])))
+  write(buff, htol(Float64(bbox[3])))
+  write(buff, htol(Float64(bbox[4])))
   if paramdim(geom) == 3
     # [..., minz, maxz]
-    write(buff, htol(Float64(cmin[3])))
-    write(buff, htol(Float64(cmax[3])))
+    write(buff, htol(Float64(bbox[5])))
+    write(buff, htol(Float64(bbox[6])))
   end
 end
 
@@ -512,14 +533,13 @@ function writegpkgrteeindexes(db, bbox)
   # The index data structure needs to be manually populated, updated and queried.
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
   handle = SQLite._get_stmt_handle(stmt)
-  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
   # virtual table 64-bit signed integer primary key id column
   SQLite.bind!(stmt, 1, 1)
   # min-value and max-value pairs (stored as 32-bit floating point numbers)
-  SQLite.bind!(stmt, 2, cmin[1])
-  SQLite.bind!(stmt, 3, cmax[1])
-  SQLite.bind!(stmt, 4, cmin[2])
-  SQLite.bind!(stmt, 5, cmax[2])
+  SQLite.bind!(stmt, 2, Float64(bbox[1]))
+  SQLite.bind!(stmt, 3, Float64(bbox[2]))
+  SQLite.bind!(stmt, 4, Float64(bbox[3]))
+  SQLite.bind!(stmt, 5, Float64(bbox[4]))
 
   # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
   r = SQLite.C.sqlite3_step(handle)
