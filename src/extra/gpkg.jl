@@ -219,24 +219,26 @@ end
 
 function writegpkgtables(db, geotable)
   dom = domain(geotable)
-
+  bbox = boundingbox(dom)
   SQLite.transaction(db) do
     # metadata tables
     writegpkgspatialrefsys(db, crs(dom))
-    writegpkgcontents(db, dom)
-    writegpkggeomcolumns(db, crs(dom))
+    writegpkgcontents(db, dom, bbox)
 
-    # data table
-    writegpkgfeaturetable(db, geotable)
+    geomtype = _sqlgeomtype(first(dom))
+    # create and insert into `gpkg_geometry_columns` table
+    # identifies the geometry columns and geometry types in user data tables
+    writegpkggeomcolumns(db, dom, geomtype)
+    # create and insert vector feature user data tables
+    writegpkgfeaturetable(db, geotable, bbox, geomtype)
 
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes(db, dom)
+    writegpkgrteeindexes(db, bbox)
   end
 end
 
 function writegpkgspatialrefsys(db, crs)
-  org, srsid, srswkt = gpkgspatialrefsys(crs)
 
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
@@ -269,7 +271,8 @@ function writegpkgspatialrefsys(db, crs)
     """
   )
   # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
-  if srsid != 4326 && srsid > 0
+  if gpkgsrsid(crs) != 4326 && gpkgsrsid(crs) > 0
+    org, srsid, srswkt = gpkgspatialrefsys(crs)
     # According to https://www.geopackage.org/spec/#r115
     # This conforms to the Well-Known Text for Coordinate Reference Systems extension
     # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
@@ -277,11 +280,10 @@ function writegpkgspatialrefsys(db, crs)
       db,
       """
   INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-          (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-          VALUES
-          (?, ?, ?, ?, ?, ?, ?)
-      """,
-      ["", srsid, org, srsid, srswkt, "", srswkt]
+       (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+       VALUES
+       ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
+      """
     )
   end
 end
@@ -291,13 +293,10 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 
-function writegpkgcontents(db, dom)
+function writegpkgcontents(db, dom, bbox)
   srsid = gpkgsrsid(crs(dom))
-
-  bbox = boundingbox(dom)
-  minx, miny = CoordRefSystems.raw(coords(minimum(bbox)))
-  maxx, maxy = CoordRefSystems.raw(coords(maximum(bbox)))
-
+  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
+  minx, maxx, miny, maxy = cmin[1], cmax[1], cmin[2], cmax[2]
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -325,18 +324,19 @@ function writegpkgcontents(db, dom)
   INSERT OR REPLACE INTO gpkg_contents
           (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
           VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-    ["features", "features", "features", minx, miny, maxx, maxy, srsid]
+          ('features', 'features', 'features', $minx, $miny, $maxx, $maxy, $srsid)
+    """
   )
 end
 
-function writegpkggeomcolumns(db, crs)
-  srsid = gpkgsrsid(crs)
+
+
+function writegpkggeomcolumns(db, dom, geomtype)
+  srsid = gpkgsrsid(crs(dom))
 
   # 0: z values prohibited; 1: z values mandatory;
   # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-  z = CoordRefSystems.ncoords(crs) > 2 ? 1 : 0
+  z = CoordRefSystems.ncoords(crs(dom)) > 2 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
@@ -364,62 +364,31 @@ function writegpkggeomcolumns(db, crs)
   INSERT OR REPLACE INTO gpkg_geometry_columns
           (table_name, column_name, geometry_type_name, srs_id, z, m)
           VALUES
-          (?, ?, ?, ?, ?, ?)
-    """,
-    ["features", "geom", "GEOMETRY", srsid, z, 0]
+          ('features', 'geom', '$geomtype', $srsid, $z, 0)
+    """
   )
 end
 
-function writegpkgfeaturetable(db, geotable)
+function writegpkgfeaturetable(db, geotable, bbox, geomtype)
   dom = domain(geotable)
   tab = values(geotable)
   srsid = gpkgsrsid(crs(dom))
 
   # GeoPackage SQL Geometry Binary Format
-  gpkgbinary = meshes2gpkgbinary(srsid, dom)
+  gpkgbinary = meshes2gpkgbinary(srsid, dom, bbox)
 
   layer =
-    isnothing(tab) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
+  # if no values in table then store only geometry in features
+    isnothing(tab) ? [(; geom=g,) for g in gpkgbinary] :
+    # else store the geometry as the first column and the remaining table columns in features
     [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
-
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
-  columns = [
-    string(
-      SQLite.esc_id(String(sch.names[i])),
-      ' ',
-      # use core sql geometry types for geometries with simple feature geometry types (excluding GeometryCollection)
-      sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : _sqlgeomtype(first(dom))
-    ) for i in eachindex(sch.names)
-  ]
-
-  # https://www.geopackage.org/spec/#r29
-  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
-  # The use of the AUTOINCREMENT keyword is optional but recommended.
-  # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-  DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')))")
-
-  # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
-  params = chop(repeat("?,", length(sch.names)))
-
-  # generate the comma-separated list of escaped column names for the SQL query
-  columns = join(SQLite.esc_id.(string.(sch.names)), ",")
-
-  # Note: the `sql` statement is not actually executed, but only compiled
-  # mainly for usage where the same statement is executed multiple times with different parameters bound as values
-  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)")
-
-  # used for holding references to bound statement values via bind!
-  handle = SQLite._get_stmt_handle(stmt)
-
-  row = nothing
-  if row === nothing
-    # advance the iterator to obtain the next element
-    state = iterate(rows)
-    # exit transaction if iterator is empty
-    state === nothing && return
-    row, st = state
-  end
+  creategpkgfeaturetable(db, sch, geomtype)
+  # prepared sql statement and the handle
+  # to hold references to values in the statement to be bound by `SQLite.bind!`
+  stmt, handle = buildfeaturetableinsert(db, sch)
+  row, st = iterate(rows)
   while true
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
@@ -439,17 +408,46 @@ function writegpkgfeaturetable(db, geotable)
     end
     # advance to the next row
     state = iterate(rows, st)
-    # break the loop if iterator is exhausted
+    # break the loop if iterator is exhausted and no elements remain
     state === nothing && break
     row, st = state
   end
 end
 
-function meshes2gpkgbinary(srsid, geoms)
+function creategpkgfeaturetable(db, sch, geomtype)
+  columns = [
+    string(
+      SQLite.esc_id(String(sch.names[i])),
+      ' ',
+      # Using SQLite flexible typing we can assign the geometry type code strings.
+      # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
+      sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
+    ) for i in eachindex(sch.names)
+  ]
+  # https://www.geopackage.org/spec/#r29
+  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
+  # The use of the AUTOINCREMENT keyword is optional but recommended.
+  # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
+  DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')))")
+end
+
+function buildfeaturetableinsert(db, sch)
+ # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
+  params = chop(repeat("?,", length(sch.names)))
+  # generate the comma-separated list of escaped column names for the SQL query
+  columns = join(SQLite.esc_id.(string.(sch.names)), ",")
+  # Note: the `sql` statement is not actually executed, but only compiled
+  # mainly for usage where the same statement is executed multiple times with different parameters bound as values
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)")
+  # _get_stmt_handle used for holding references to bound statement values via bind!
+  stmt, SQLite._get_stmt_handle(stmt)
+end
+
+function meshes2gpkgbinary(srsid, geoms, bbox)
   # store feature geometries in SQL BLOBS specified by GeoPackageBinary format
   map(geoms) do geom
     buff = IOBuffer()
-    gpkgbinaryheader!(buff, srsid, geom)
+    gpkgbinaryheader!(buff, srsid, geom, bbox)
     meshes2wkb!(buff, geom)
     take!(buff)
   end
@@ -462,7 +460,7 @@ _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiChain) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
-function gpkgbinaryheader!(buff, srsid, geom)
+function gpkgbinaryheader!(buff, srsid, geom, bbox)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
@@ -482,7 +480,6 @@ function gpkgbinaryheader!(buff, srsid, geom)
   write(buff, htol(Int32(srsid)))
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
-  bbox = boundingbox(geom)
   cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
   # [minx, maxx, miny, maxy]
   write(buff, htol(Float64(cmin[1])))
@@ -496,7 +493,7 @@ function gpkgbinaryheader!(buff, srsid, geom)
   end
 end
 
-function writegpkgrteeindexes(db, geoms)
+function writegpkgrteeindexes(db, bbox)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
@@ -515,31 +512,24 @@ function writegpkgrteeindexes(db, geoms)
   # The index data structure needs to be manually populated, updated and queried.
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
   handle = SQLite._get_stmt_handle(stmt)
-  bboxes = map(enumerate(geoms)) do (i, geom)
-    bbox = boundingbox(geom)
-    mincoords = CoordRefSystems.raw(coords(bbox.min))
-    maxcoords = CoordRefSystems.raw(coords(bbox.max))
-    # min-value and max-value pairs (stored as 32-bit floating point numbers)
-    minx, maxx, miny, maxy = mincoords[1], maxcoords[1], mincoords[2], maxcoords[2]
-    # virtual table 64-bit signed integer primary key id column
-    SQLite.bind!(stmt, 1, i)
-    # min/max x/y parameters
-    SQLite.bind!(stmt, 2, minx)
-    SQLite.bind!(stmt, 3, maxx)
-    SQLite.bind!(stmt, 4, miny)
-    SQLite.bind!(stmt, 5, maxy)
+  cmin, cmax = CoordRefSystems.raw.(coords.(extrema(bbox)))
+  # virtual table 64-bit signed integer primary key id column
+  SQLite.bind!(stmt, 1, 1)
+  # min-value and max-value pairs (stored as 32-bit floating point numbers)
+  SQLite.bind!(stmt, 2, cmin[1])
+  SQLite.bind!(stmt, 3, cmax[1])
+  SQLite.bind!(stmt, 4, cmin[2])
+  SQLite.bind!(stmt, 5, cmax[2])
 
-    # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
-    r = SQLite.C.sqlite3_step(handle)
-    if r != SQLite.C.SQLITE_DONE
-      e = SQLite.sqliteexception(db, stmt)
-      SQLite.C.sqlite3_reset(handle)
-      throw(e)
-    end
-    # invoke sqlite3_reset() to ensure a statement is finished
+  # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
+  r = SQLite.C.sqlite3_step(handle)
+  if r != SQLite.C.SQLITE_DONE
+    e = SQLite.sqliteexception(db, stmt)
     SQLite.C.sqlite3_reset(handle)
+    throw(e)
   end
-
+  # invoke sqlite3_reset() to ensure a statement is finished
+  SQLite.C.sqlite3_reset(handle)
   DBInterface.execute(
     db,
     """
