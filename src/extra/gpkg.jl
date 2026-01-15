@@ -449,7 +449,7 @@ function meshes2gpkgbinary(srsid, geoms)
   # store feature geometries in SQL BLOBS specified by GeoPackageBinary format
   map(geoms) do geom
     buff = IOBuffer()
-    writegpkgbinaryheader(buff, srsid, geom)
+    gpkgbinaryheader!(buff, srsid, geom)
     meshes2wkb!(buff, geom)
     take!(buff)
   end
@@ -462,7 +462,7 @@ _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiChain) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
-function writegpkgbinaryheader(buff, srsid, geom)
+function gpkgbinaryheader!(buff, srsid, geom)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
