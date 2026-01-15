@@ -219,25 +219,24 @@ end
 
 function writegpkgtables(db, geotable)
   dom = domain(geotable)
-  # an explicit write transaction is started by statements like CREATE, DELETE, DROP, INSERT, or UPDATE
-  # the default transaction behavior is DEFERRED.
-  # DEFERRED means that the transaction does not actually start until the database is first accessed
+
   SQLite.transaction(db) do
-    # create and insert into required metadata table `gpkg_spatial_ref_sys`
+    # metadata tables
     writegpkgspatialrefsys(db, crs(dom))
-    # create and insert into required metadata table `gpkg_contents`
     writegpkgcontents(db, dom)
-    # create and insert into `gpkg_geometry_columns` table
+
+    # data tables
     # identifies the geometry columns and geometry types in user data tables
     writegpkggeomcolumns(db, crs(dom))
-    # create and insert vector feature user data tables
     writegpkgfeaturetable(db, geotable)
-    # implement spatial indexes on geometry columns using SQLite Virtual Table R-tree extension
+
+    # spatial indexes on geometry columns
+    # SQLite Virtual Table R-tree extension
     writegpkgrteeindexes(db, dom)
   end
 end
-function writegpkgspatialrefsys(db, crs)
 
+function writegpkgspatialrefsys(db, crs)
   org, srsid, srswkt = gpkgspatialrefsys(crs)
 
   # According to https://www.geopackage.org/spec/#r10
@@ -295,14 +294,10 @@ gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 
 function writegpkgcontents(db, dom)
   srsid = gpkgsrsid(crs(dom))
-  # collect bounding box for all content in geotable
+
   bbox = boundingbox(dom)
-  # bounding box minimum easting or longitude, and northing or latitude
-  mincoords = CoordRefSystems.raw(coords(minimum(bbox)))
-  # bounding box maximum easting or longitude, and northing or latitude
-  maxcoords = CoordRefSystems.raw(coords(maximum(bbox)))
-  # the bounding box (min_x, min_y, max_x, max_y) provides an informative bounding box of the content
-  minx, miny, maxx, maxy = mincoords[1], mincoords[2], maxcoords[1], maxcoords[2]
+  minx, miny = CoordRefSystems.raw(coords(minimum(bbox)))
+  maxx, maxy = CoordRefSystems.raw(coords(maximum(bbox)))
 
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
@@ -343,6 +338,7 @@ function writegpkggeomcolumns(db, crs)
   # 0: z values prohibited; 1: z values mandatory;
   # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
   z = CoordRefSystems.ncoords(crs) > 2 ? 1 : 0
+
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
   # SHALL contain a gpkg_geometry_columns table
@@ -379,12 +375,12 @@ function writegpkgfeaturetable(db, geotable)
   dom = domain(geotable)
   tab = values(geotable)
   srsid = gpkgsrsid(crs(dom))
+
   # GeoPackage SQL Geometry Binary Format
   gpkgbinary = meshes2gpkgbinary(srsid, dom)
+
   layer =
-  # if no values in table then store only geometry in features
     isnothing(tab) ? [(; geom=g,) for (_, g) in zip(1:length(gpkgbinary), gpkgbinary)] :
-    # else store the geometry as the first column and the remaining table columns in features
     [(; geom=g, t...) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
 
   rows = Tables.rows(layer)
@@ -394,24 +390,29 @@ function writegpkgfeaturetable(db, geotable)
       SQLite.esc_id(String(sch.names[i])),
       ' ',
       # use core sql geometry types for geometries with simple feature geometry types (excluding GeometryCollection)
-      sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) :
-      _sqlgeomtype(first(dom))
+      sch.names[i] != :geom ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : _sqlgeomtype(first(dom))
     ) for i in eachindex(sch.names)
   ]
+
   # https://www.geopackage.org/spec/#r29
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
   DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS features ( $(join(columns, ',')))")
+
   # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
+
   # generate the comma-separated list of escaped column names for the SQL query
   columns = join(SQLite.esc_id.(string.(sch.names)), ",")
+
   # Note: the `sql` statement is not actually executed, but only compiled
   # mainly for usage where the same statement is executed multiple times with different parameters bound as values
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)")
+
   # used for holding references to bound statement values via bind!
   handle = SQLite._get_stmt_handle(stmt)
+
   row = nothing
   if row === nothing
     # advance the iterator to obtain the next element
@@ -450,7 +451,7 @@ function meshes2gpkgbinary(srsid, geoms)
   map(geoms) do geom
     buff = IOBuffer()
     writegpkgbinaryheader(buff, srsid, geom)
-    meshes2wkb(buff, geom)
+    meshes2wkb!(buff, geom)
     take!(buff)
   end
 end

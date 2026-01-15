@@ -102,7 +102,7 @@ _wkbtype(::MultiPoint) = 0x00000004
 _wkbtype(::MultiChain) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 
-function meshes2wkb(buff, geom)
+function meshes2wkb!(buff, geom)
   wkbtype = _wkbtype(geom)
 
   # wkbByteOrder = Little Endian
