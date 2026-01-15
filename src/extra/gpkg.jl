@@ -404,7 +404,9 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
   srsid = gpkgsrsid(crs(dom))
 
   # GeoPackage SQL Geometry Binary Format
-  gpkgbinary = meshes2gpkgbinary(srsid, dom, bbox)
+  gpkgbinary = map(dom) do geom
+      meshes2gpkgbinary(srsid, geom, bbox)
+  end
 
   layer =
   # if no values in table then store only geometry in features
@@ -465,15 +467,15 @@ function buildfeaturetableinsert(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary(srsid, geoms, bbox)
-  # store feature geometries in SQL BLOBS specified by GeoPackageBinary format
-  map(geoms) do geom
-    buff = IOBuffer()
-    gpkgbinaryheader!(buff, srsid, geom, bbox)
-    meshes2wkb!(buff, geom)
-    take!(buff)
-  end
+function meshes2gpkgbinary(srsid, geom, bbox)
+  # store feature geometry in SQL BLOB specified by GeoPackageBinary format
+  buff = IOBuffer()
+  gpkgbinaryheader!(buff, srsid, geom, bbox)
+  meshes2wkb!(buff, geom)
+  take!(buff)
 end
+
+
 
 _sqlgeomtype(::Point) = "POINT"
 _sqlgeomtype(::Chain) = "LINESTRING"
