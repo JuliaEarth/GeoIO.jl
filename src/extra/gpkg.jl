@@ -284,7 +284,7 @@ function writegpkgspatialrefsys(db, crs)
   """
   )
 
-  #  According to https://www.geopackage.org/spec/#r11
+  # According to https://www.geopackage.org/spec/#r11
   # The gpkg_spatial_ref_sys table SHALL contain at a minimum
   # 1. the record with an srs_id of 4326 SHALL correspond to WGS-84 as defined by EPSG in 4326
   # 2. the record with an srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
@@ -300,6 +300,7 @@ function writegpkgspatialrefsys(db, crs)
       ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]')
     """
   )
+
   # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
   if gpkgsrsid(crs) != 4326 && gpkgsrsid(crs) > 0
     org, srsid, srswkt = gpkgspatialrefsys(crs)
