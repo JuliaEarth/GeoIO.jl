@@ -239,21 +239,17 @@ function writegpkgtables(db, geotable)
 end
 
 function gpkgbbox(dom)
-    bbox = boundingbox(dom)
-    cmin, cmax = coords.(extrema(bbox))
-    gpkgextents(cmin, cmax)
+  bbox = boundingbox(dom)
+  cmin, cmax = coords.(extrema(bbox))
+  gpkgextents(cmin, cmax)
 end
 
-gpkgextents(cmin::LatLon, cmax::LatLon) =
-    ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
-gpkgextents(cmin::LatLonAlt, cmax::LatLonAlt) =
-    ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
-gpkgextents(cmin::Cartesian2D, cmax::Cartesian2D) =
-    ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) =
-    ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
+gpkgextents(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
+gpkgextents(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
+gpkgextents(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
 gpkgextents(cmin::CoordRefSystems.Projected, cmax::CoordRefSystems.Projected) =
-    ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+  ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 
 function writegpkgspatialrefsys(db, crs)
 
@@ -394,7 +390,7 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
   # if no values in table then store only geometry in features
     isnothing(tab) ? [(; geom=g,) for g in gpkgbinary] :
     # else store the geometry as the first column and the remaining table columns in features
-   [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
+    [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
   creategpkgfeaturetable(db, sch, geomtype)
