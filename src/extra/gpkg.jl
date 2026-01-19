@@ -371,7 +371,7 @@ function writegpkggeomcolumns(db, dom, geomtype)
     """
   INSERT OR REPLACE INTO gpkg_geometry_columns
          (table_name, column_name, geometry_type_name, srs_id, z, m)
-  VALUES ('features', 'geom', '$geomtype', $srsid, $z, 0)
+  VALUES ('features', 'geometry', '$geomtype', $srsid, $z, 0)
     """
   )
 end
@@ -423,7 +423,7 @@ function creategpkgfeaturetable(db, sch, geomtype)
       ' ',
       # Using SQLite flexible typing we can assign the geometry type code strings.
       # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
-      sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
+        sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
     ) for i in eachindex(sch.names)
   ]
   # https://www.geopackage.org/spec/#r29
@@ -547,7 +547,7 @@ function writegpkgrteeindexes(db, bbox)
     """
   INSERT OR REPLACE INTO gpkg_extensions
          (table_name, column_name, extension_name, definition, scope)
-  VALUES ('features', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')
+  VALUES ('features', 'geometry', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')
     """
   )
 end
