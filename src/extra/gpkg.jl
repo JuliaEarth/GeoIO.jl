@@ -388,9 +388,9 @@ function writegpkgfeaturetable(db, geotable, bbox, geomtype)
 
   layer =
   # if no values in table then store only geometry in features
-    isnothing(tab) ? [(; geom=g,) for g in gpkgbinary] :
+    isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
     # else store the geometry as the first column and the remaining table columns in features
-    [(; t..., geom=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
+    [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
   creategpkgfeaturetable(db, sch, geomtype)
