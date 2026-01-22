@@ -423,7 +423,7 @@ function creategpkgfeaturetable(db, sch, geomtype)
       ' ',
       # Using SQLite flexible typing we can assign the geometry type code strings.
       # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
-        sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
+      sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
     ) for i in eachindex(sch.names)
   ]
   # https://www.geopackage.org/spec/#r29
