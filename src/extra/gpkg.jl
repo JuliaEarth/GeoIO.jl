@@ -219,28 +219,29 @@ end
 
 function writegpkgtables(db, geotable)
   dom = domain(geotable)
-  bbox = gpkgbbox(dom)
+  extents = gpkgextents(dom)
   SQLite.transaction(db) do
     # metadata tables
     writegpkgspatialrefsys(db, crs(dom))
-    writegpkgcontents(db, dom, bbox)
+    writegpkgcontents(db, dom, extents)
 
     geomtype = _sqlgeomtype(first(dom))
     # create and insert into `gpkg_geometry_columns` table
     # identifies the geometry columns and geometry types in user data tables
     writegpkggeomcolumns(db, dom, geomtype)
     # create and insert vector feature user data tables
-    writegpkgfeaturetable(db, geotable, bbox, geomtype)
+    writegpkgfeaturetable(db, geotable, extents, geomtype)
 
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes(db, bbox)
+    writegpkgrteeindexes(db, extents)
   end
 end
 
-function gpkgbbox(dom)
+function gpkgextents(dom)
   bbox = boundingbox(dom)
-  cmin, cmax = coords.(extrema(bbox))
+  cmin = coords(minimum(bbox))
+  cmax = coords(maximum(bbox))
   gpkgextents(cmin, cmax)
 end
 
@@ -303,9 +304,9 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 
-function writegpkgcontents(db, dom, bbox)
+function writegpkgcontents(db, dom, extents)
   srsid = gpkgsrsid(crs(dom))
-  minx, maxx, miny, maxy = bbox
+  minx, maxx, miny, maxy = extents
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -374,14 +375,14 @@ function writegpkggeomcolumns(db, dom, geomtype)
   )
 end
 
-function writegpkgfeaturetable(db, geotable, bbox, geomtype)
+function writegpkgfeaturetable(db, geotable, extents, geomtype)
   dom = domain(geotable)
   tab = values(geotable)
   srsid = gpkgsrsid(crs(dom))
 
   # GeoPackage SQL Geometry Binary Format
   gpkgbinary = map(dom) do geom
-    meshes2gpkgbinary(srsid, geom, bbox)
+    meshes2gpkgbinary(srsid, geom, extents)
   end
 
   layer =
@@ -443,10 +444,10 @@ function buildfeaturetableinsert(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary(srsid, geom, bbox)
+function meshes2gpkgbinary(srsid, geom, extents)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
-  gpkgbinaryheader!(buff, srsid, geom, bbox)
+  gpkgbinaryheader!(buff, srsid, geom, extents)
   meshes2wkb!(buff, geom)
   take!(buff)
 end
@@ -458,7 +459,7 @@ _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiChain) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
 
-function gpkgbinaryheader!(buff, srsid, geom, bbox)
+function gpkgbinaryheader!(buff, srsid, geom, extents)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
@@ -479,18 +480,18 @@ function gpkgbinaryheader!(buff, srsid, geom, bbox)
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
   # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(bbox[1])))
-  write(buff, htol(Float64(bbox[2])))
-  write(buff, htol(Float64(bbox[3])))
-  write(buff, htol(Float64(bbox[4])))
+  write(buff, htol(Float64(extents[1])))
+  write(buff, htol(Float64(extents[2])))
+  write(buff, htol(Float64(extents[3])))
+  write(buff, htol(Float64(extents[4])))
   if paramdim(geom) == 3
     # [..., minz, maxz]
-    write(buff, htol(Float64(bbox[5])))
-    write(buff, htol(Float64(bbox[6])))
+    write(buff, htol(Float64(extents[5])))
+    write(buff, htol(Float64(extents[6])))
   end
 end
 
-function writegpkgrteeindexes(db, bbox)
+function writegpkgrteeindexes(db, extents)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
@@ -512,10 +513,10 @@ function writegpkgrteeindexes(db, bbox)
   # virtual table 64-bit signed integer primary key id column
   SQLite.bind!(stmt, 1, 1)
   # min-value and max-value pairs (stored as 32-bit floating point numbers)
-  SQLite.bind!(stmt, 2, Float64(bbox[1]))
-  SQLite.bind!(stmt, 3, Float64(bbox[2]))
-  SQLite.bind!(stmt, 4, Float64(bbox[3]))
-  SQLite.bind!(stmt, 5, Float64(bbox[4]))
+  SQLite.bind!(stmt, 2, Float64(extents[1]))
+  SQLite.bind!(stmt, 3, Float64(extents[2]))
+  SQLite.bind!(stmt, 4, Float64(extents[3]))
+  SQLite.bind!(stmt, 5, Float64(extents[4]))
 
   # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
   r = SQLite.C.sqlite3_step(handle)
