@@ -259,7 +259,7 @@ function writegpkgspatialrefsys(db, crs)
   DBInterface.execute(
     db,
     """
-CREATE TABLE gpkg_spatial_ref_sys (
+    CREATE TABLE gpkg_spatial_ref_sys (
          srs_id                   INTEGER NOT NULL PRIMARY KEY,
          srs_name                 TEXT    NOT NULL,
          organization             TEXT    NOT NULL,
@@ -267,7 +267,7 @@ CREATE TABLE gpkg_spatial_ref_sys (
          definition               TEXT    NOT NULL,
          description              TEXT,
          definition_12_063        TEXT NOT NULL
-)
+    )
     """
   )
 
@@ -296,9 +296,9 @@ CREATE TABLE gpkg_spatial_ref_sys (
     DBInterface.execute(
       db,
     """
-    INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-           (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-    VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
+  INSERT OR REPLACE INTO gpkg_spatial_ref_sys
+         (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+  VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
     """
     )
   end
