@@ -246,13 +246,11 @@ end
 
 gpkgextents(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
 gpkgextents(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
+gpkgextents(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextents(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
-gpkgextents(cmin::CoordRefSystems.Projected, cmax::CoordRefSystems.Projected) =
-  ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 
 function writegpkgspatialrefsys(db, crs)
-
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
   DBInterface.execute(
