@@ -79,7 +79,7 @@ function wkb2poly(buff, crs, swapbytes)
 end
 
 function wkb2coords(buff, crs, swapbytes)
-  xyz = ntuple(CoordRefSystems.ncoords(crs)) do _
+  xyz = ntuple(ncoords(crs)) do _
     swapbytes(read(buff, Float64))
   end
   if crs <: LatLon
@@ -137,7 +137,7 @@ function _meshes2wkb(buff, c::LatLonAlt)
   write(buff, htol(ustrip(c.alt)))
 end
 
-function _meshes2wkb(buff, c::CoordRefSystems.Projected)
+function _meshes2wkb(buff, c::Projected)
   write(buff, htol(ustrip(c.x)))
   write(buff, htol(ustrip(c.y)))
 end

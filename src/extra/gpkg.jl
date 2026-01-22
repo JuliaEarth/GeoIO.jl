@@ -45,31 +45,33 @@ function gpkgextract(db; layer=1)
   layerinfo = DBInterface.execute(
     db,
     """
-  SELECT g.table_name AS tablename, g.column_name AS geomcolumn, g.z,
-         c.srs_id AS srsid, srs.organization AS org, srs.organization_coordsys_id AS code
-  FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+  SELECT g.z,
+         g.table_name AS tablename, g.column_name AS geomcolumn,
+         c.srs_id AS srsid,
+         srs.organization AS org, srs.organization_coordsys_id AS code
+    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
     """ *
     # According to https://www.geopackage.org/spec/#r24
     # The column_name column value in a gpkg_geometry_columns row
     # SHALL be the name of a column in the table or view specified
     # by the table_name column value for that row.
     """
-  JOIN gpkg_contents c ON ( g.table_name = c.table_name )
+    JOIN gpkg_contents c ON (g.table_name = c.table_name)
     """ *
     # According to https://www.geopackage.org/spec/#r23
     # gpkg_geometry_columns table_name column SHALL reference values
     # in the gpkg_contents table_name column for rows with a data_type
     # of 'features'
     """
-  WHERE c.data_type = 'features'
+   WHERE c.data_type = 'features'
     """ *
     # According to https://www.geopackage.org/spec/#r146
     # The srs_id value in a gpkg_geometry_columns table row SHALL
     # match the srs_id column value from the corresponding row in
     # the gpkg_contents table.
     """
-  AND g.srs_id = c.srs_id
-  LIMIT 1 OFFSET ($layer-1);
+     AND g.srs_id = c.srs_id
+   LIMIT 1 OFFSET ($layer-1);
     """
   )
 
@@ -257,12 +259,15 @@ function writegpkgspatialrefsys(db, crs)
   DBInterface.execute(
     db,
     """
-  CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
-         srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
-         organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
-         definition  TEXT NOT NULL, description TEXT,
-         definition_12_063 TEXT NOT NULL
-  )
+CREATE TABLE gpkg_spatial_ref_sys (
+         srs_id                   INTEGER NOT NULL PRIMARY KEY,
+         srs_name                 TEXT    NOT NULL,
+         organization             TEXT    NOT NULL,
+         organization_coordsys_id INTEGER NOT NULL,
+         definition               TEXT    NOT NULL,
+         description              TEXT,
+         definition_12_063        TEXT NOT NULL
+)
     """
   )
 
@@ -290,11 +295,11 @@ function writegpkgspatialrefsys(db, crs)
     # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
     DBInterface.execute(
       db,
-      """
+    """
     INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-         (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+           (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
     VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
-      """
+    """
     )
   end
 end
@@ -312,18 +317,19 @@ function writegpkgcontents(db, dom, extents)
   DBInterface.execute(
     db,
     """
-  CREATE TABLE IF NOT EXISTS gpkg_contents (
-         table_name TEXT NOT NULL PRIMARY KEY,
-         data_type TEXT NOT NULL,
-         identifier TEXT UNIQUE NOT NULL,
-         description TEXT DEFAULT '',
-         last_change DATETIME NOT NULL DEFAULT
-         (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-         min_x DOUBLE, min_y DOUBLE,
-         max_x DOUBLE, max_y DOUBLE,
-         srs_id INTEGER,
-         CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES
-         gpkg_spatial_ref_sys(srs_id)
+  CREATE TABLE gpkg_contents (
+         table_name  TEXT            NOT NULL PRIMARY KEY,
+         data_type   TEXT            NOT NULL,
+         identifier  TEXT            NOT NULL UNIQUE,
+         description TEXT                     DEFAULT '',
+         last_change DATETIME        NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+         min_x       DOUBLE,
+         min_y       DOUBLE,
+         max_x       DOUBLE,
+         max_y       DOUBLE,
+         srs_id      INTEGER,
+                     CONSTRAINT fk_gc_r_srs_id
+                     FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
   )
     """
   )
@@ -351,17 +357,17 @@ function writegpkggeomcolumns(db, dom, geomtype)
   DBInterface.execute(
     db,
     """
-  CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
-         table_name TEXT NOT NULL,
-         column_name TEXT NOT NULL,
+  CREATE TABLE gpkg_geometry_columns (
+         table_name         TEXT NOT NULL,
+         column_name        TEXT NOT NULL,
          geometry_type_name TEXT NOT NULL,
-         srs_id INTEGER NOT NULL,
-         z TINYINT NOT NULL,
-         m TINYINT NOT NULL,
-         CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-         CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-         CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-         CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
+         srs_id             INTEGER NOT NULL,
+         z                  TINYINT NOT NULL,
+         m                  TINYINT NOT NULL,
+                            CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+                            CONSTRAINT uk_gc_table_name UNIQUE (table_name),
+                            CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+                            CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
   )
     """
   )
@@ -499,10 +505,7 @@ function writegpkgrteeindexes(db, extents)
     db,
     # creates a spatial index using rtree_<t>_<c>
     # where <t> and <c> are replaced with the names of the feature table and geometry column being indexed.
-    """
-  CREATE VIRTUAL TABLE rtree_features_geom USING
-         rtree(id, minx, maxx, miny, maxy)
-    """
+    "CREATE VIRTUAL TABLE rtree_features_geom USING rtree(id, minx, maxx, miny, maxy)"
   )
   # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
   # And provides a significant performance advantage for searches with basic envelope spatial criteria
@@ -531,12 +534,12 @@ function writegpkgrteeindexes(db, extents)
     db,
     """
   CREATE TABLE gpkg_extensions (
-         table_name TEXT,
-         column_name TEXT,
+         table_name     TEXT,
+         column_name    TEXT,
          extension_name TEXT NOT NULL,
-         definition TEXT NOT NULL,
-         scope TEXT NOT NULL,
-         CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
+         definition     TEXT NOT NULL,
+         scope          TEXT NOT NULL,
+                        CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
   )
     """
   )
