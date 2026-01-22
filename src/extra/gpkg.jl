@@ -318,11 +318,11 @@ function writegpkgcontents(db, dom, extents)
     db,
     """
   CREATE TABLE gpkg_contents (
-         table_name  TEXT            NOT NULL PRIMARY KEY,
-         data_type   TEXT            NOT NULL,
-         identifier  TEXT            NOT NULL UNIQUE,
-         description TEXT                     DEFAULT '',
-         last_change DATETIME        NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+         table_name  TEXT     NOT NULL PRIMARY KEY,
+         data_type   TEXT     NOT NULL,
+         identifier  TEXT     NOT NULL UNIQUE,
+         description TEXT              DEFAULT '',
+         last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
          min_x       DOUBLE,
          min_y       DOUBLE,
          max_x       DOUBLE,
