@@ -208,7 +208,7 @@ function gpkgwrite(fname, geotable)
   DBInterface.execute(db, "PRAGMA user_version = 10400")
 
   # write geotable to database
-  writegpkgtables(db, geotable)
+  writegpkgtables!(db, geotable)
 
   # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should
@@ -219,24 +219,23 @@ function gpkgwrite(fname, geotable)
   DBInterface.close!(db)
 end
 
-function writegpkgtables(db, geotable)
+function writegpkgtables!(db, geotable)
   dom = domain(geotable)
   extents = gpkgextents(dom)
   SQLite.transaction(db) do
-    # metadata tables
-    writegpkgspatialrefsys(db, crs(dom))
-    writegpkgcontents(db, dom, extents)
-
     geomtype = _sqlgeomtype(first(dom))
-    # create and insert into `gpkg_geometry_columns` table
-    # identifies the geometry columns and geometry types in user data tables
-    writegpkggeomcolumns(db, dom, geomtype)
+    # required metadata tables and metadata table
+    # that identifies geometry columns and types
+    writegpkgspatialrefsys!(db, crs(dom))
+    writegpkgcontents!(db, dom, extents)
+    writegpkggeomcolumns!(db, dom, geomtype)
+
     # create and insert vector feature user data tables
-    writegpkgfeaturetable(db, geotable, extents, geomtype)
+    writegpkgfeaturetable!(db, geotable, extents, geomtype)
 
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes(db, extents)
+    writegpkgrteeindexes!(db, extents)
   end
 end
 
@@ -253,7 +252,7 @@ gpkgextents(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y,
 gpkgextents(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
 
-function writegpkgspatialrefsys(db, crs)
+function writegpkgspatialrefsys!(db, crs)
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
   DBInterface.execute(
@@ -309,7 +308,7 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 
-function writegpkgcontents(db, dom, extents)
+function writegpkgcontents!(db, dom, extents)
   srsid = gpkgsrsid(crs(dom))
   minx, maxx, miny, maxy = extents
   # According to https://www.geopackage.org/spec/#r13
@@ -344,7 +343,7 @@ function writegpkgcontents(db, dom, extents)
   )
 end
 
-function writegpkggeomcolumns(db, dom, geomtype)
+function writegpkggeomcolumns!(db, dom, geomtype)
   srsid = gpkgsrsid(crs(dom))
 
   # 0: z values prohibited; 1: z values mandatory;
@@ -381,7 +380,7 @@ function writegpkggeomcolumns(db, dom, geomtype)
   )
 end
 
-function writegpkgfeaturetable(db, geotable, extents, geomtype)
+function writegpkgfeaturetable!(db, geotable, extents, geomtype)
   dom = domain(geotable)
   tab = values(geotable)
   srsid = gpkgsrsid(crs(dom))
@@ -398,10 +397,10 @@ function writegpkgfeaturetable(db, geotable, extents, geomtype)
     [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
   rows = Tables.rows(layer)
   sch = Tables.schema(rows)
-  creategpkgfeaturetable(db, sch, geomtype)
+  creategpkgfeaturetable!(db, sch, geomtype)
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
-  stmt, handle = buildfeaturetableinsert(db, sch)
+  stmt, handle = buildfeaturetableinsert!(db, sch)
   for row in rows
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
@@ -421,7 +420,7 @@ function writegpkgfeaturetable(db, geotable, extents, geomtype)
   end
 end
 
-function creategpkgfeaturetable(db, sch, geomtype)
+function creategpkgfeaturetable!(db, sch, geomtype)
   columns = [
     string(
       SQLite.esc_id(String(sch.names[i])),
@@ -438,7 +437,7 @@ function creategpkgfeaturetable(db, sch, geomtype)
   DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')))")
 end
 
-function buildfeaturetableinsert(db, sch)
+function buildfeaturetableinsert!(db, sch)
   # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
   # generate the comma-separated list of escaped column names for the SQL query
@@ -497,7 +496,7 @@ function gpkgbinaryheader!(buff, srsid, geom, extents)
   end
 end
 
-function writegpkgrteeindexes(db, extents)
+function writegpkgrteeindexes!(db, extents)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
