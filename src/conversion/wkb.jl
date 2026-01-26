@@ -2,6 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# -------------------------------------
+# WKB (Well-Known Binary) -> Meshes.jl
+# -------------------------------------
+
 # supports standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
 function wkb2meshes(buff, crs)
   # swap bytes of coordinates if necessary
@@ -75,7 +79,7 @@ function wkb2poly(buff, crs, swapbytes)
 end
 
 function wkb2coords(buff, crs, swapbytes)
-  xyz = ntuple(CoordRefSystems.ncoords(crs)) do _
+  xyz = ntuple(ncoords(crs)) do _
     swapbytes(read(buff, Float64))
   end
   if crs <: LatLon
@@ -84,5 +88,92 @@ function wkb2coords(buff, crs, swapbytes)
     crs(xyz[2], xyz[1], xyz[3])
   else
     crs(xyz...)
+  end
+end
+
+# -------------------------------------
+# Meshes.jl -> WKB (Well-Known Binary)
+# -------------------------------------
+
+_wkbtype(::Point) = 0x00000001
+_wkbtype(::Chain) = 0x00000002
+_wkbtype(::Polygon) = 0x00000003
+_wkbtype(::MultiPoint) = 0x00000004
+_wkbtype(::MultiChain) = 0x00000005
+_wkbtype(::MultiPolygon) = 0x00000006
+
+function meshes2wkb!(buff, geom)
+  wkbtype = _wkbtype(geom)
+
+  # wkbByteOrder = Little Endian
+  write(buff, one(UInt8))
+
+  # wkbGeometryType
+  write(buff, wkbtype)
+
+  if 1 ≤ wkbtype ≤ 3
+    _meshes2wkb(buff, geom)
+  elseif 4 ≤ wkbtype ≤ 6
+    gs = parent(geom)
+    write(buff, UInt32(length(gs)))
+    for g in gs
+      _meshes2wkb(buff, g)
+    end
+  else
+    throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
+  end
+end
+
+_meshes2wkb(buff, point::Point) = _meshes2wkb(buff, coords(point))
+
+function _meshes2wkb(buff, c::LatLon)
+  write(buff, htol(ustrip(c.lon)))
+  write(buff, htol(ustrip(c.lat)))
+end
+
+function _meshes2wkb(buff, c::LatLonAlt)
+  write(buff, htol(ustrip(c.lon)))
+  write(buff, htol(ustrip(c.lat)))
+  write(buff, htol(ustrip(c.alt)))
+end
+
+function _meshes2wkb(buff, c::Projected)
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
+end
+
+function _meshes2wkb(buff, c::Cartesian2D)
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
+end
+
+function _meshes2wkb(buff, c::Cartesian3D)
+  write(buff, htol(ustrip(c.x)))
+  write(buff, htol(ustrip(c.y)))
+  write(buff, htol(ustrip(c.z)))
+end
+
+function _meshes2wkb(buff, chain::Chain)
+  npoints = nvertices(chain)
+  points = vertices(chain)
+  if isclosed(chain)
+    write(buff, UInt32(npoints + 1))
+    for point in points
+      _meshes2wkb(buff, point)
+    end
+    _meshes2wkb(buff, first(points))
+  else
+    write(buff, UInt32(npoints))
+    for point in points
+      _meshes2wkb(buff, point)
+    end
+  end
+end
+
+function _meshes2wkb(buff, poly::Polygon)
+  rs = rings(poly)
+  write(buff, UInt32(length(rs)))
+  for r in rs
+    _meshes2wkb(buff, r)
   end
 end
