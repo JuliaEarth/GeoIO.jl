@@ -463,6 +463,7 @@ _sqlgeomtype(::Polygon) = "POLYGON"
 _sqlgeomtype(::MultiPoint) = "MULTIPOINT"
 _sqlgeomtype(::MultiChain) = "MULTILINESTRING"
 _sqlgeomtype(::MultiPolygon) = "MULTIPOLYGON"
+_sqlgeomtype(::Multi) = "GEOMETRYCOLLECTION"
 
 function gpkgbinaryheader!(buff, srsid, geom, extents)
   # 'GP' in ASCII

@@ -45,7 +45,7 @@ function wkb2meshes(buff, crs)
     wkb2chain(buff, crs, swapbytes)
   elseif wkbtype == 3
     wkb2poly(buff, crs, swapbytes)
-  elseif 4 ≤ wkbtype ≤ 6 # multi-geometries
+  elseif 4 ≤ wkbtype ≤ 7 # multi-geometries
     # do a recursive call to read inner geometries
     ngeoms = read(buff, UInt32)
     geoms = [wkb2meshes(buff, crs) for _ in 1:ngeoms]
@@ -101,6 +101,7 @@ _wkbtype(::Polygon) = 0x00000003
 _wkbtype(::MultiPoint) = 0x00000004
 _wkbtype(::MultiChain) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
+_wkbtype(::Multi) = 0x00000007
 
 function meshes2wkb!(buff, geom)
   wkbtype = _wkbtype(geom)
@@ -113,11 +114,11 @@ function meshes2wkb!(buff, geom)
 
   if 1 ≤ wkbtype ≤ 3
     _meshes2wkb(buff, geom)
-  elseif 4 ≤ wkbtype ≤ 6
+  elseif 4 ≤ wkbtype ≤ 7
     gs = parent(geom)
     write(buff, UInt32(length(gs)))
     for g in gs
-      _meshes2wkb(buff, g)
+        meshes2wkb!(buff, g)
     end
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))

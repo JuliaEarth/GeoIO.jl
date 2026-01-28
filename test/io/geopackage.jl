@@ -71,6 +71,14 @@
     file1 = joinpath(datadir, "gdal_sample.gpkg")
 
     file2 = tempname() * ".gpkg"
+    # geomcolletion2d LatLon
+    gtb1 = GeoIO.load(file1; layer=1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test gtb2.geometry == gtb1.geometry
+
+    file2 = tempname() * ".gpkg"
     # point2d LatLon
     gtb1 = GeoIO.load(file1; layer=13)
     GeoIO.save(file2, gtb1)
