@@ -79,7 +79,7 @@ function wkb2poly(buff, crs, swapbytes)
 end
 
 function wkb2coords(buff, crs, swapbytes)
-  xyz = ntuple(ncoords(crs)) do _
+  xyz = ntuple(CoordRefSystems.ncoords(crs)) do _
     swapbytes(read(buff, Float64))
   end
   if crs <: LatLon

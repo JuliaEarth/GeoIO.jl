@@ -12,7 +12,7 @@ using GeoTables
 using StaticArrays
 using PrettyTables
 using CoordRefSystems
-using CoordRefSystems: Projected, ncoords
+using CoordRefSystems: Projected
 using Meshes: SubDomain
 using Format: generate_formatter
 using TransformsBase: Identity, →
