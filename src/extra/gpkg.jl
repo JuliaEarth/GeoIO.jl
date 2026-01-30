@@ -193,6 +193,7 @@ function skipgpkgheader!(buff)
 end
 
 function gpkgwrite(fname, geotable)
+  isfile(fname) && rm(fname)
   db = SQLite.DB(fname)
 
   # https://sqlite.org/pragma.html#pragma_synchronous
@@ -257,7 +258,6 @@ gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmi
 function writegpkgspatialrefsys!(db, crs)
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
-  DBInterface.execute(db, "DROP TABLE IF EXISTS gpkg_spatial_ref_sys")
   DBInterface.execute(
     db,
     """
@@ -316,7 +316,6 @@ function writegpkgcontents!(db, dom, extents)
   minx, maxx, miny, maxy = extents
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
-  DBInterface.execute(db, "DROP TABLE IF EXISTS gpkg_contents")
   DBInterface.execute(
     db,
     """
@@ -357,7 +356,6 @@ function writegpkggeomcolumns!(db, dom, geomtype)
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
   # SHALL contain a gpkg_geometry_columns table
-  DBInterface.execute(db, "DROP TABLE IF EXISTS gpkg_geometry_columns")
   DBInterface.execute(
     db,
     """
@@ -439,8 +437,6 @@ function creategpkgfeaturetable!(db, sch, geomtype)
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-
-  DBInterface.execute(db, "DROP TABLE IF EXISTS features")
   DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')))")
 end
 
@@ -509,7 +505,6 @@ function writegpkgrteeindexes!(db, extents)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
-  DBInterface.execute(db, "DROP TABLE IF EXISTS rtree_features_geom")
   DBInterface.execute(
     db,
     # creates a spatial index using rtree_<t>_<c>
@@ -627,7 +622,6 @@ function createspatialindextriggers(db, extents)
 end
 
 function creategpkgextensions(db)
-  DBInterface.execute(db, "DROP TABLE IF EXISTS gpkg_extensions")
   DBInterface.execute(
     db,
     """
