@@ -125,36 +125,36 @@ function meshes2wkb!(buff, geom)
   end
 end
 
-_meshes2wkb(buff, point::Point) = _meshes2wkb(buff, coords(point))
+_meshes2wkb!(buff, point::Point) = _meshes2wkb!(buff, coords(point))
 
-function _meshes2wkb(buff, c::LatLon)
+function _meshes2wkb!(buff, c::LatLon)
   write(buff, htol(ustrip(c.lon)))
   write(buff, htol(ustrip(c.lat)))
 end
 
-function _meshes2wkb(buff, c::LatLonAlt)
+function _meshes2wkb!(buff, c::LatLonAlt)
   write(buff, htol(ustrip(c.lon)))
   write(buff, htol(ustrip(c.lat)))
   write(buff, htol(ustrip(c.alt)))
 end
 
-function _meshes2wkb(buff, c::Projected)
+function _meshes2wkb!(buff, c::Projected)
   write(buff, htol(ustrip(c.x)))
   write(buff, htol(ustrip(c.y)))
 end
 
-function _meshes2wkb(buff, c::Cartesian2D)
+function _meshes2wkb!(buff, c::Cartesian2D)
   write(buff, htol(ustrip(c.x)))
   write(buff, htol(ustrip(c.y)))
 end
 
-function _meshes2wkb(buff, c::Cartesian3D)
+function _meshes2wkb!(buff, c::Cartesian3D)
   write(buff, htol(ustrip(c.x)))
   write(buff, htol(ustrip(c.y)))
   write(buff, htol(ustrip(c.z)))
 end
 
-function _meshes2wkb(buff, chain::Chain)
+function _meshes2wkb!(buff, chain::Chain)
   npoints = nvertices(chain)
   points = vertices(chain)
   if isclosed(chain)
@@ -171,10 +171,10 @@ function _meshes2wkb(buff, chain::Chain)
   end
 end
 
-function _meshes2wkb(buff, poly::Polygon)
+function _meshes2wkb!(buff, poly::Polygon)
   rs = rings(poly)
   write(buff, UInt32(length(rs)))
   for r in rs
-    _meshes2wkb(buff, r)
+    _meshes2wkb!(buff, r)
   end
 end
