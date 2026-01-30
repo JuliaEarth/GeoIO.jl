@@ -113,7 +113,7 @@ function meshes2wkb!(buff, geom)
   write(buff, wkbtype)
 
   if 1 ≤ wkbtype ≤ 3
-    _meshes2wkb(buff, geom)
+    _meshes2wkb!(buff, geom)
   elseif 4 ≤ wkbtype ≤ 7
     gs = parent(geom)
     write(buff, UInt32(length(gs)))
