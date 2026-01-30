@@ -160,13 +160,13 @@ function _meshes2wkb!(buff, chain::Chain)
   if isclosed(chain)
     write(buff, UInt32(npoints + 1))
     for point in points
-      _meshes2wkb(buff, point)
+      _meshes2wkb!(buff, point)
     end
-    _meshes2wkb(buff, first(points))
+    _meshes2wkb!(buff, first(points))
   else
     write(buff, UInt32(npoints))
     for point in points
-      _meshes2wkb(buff, point)
+      _meshes2wkb!(buff, point)
     end
   end
 end
