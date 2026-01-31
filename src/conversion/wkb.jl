@@ -45,7 +45,7 @@ function wkb2meshes(buff, crs)
     wkb2chain(buff, crs, swapbytes)
   elseif wkbtype == 3
     wkb2poly(buff, crs, swapbytes)
-  elseif 4 ≤ wkbtype ≤ 7 # multi-geometries
+  elseif 4 ≤ wkbtype ≤ 7
     # do a recursive call to read inner geometries
     ngeoms = read(buff, UInt32)
     geoms = [wkb2meshes(buff, crs) for _ in 1:ngeoms]

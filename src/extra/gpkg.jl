@@ -229,7 +229,7 @@ end
 
 function exhaustresultrow!(db, sql)
   q = DBInterface.execute(db, sql)
-  # iterate until result row is exhausted ensure the statement is 'DONE'
+  # iterate until result row is exhausted to ensure the statement is 'DONE'
   for _ in q end
 end
 
