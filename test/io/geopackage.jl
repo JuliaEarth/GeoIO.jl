@@ -66,48 +66,42 @@
     @test gtb2.variable == gtb1.variable
   end
 
-  @testset "missing" begin
+  @testset "wkb" begin
+    # note: If the geometry type_name value is "GEOMETRYCOLLECTION"
+    # then the feature table geometry column MAY contain geometries
+    # of type GeometryCollection containing zero or more geometries
+    # of any allowed geometry type
+    file1 = joinpath(datadir, "geomcollection.gpkg")
+    file2 = joinpath(savedir, "geomcollection.gpkg")
+    gtb1 = GeoIO.load(file1)
+    GeoIO.save(file2, gtb1)
+    gtb2 = GeoIO.load(file2)
+    @test Set(names(gtb2)) == Set(names(gtb1))
+    @test gtb2.geometry == gtb1.geometry
+
     # note: GeoPackage may contain sqlite null for missing geometries
-    file1 = joinpath(datadir, "gdal_sample.gpkg")
-
-    file2 = tempname() * ".gpkg"
-    # geomcolletion2d LatLon
-    gtb1 = GeoIO.load(file1; layer=1)
+    file1 = joinpath(datadir, "missing.gpkg")
+    file2 = joinpath(savedir, "missing.gpkg")
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
 
-    # geometry2d LatLon
-    gtb1 = GeoIO.load(file1; layer=3)
+    # test for GeoPackage with spatial reference system records
+    # that are not Cartesian or WGS84
+    file1 = joinpath(datadir, "crs.gpkg")
+    file2 = joinpath(savedir, "crs.gpkg")
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))
     @test gtb2.geometry == gtb1.geometry
 
-    # point2d LatLon
-    gtb1 = GeoIO.load(file1; layer=13)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
-
-    # linestring2d EPSG{4326}
-    gtb1 = GeoIO.load(file1; layer=5)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
-
-    # polygon2d EPSG{32631}
-    gtb1 = GeoIO.load(file1; layer=15)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
-
-    # point3d LatLon
-    gtb1 = GeoIO.load(file1; layer=6)
+    # test for GeoPackage containing 3d geometry
+    file1 = joinpath(datadir, "geometry3d.gpkg")
+    file2 = joinpath(savedir, "geometry3d.gpkg")
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))

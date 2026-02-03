@@ -46,34 +46,34 @@ function gpkgextract(db; layer=1)
     db,
     """
     SELECT g.z,
-           g.table_name AS tablename,
-           g.column_name AS geomcolumn,
-           c.srs_id AS srsid,
-           srs.organization AS org,
-           srs.organization_coordsys_id AS code
-    FROM   gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
+      g.table_name AS tablename,
+      g.column_name AS geomcolumn,
+      c.srs_id AS srsid,
+      srs.organization AS org,
+      srs.organization_coordsys_id AS code
+    FROM gpkg_geometry_columns g, gpkg_spatial_ref_sys srs
     """ *
     # According to https://www.geopackage.org/spec/#r24
     # The column_name column value in a gpkg_geometry_columns row
     # SHALL be the name of a column in the table or view specified
     # by the table_name column value for that row.
     """
-    JOIN   gpkg_contents c ON (g.table_name = c.table_name)
+    JOIN gpkg_contents c ON (g.table_name = c.table_name)
     """ *
     # According to https://www.geopackage.org/spec/#r23
     # gpkg_geometry_columns table_name column SHALL reference values
     # in the gpkg_contents table_name column for rows with a data_type
     # of 'features'
     """
-    WHERE  c.data_type = 'features'
+    WHERE c.data_type = 'features'
     """ *
     # According to https://www.geopackage.org/spec/#r146
     # The srs_id value in a gpkg_geometry_columns table row SHALL
     # match the srs_id column value from the corresponding row in
     # the gpkg_contents table.
     """
-    AND    g.srs_id = c.srs_id
-    LIMIT  1 OFFSET ($layer-1);
+    AND g.srs_id = c.srs_id
+    LIMIT 1 OFFSET ($layer-1)
     """
   )
 
@@ -93,25 +93,7 @@ function gpkgextract(db; layer=1)
   # According to https://www.geopackage.org/spec/#r27
   # The z value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
   # 0: z values prohibited; 1: z values mandatory; 2: z values optional
-  z = isone(metadata.z)
-  crs = if srsid == 0 || srsid == 99999
-    # An srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
-    # An srs_id of 99999 is recognized as a placeholder code, we will default to undefined geographic crs
-    z ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
-  elseif srsid == -1
-    # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-    z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
-  elseif code in (0, -1)
-    # typically srs_id and code values are the same, however if code is undefined (0,-1)
-    # and if srs_id is defined then default to getting a CRS type given srs_id instead of code
-    CoordRefSystems.get(EPSG{srsid})
-  elseif org == "EPSG"
-    CoordRefSystems.get(EPSG{code})
-  elseif org == "ESRI"
-    CoordRefSystems.get(ESRI{code})
-  else
-    error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
-  end
+  crs = gpkgcrs(isone(metadata.z), srsid; code=code)
 
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
@@ -159,6 +141,27 @@ function gpkgextract(db; layer=1)
   end
 end
 
+function gpkgcrs(z, srsid; code=0)
+  if srsid == 0 || srsid == 99999
+    # An srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
+    # An srs_id of 99999 is recognized as a placeholder code, we will default to undefined geographic crs
+    z ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
+  elseif srsid == -1
+    # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
+    z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
+  elseif code in (0, -1)
+    # typically srs_id and code values are the same, however if code is undefined (0,-1)
+    # and if srs_id is defined then default to getting a CRS type given srs_id instead of code
+    CoordRefSystems.get(EPSG{srsid})
+  elseif org == "EPSG"
+    CoordRefSystems.get(EPSG{code})
+  elseif org == "ESRI"
+    CoordRefSystems.get(ESRI{code})
+  else
+    error("Unsupported CRS specification (org: $org, code: $code, srsid: $srsid)")
+  end
+end
+
 # According to https://www.geopackage.org/spec/#r19
 # A GeoPackage SHALL store feature table geometries in
 # SQL BLOBs using the Standard GeoPackageBinary format
@@ -191,6 +194,30 @@ function skipgpkgheader!(buff)
   # Float64[minx, maxx, miny, maxy, minz, maxz] => skip 48 bytes
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 end
+
+function readgpkgsrsid!(buff)
+  # check the GeoPackageBinaryHeader for the 'GP' magic
+  read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+
+  # skip version (0 => version 1)
+  skip(buff, 1)
+
+  # bit layout of GeoPackageBinary flag byte
+  # see comments in `skipgpkgheader!`
+  E = (read(buff, UInt8) & 0b00001110) >> 1
+
+  # skip srs id
+  srsid = read(buff, UInt32)
+
+  # skip calculated envelope size given envelope code E
+  # see comments in `skipgpkgheader!`
+  E > 0 && skip(buff, 8 * 2 * (E + 1))
+
+  # 2: envelope is [minx, maxx, miny, maxy, minz, maxz]
+  gpkgcrs(E >= 2, Int(srsid))
+end
+
+
 
 function gpkgwrite(fname, geotable)
   isfile(fname) && rm(fname)
@@ -244,12 +271,73 @@ function writegpkgtables!(db, geotable)
     writegpkgcontents!(db, dom, extents)
     writegpkggeomcolumns!(db, dom, geomtype)
 
-    # create and insert vector feature user data tables
-    writegpkgfeaturetable!(db, geotable, extents, geomtype)
+    dom = domain(geotable)
+    tab = values(geotable)
+    srsid = gpkgsrsid(crs(dom))
 
+    # GeoPackage SQL Geometry Binary Format
+    gpkgbinary = map(dom) do geom
+      meshes2gpkgbinary!(srsid, geom, extents)
+    end
+
+    layer =
+    # if no values in table then store only geometry in features
+      isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
+      # else store the geometry as the first column and the remaining table columns in features
+      [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
+
+    rows = Tables.rows(layer)
+    sch = Tables.schema(rows)
+    creategpkgfeaturetable!(db, sch, geomtype)
+
+    # register standard spatial type functions
+    registerspatialfunctions(db)
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
     writegpkgrteeindexes!(db, extents)
+    # create and insert vector feature user data tables
+    writegpkgfeaturetable!(db, rows, sch)
+
+
+  end
+end
+
+# register given SQLite DB with standard spatial type (ST prefix) functions
+function registerspatialfunctions(db)
+  SQLite.@register db function st_isempty(g)
+      ismissing(g)
+  end
+  SQLite.@register db function st_minx(blob)
+      buff = IOBuffer(blob)
+      # skip GPKG binary header bytes
+      srs = readgpkgsrsid!(buff)
+      # convert WKB geometry into Meshes.jl geometry
+      g = wkb2meshes(buff, srs)
+      gpkgextents(GeometrySet([g]))[1]
+  end
+  SQLite.@register db function st_maxx(blob)
+      buff = IOBuffer(blob)
+      # skip GPKG binary header bytes
+      srs = readgpkgsrsid!(buff)
+      # convert WKB geometry into Meshes.jl geometry
+      g = wkb2meshes(buff, srs)
+      gpkgextents(GeometrySet([g]))[2]
+  end
+  SQLite.@register db function st_miny(blob)
+      buff = IOBuffer(blob)
+      # skip GPKG binary header bytes
+      srs = readgpkgsrsid!(buff)
+      # convert WKB geometry into Meshes.jl geometry
+      g = wkb2meshes(buff,srs)
+      gpkgextents(GeometrySet([g]))[3]
+  end
+  SQLite.@register db function st_maxy(blob)
+      buff = IOBuffer(blob)
+      # skip GPKG binary header bytes
+      srs = readgpkgsrsid!(buff)
+      # convert WKB geometry into Meshes.jl geometry
+      g = wkb2meshes(buff,srs)
+      gpkgextents(GeometrySet([g]))[4]
   end
 end
 
@@ -273,13 +361,13 @@ function writegpkgspatialrefsys!(db, crs)
     db,
     """
     CREATE TABLE gpkg_spatial_ref_sys (
-           srs_id                   INTEGER NOT NULL PRIMARY KEY,
-           srs_name                 TEXT    NOT NULL,
-           organization             TEXT    NOT NULL,
-           organization_coordsys_id INTEGER NOT NULL,
-           definition               TEXT    NOT NULL,
-           description              TEXT,
-           definition_12_063        TEXT NOT NULL
+      srs_id                   INTEGER NOT NULL PRIMARY KEY,
+      srs_name                 TEXT    NOT NULL,
+      organization             TEXT    NOT NULL,
+      organization_coordsys_id INTEGER NOT NULL,
+      definition               TEXT    NOT NULL,
+      description              TEXT,
+      definition_12_063        TEXT NOT NULL
     )
     """
   )
@@ -293,10 +381,10 @@ function writegpkgspatialrefsys!(db, crs)
     db,
     """
     INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-           (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
     VALUES ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-           ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-           ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]')
+      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
+      ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]')
     """
   )
 
@@ -310,7 +398,7 @@ function writegpkgspatialrefsys!(db, crs)
       db,
     """
     INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-           (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
     VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
     """
     )
@@ -321,6 +409,7 @@ gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSyst
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
+gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
 
 function writegpkgcontents!(db, dom, extents)
   srsid = gpkgsrsid(crs(dom))
@@ -331,18 +420,18 @@ function writegpkgcontents!(db, dom, extents)
     db,
     """
     CREATE TABLE gpkg_contents (
-           table_name  TEXT     NOT NULL PRIMARY KEY,
-           data_type   TEXT     NOT NULL,
-           identifier  TEXT     NOT NULL UNIQUE,
-           description TEXT              DEFAULT '',
-           last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-           min_x       DOUBLE,
-           min_y       DOUBLE,
-           max_x       DOUBLE,
-           max_y       DOUBLE,
-           srs_id      INTEGER,
-                     CONSTRAINT fk_gc_r_srs_id
-                     FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+      table_name  TEXT     NOT NULL PRIMARY KEY,
+      data_type   TEXT     NOT NULL,
+      identifier  TEXT     NOT NULL UNIQUE,
+      description TEXT              DEFAULT '',
+      last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      min_x       DOUBLE,
+      min_y       DOUBLE,
+      max_x       DOUBLE,
+      max_y       DOUBLE,
+      srs_id      INTEGER,
+        CONSTRAINT fk_gc_r_srs_id
+        FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
     )
     """
   )
@@ -351,7 +440,7 @@ function writegpkgcontents!(db, dom, extents)
     db,
     """
     INSERT OR REPLACE INTO gpkg_contents
-           (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
+      (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
     VALUES ('features', 'features', 'features', $minx, $miny, $maxx, $maxy, $srsid)
     """
   )
@@ -371,16 +460,16 @@ function writegpkggeomcolumns!(db, dom, geomtype)
     db,
     """
     CREATE TABLE gpkg_geometry_columns (
-           table_name         TEXT NOT NULL,
-           column_name        TEXT NOT NULL,
-           geometry_type_name TEXT NOT NULL,
-           srs_id             INTEGER NOT NULL,
-           z                  TINYINT NOT NULL,
-           m                  TINYINT NOT NULL,
-                            CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-                            CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-                            CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-                            CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
+      table_name         TEXT NOT NULL,
+      column_name        TEXT NOT NULL,
+      geometry_type_name TEXT NOT NULL,
+      srs_id             INTEGER NOT NULL,
+      z                  TINYINT NOT NULL,
+      m                  TINYINT NOT NULL,
+        CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+        CONSTRAINT uk_gc_table_name UNIQUE (table_name),
+        CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+        CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
     )
     """
   )
@@ -388,30 +477,13 @@ function writegpkggeomcolumns!(db, dom, geomtype)
     db,
     """
     INSERT OR REPLACE INTO gpkg_geometry_columns
-           (table_name, column_name, geometry_type_name, srs_id, z, m)
+      (table_name, column_name, geometry_type_name, srs_id, z, m)
     VALUES ('features', 'geometry', '$geomtype', $srsid, $z, 0)
     """
   )
 end
 
-function writegpkgfeaturetable!(db, geotable, extents, geomtype)
-  dom = domain(geotable)
-  tab = values(geotable)
-  srsid = gpkgsrsid(crs(dom))
-
-  # GeoPackage SQL Geometry Binary Format
-  gpkgbinary = map(dom) do geom
-    meshes2gpkgbinary(srsid, geom, extents)
-  end
-
-  layer =
-  # if no values in table then store only geometry in features
-    isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
-    # else store the geometry as the first column and the remaining table columns in features
-    [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
-  rows = Tables.rows(layer)
-  sch = Tables.schema(rows)
-  creategpkgfeaturetable!(db, sch, geomtype)
+function writegpkgfeaturetable!(db, rows, sch)
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
   stmt, handle = buildfeaturetableinsert!(db, sch)
@@ -463,7 +535,7 @@ function buildfeaturetableinsert!(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary(srsid, geom, extents)
+function meshes2gpkgbinary!(srsid, geom, extents)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
   gpkgbinaryheader!(buff, srsid, geom, extents)
@@ -520,36 +592,25 @@ function writegpkgrteeindexes!(db, extents)
     db,
     # creates a spatial index using rtree_<t>_<c>
     # where <t> and <c> are replaced with the names of the feature table and geometry column being indexed.
-    "CREATE VIRTUAL TABLE rtree_features_geom USING rtree(id, minx, maxx, miny, maxy)"
+    "CREATE VIRTUAL TABLE rtree_features_geometry USING rtree(id, minx, maxx, miny, maxy)"
   )
+
   # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
   # And provides a significant performance advantage for searches with basic envelope spatial criteria
   # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
   # The index data structure needs to be manually populated, updated and queried.
-  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO rtree_features_geom VALUES (?, ?, ?, ?, ?)")
-  handle = SQLite._get_stmt_handle(stmt)
-  # all rows in SQLite Tables have a 64-bit signed integer primary key
-  # The rowid value can be accessed using "rowid", "oid", or "_rowid_"
-  SQLite.bind!(stmt, 1, "rowid")
-  # min-value and max-value pairs (stored as 32-bit floating point numbers)
-  SQLite.bind!(stmt, 2, Float64(extents[1]))
-  SQLite.bind!(stmt, 3, Float64(extents[2]))
-  SQLite.bind!(stmt, 4, Float64(extents[3]))
-  SQLite.bind!(stmt, 5, Float64(extents[4]))
-
-  # Evaluates a SQL Statement and returns SQLITE_DONE, or SQLITE_BUSY, SQLITE_ROW, SQLITE_ERROR, or SQLITE_MISUSE.
-  r = SQLite.C.sqlite3_step(handle)
-  if r != SQLite.C.SQLITE_DONE
-    e = SQLite.sqliteexception(db, stmt)
-    SQLite.C.sqlite3_reset(handle)
-    throw(e)
-  end
-  # invoke sqlite3_reset() to ensure a statement is finished
-  SQLite.C.sqlite3_reset(handle)
+  minx, maxx, miny, maxy = extents
+  DBInterface.execute(
+      db,
+      """
+      INSERT OR REPLACE INTO rtree_features_geometry
+      VALUES (1, $minx, $maxx, $miny, $maxy)
+      """
+  )
 
   # For each spatial index in a GeoPackage, corresponding insert, update and delete triggers
   # that update the spatial index SHALL be present on the indexed geometry column
-  createspatialindextriggers(db, extents)
+  createspatialindextriggers(db)
 
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
@@ -557,74 +618,74 @@ function writegpkgrteeindexes!(db, extents)
   creategpkgextensions(db)
 end
 
-function createspatialindextriggers(db, extents)
+function createspatialindextriggers(db)
   DBInterface.execute(
     db,
     """
     CREATE TRIGGER rtree_features_geometry_insert AFTER INSERT ON features
-          WHEN (new.geometry NOT NULL AND NOT ST_IsEmpty(NEW.geometry))
+      WHEN (new.geometry NOT NULL AND NOT ST_IsEmpty(NEW.geometry))
     BEGIN
       INSERT OR REPLACE INTO rtree_features_geometry VALUES (
-             NEW.rowid,
-             $(extents[1]), $(extents[2]),
-             $(extents[3]), $(extents[4])
+        NEW.rowid,
+        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
+        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
       );
     END;
 
     CREATE TRIGGER rtree_features_geometry_update2 AFTER UPDATE OF geometry ON features
-           WHEN OLD.rowid = NEW.rowid AND
-                (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
+      WHEN OLD.rowid = NEW.rowid AND
+        (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
     BEGIN
       DELETE FROM rtree_features_geometry WHERE id = OLD.rowid;
     END;
 
     CREATE TRIGGER rtree_features_geometry_update4 AFTER UPDATE ON features
-           WHEN OLD.rowid != NEW.rowid AND
-                (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
+      WHEN OLD.rowid != NEW.rowid AND
+        (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
     BEGIN
       DELETE FROM rtree_features_geometry WHERE id IN (OLD.rowid, NEW.rowid);
     END;
 
     CREATE TRIGGER rtree_features_geometry_update5 AFTER UPDATE ON features
-           WHEN OLD.rowid != NEW.rowid AND
-                (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry))
+      WHEN OLD.rowid != NEW.rowid AND
+        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry))
     BEGIN
       DELETE FROM rtree_features_geometry WHERE id = OLD.rowid
-             INSERT OR REPLACE INTO rtree_features_geometry VALUES (
-                    NEW.rowid,
-                    $(extents[1]), $(extents[2]),
-                    $(extents[3]), $(extents[4])
-             );
+      INSERT OR REPLACE INTO rtree_features_geometry VALUES (
+        NEW.rowid,
+        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
+        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
+      );
     END;
 
     CREATE TRIGGER rtree_features_geometry_update6 AFTER UPDATE OF geometry ON features
-           WHEN OLD.rowid = NEW.rowid AND
-                (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
-                (OLD.geometry NOTNULL AND NOT ST_IsEmpty(OLD.geometry))
+      WHEN OLD.rowid = NEW.rowid AND
+        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
+        (OLD.geometry NOTNULL AND NOT ST_IsEmpty(OLD.geometry))
     BEGIN
       UPDATE features SET
-             minx = $(extents[1]),
-             maxx = $(extents[2]),
-             miny = $(extents[3]),
-             maxy = $(extents[4])
+        minx = ST_MinX(NEW.geometry),
+        maxx = ST_MaxX(NEW.geometry),
+        miny = ST_MinY(NEW.geometry),
+        maxy = ST_MaxY(NEW.geometry)
       WHERE id = NEW.rowid;
     END;
 
     CREATE TRIGGER rtree_features_geometry_update7 AFTER UPDATE OF geometry ON features
-           WHEN OLD.rowid != NEW.rowid AND
-                (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
-                (OLD.geometry ISNULL OR ST_IsEmpty(OLD.geometry))
+      WHEN OLD.rowid != NEW.rowid AND
+        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
+        (OLD.geometry ISNULL OR ST_IsEmpty(OLD.geometry))
     BEGIN
       INSERT INTO rtree_features_geometry VALUES (
-             NEW.rowid,
-             $(extents[1]), $(extents[2]),
-             $(extents[3]), $(extents[4])
+        NEW.rowid,
+        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
+        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
       );
     END;
 
 
     CREATE TRIGGER rtree_features_geometry_delete AFTER DELETE ON features
-           WHEN OLD.geometry NOT NULL
+      WHEN OLD.geometry NOT NULL
     BEGIN
       DELETE FROM rtree_features_geometry WHERE id = OLD.rowid;
     END;
@@ -637,12 +698,12 @@ function creategpkgextensions(db)
     db,
     """
     CREATE TABLE gpkg_extensions (
-           table_name     TEXT,
-           column_name    TEXT,
-           extension_name TEXT NOT NULL,
-           definition     TEXT NOT NULL,
-           scope          TEXT NOT NULL,
-                        CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
+      table_name     TEXT,
+      column_name    TEXT,
+      extension_name TEXT NOT NULL,
+      definition     TEXT NOT NULL,
+      scope          TEXT NOT NULL,
+        CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
     )
     """
   )
@@ -650,7 +711,7 @@ function creategpkgextensions(db)
     db,
     """
     INSERT OR REPLACE INTO gpkg_extensions
-           (table_name, column_name, extension_name, definition, scope)
+      (table_name, column_name, extension_name, definition, scope)
     VALUES ('features', 'geometry', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')
     """
   )
