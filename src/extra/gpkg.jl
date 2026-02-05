@@ -196,8 +196,8 @@ function skipgpkgheader!(buff)
 end
 
 function readgpkgsrsid!(buff)
-  # check the GeoPackageBinaryHeader for the 'GP' magic
-  read(buff, UInt16) == 0x5047 || @warn "Missing magic 'GP' string in GPkgBinaryGeometry"
+  # skip the GeoPackageBinaryHeader for the 'GP' magic
+  skip(buff, 2)
 
   # skip version (0 => version 1)
   skip(buff, 1)
@@ -206,7 +206,7 @@ function readgpkgsrsid!(buff)
   # see comments in `skipgpkgheader!`
   E = (read(buff, UInt8) & 0b00001110) >> 1
 
-  # skip srs id
+  # store srs id
   srsid = read(buff, UInt32)
 
   # skip calculated envelope size given envelope code E
@@ -602,10 +602,7 @@ function writegpkgrteeindexes!(db, extents)
   minx, maxx, miny, maxy = extents
   DBInterface.execute(
       db,
-      """
-      INSERT OR REPLACE INTO rtree_features_geometry
-      VALUES (1, $minx, $maxx, $miny, $maxy)
-      """
+      "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)"
   )
 
   # For each spatial index in a GeoPackage, corresponding insert, update and delete triggers
