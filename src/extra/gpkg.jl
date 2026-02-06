@@ -207,7 +207,7 @@ function readgpkgsrsid!(buff)
   E = (read(buff, UInt8) & 0b00001110) >> 1
 
   # store srs id
-  srsid = read(buff, UInt32)
+  srsid = read(buff, Int32)
 
   # skip calculated envelope size given envelope code E
   # see comments in `skipgpkgheader!`
@@ -216,8 +216,6 @@ function readgpkgsrsid!(buff)
   # 2: envelope is [minx, maxx, miny, maxy, minz, maxz]
   gpkgcrs(E >= 2, Int(srsid))
 end
-
-
 
 function gpkgwrite(fname, geotable)
   isfile(fname) && rm(fname)
@@ -273,11 +271,10 @@ function writegpkgtables!(db, geotable)
 
     dom = domain(geotable)
     tab = values(geotable)
-    srsid = gpkgsrsid(crs(dom))
 
     # GeoPackage SQL Geometry Binary Format
     gpkgbinary = map(dom) do geom
-      meshes2gpkgbinary!(srsid, geom, extents)
+      meshes2gpkgbinary!(crs(dom), geom, extents)
     end
 
     layer =
@@ -290,54 +287,11 @@ function writegpkgtables!(db, geotable)
     sch = Tables.schema(rows)
     creategpkgfeaturetable!(db, sch, geomtype)
 
-    # register standard spatial type functions
-    registerspatialfunctions(db)
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
     writegpkgrteeindexes!(db, extents)
     # create and insert vector feature user data tables
     writegpkgfeaturetable!(db, rows, sch)
-
-
-  end
-end
-
-# register given SQLite DB with standard spatial type (ST prefix) functions
-function registerspatialfunctions(db)
-  SQLite.@register db function st_isempty(g)
-      ismissing(g)
-  end
-  SQLite.@register db function st_minx(blob)
-      buff = IOBuffer(blob)
-      # skip GPKG binary header bytes
-      srs = readgpkgsrsid!(buff)
-      # convert WKB geometry into Meshes.jl geometry
-      g = wkb2meshes(buff, srs)
-      gpkgextents(GeometrySet([g]))[1]
-  end
-  SQLite.@register db function st_maxx(blob)
-      buff = IOBuffer(blob)
-      # skip GPKG binary header bytes
-      srs = readgpkgsrsid!(buff)
-      # convert WKB geometry into Meshes.jl geometry
-      g = wkb2meshes(buff, srs)
-      gpkgextents(GeometrySet([g]))[2]
-  end
-  SQLite.@register db function st_miny(blob)
-      buff = IOBuffer(blob)
-      # skip GPKG binary header bytes
-      srs = readgpkgsrsid!(buff)
-      # convert WKB geometry into Meshes.jl geometry
-      g = wkb2meshes(buff,srs)
-      gpkgextents(GeometrySet([g]))[3]
-  end
-  SQLite.@register db function st_maxy(blob)
-      buff = IOBuffer(blob)
-      # skip GPKG binary header bytes
-      srs = readgpkgsrsid!(buff)
-      # convert WKB geometry into Meshes.jl geometry
-      g = wkb2meshes(buff,srs)
-      gpkgextents(GeometrySet([g]))[4]
   end
 end
 
@@ -535,10 +489,10 @@ function buildfeaturetableinsert!(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary!(srsid, geom, extents)
+function meshes2gpkgbinary!(crs, geom, extents)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
-  gpkgbinaryheader!(buff, srsid, geom, extents)
+  gpkgbinaryheader!(buff, crs, geom, extents)
   meshes2wkb!(buff, geom)
   take!(buff)
 end
@@ -552,13 +506,13 @@ _sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
 _sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
 _sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
 
-function gpkgbinaryheader!(buff, srsid, geom, extents)
+function gpkgbinaryheader!(buff, crs, geom, extents)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
   write(buff, zero(UInt8))
 
-  if paramdim(geom) == 3
+  if CoordRefSystems.ncoords(crs) == 3
     # bit layout of GeoPackageBinary flags byte indicates:
     # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
     # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
@@ -569,7 +523,7 @@ function gpkgbinaryheader!(buff, srsid, geom, extents)
   end
 
   # write the SRS ID, with the endianness specified by the byte order flag
-  write(buff, htol(Int32(srsid)))
+  write(buff, htol(Int32(gpkgsrsid(crs))))
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
   # [minx, maxx, miny, maxy]
@@ -577,7 +531,7 @@ function gpkgbinaryheader!(buff, srsid, geom, extents)
   write(buff, htol(Float64(extents[2])))
   write(buff, htol(Float64(extents[3])))
   write(buff, htol(Float64(extents[4])))
-  if paramdim(geom) == 3
+  if CoordRefSystems.ncoords(crs) == 3
     # [..., minz, maxz]
     write(buff, htol(Float64(extents[5])))
     write(buff, htol(Float64(extents[6])))
@@ -605,89 +559,10 @@ function writegpkgrteeindexes!(db, extents)
       "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)"
   )
 
-  # For each spatial index in a GeoPackage, corresponding insert, update and delete triggers
-  # that update the spatial index SHALL be present on the indexed geometry column
-  createspatialindextriggers(db)
-
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
   # column value to specify implementation of spatial indexes on a geometry column
   creategpkgextensions(db)
-end
-
-function createspatialindextriggers(db)
-  DBInterface.execute(
-    db,
-    """
-    CREATE TRIGGER rtree_features_geometry_insert AFTER INSERT ON features
-      WHEN (new.geometry NOT NULL AND NOT ST_IsEmpty(NEW.geometry))
-    BEGIN
-      INSERT OR REPLACE INTO rtree_features_geometry VALUES (
-        NEW.rowid,
-        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
-        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
-      );
-    END;
-
-    CREATE TRIGGER rtree_features_geometry_update2 AFTER UPDATE OF geometry ON features
-      WHEN OLD.rowid = NEW.rowid AND
-        (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
-    BEGIN
-      DELETE FROM rtree_features_geometry WHERE id = OLD.rowid;
-    END;
-
-    CREATE TRIGGER rtree_features_geometry_update4 AFTER UPDATE ON features
-      WHEN OLD.rowid != NEW.rowid AND
-        (NEW.geometry ISNULL OR ST_IsEmpty(NEW.geometry))
-    BEGIN
-      DELETE FROM rtree_features_geometry WHERE id IN (OLD.rowid, NEW.rowid);
-    END;
-
-    CREATE TRIGGER rtree_features_geometry_update5 AFTER UPDATE ON features
-      WHEN OLD.rowid != NEW.rowid AND
-        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry))
-    BEGIN
-      DELETE FROM rtree_features_geometry WHERE id = OLD.rowid
-      INSERT OR REPLACE INTO rtree_features_geometry VALUES (
-        NEW.rowid,
-        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
-        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
-      );
-    END;
-
-    CREATE TRIGGER rtree_features_geometry_update6 AFTER UPDATE OF geometry ON features
-      WHEN OLD.rowid = NEW.rowid AND
-        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
-        (OLD.geometry NOTNULL AND NOT ST_IsEmpty(OLD.geometry))
-    BEGIN
-      UPDATE features SET
-        minx = ST_MinX(NEW.geometry),
-        maxx = ST_MaxX(NEW.geometry),
-        miny = ST_MinY(NEW.geometry),
-        maxy = ST_MaxY(NEW.geometry)
-      WHERE id = NEW.rowid;
-    END;
-
-    CREATE TRIGGER rtree_features_geometry_update7 AFTER UPDATE OF geometry ON features
-      WHEN OLD.rowid != NEW.rowid AND
-        (NEW.geometry NOTNULL AND NOT ST_IsEmpty(NEW.geometry)) AND
-        (OLD.geometry ISNULL OR ST_IsEmpty(OLD.geometry))
-    BEGIN
-      INSERT INTO rtree_features_geometry VALUES (
-        NEW.rowid,
-        ST_MinX(NEW.geometry), ST_MaxX(NEW.geometry),
-        ST_MinY(NEW.geometry), ST_MaxY(NEW.geometry)
-      );
-    END;
-
-
-    CREATE TRIGGER rtree_features_geometry_delete AFTER DELETE ON features
-      WHEN OLD.geometry NOT NULL
-    BEGIN
-      DELETE FROM rtree_features_geometry WHERE id = OLD.rowid;
-    END;
-    """
-  )
 end
 
 function creategpkgextensions(db)

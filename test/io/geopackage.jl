@@ -66,45 +66,43 @@
     @test gtb2.variable == gtb1.variable
   end
 
-  @testset "wkb" begin
-    # note: If the geometry type_name value is "GEOMETRYCOLLECTION"
-    # then the feature table geometry column MAY contain geometries
-    # of type GeometryCollection containing zero or more geometries
-    # of any allowed geometry type
-    file1 = joinpath(datadir, "geomcollection.gpkg")
-    file2 = joinpath(savedir, "geomcollection.gpkg")
+  @testset "gpkgbinary" begin
+    # note: If the geometry type_name value is "GEOMETRYCOLLECTION" then the
+    # feature table geometry column MAY contain geometries of type GeometryCollection
+    # containing zero or more geometries of any allowed geometry type
+    file1 = joinpath(datadir, "gdal.gpkg")
+    file2 = joinpath(savedir, "gdal.gpkg")
     gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    @test typeof(gtb2.geometry[1]) <: Multi
+    @test typeof(gtb2.geometry[2]) <: MultiPoint
+    @test typeof(gtb2.geometry[3]) <: MultiChain
+    @test typeof(gtb2.geometry[4]) <: MultiPolygon
 
-    # note: GeoPackage may contain sqlite null for missing geometries
-    file1 = joinpath(datadir, "missing.gpkg")
-    file2 = joinpath(savedir, "missing.gpkg")
-    gtb1 = GeoIO.load(file1)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    file1 = joinpath(savedir, "srs.gpkg")
+    # test for GeoPackage spatial reference system records
+    # that are not contained in the minimal `gpkg_spatial_ref_sys` SQLite table
+    g1 = [Point(WebMercator{WGS84Latest}(1.0,1.0))]
+    gtb1 = georef(nothing, g1)
+    GeoIO.save(file1, gtb1)
+    gtb2 = GeoIO.load(file1)
+    @test crs(gtb2) <: WebMercator{WGS84Latest}
 
-    # test for GeoPackage with spatial reference system records
-    # that are not Cartesian or WGS84
-    file1 = joinpath(datadir, "crs.gpkg")
-    file2 = joinpath(savedir, "crs.gpkg")
-    gtb1 = GeoIO.load(file1)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    # test for GeodeticLatLonAlt{WGS84Latest} CRS
+    g1 = [Point(LatLonAlt{WGS84Latest}(1.0,1.0,1.0))]
+    gtb1 = georef(nothing, g1)
+    GeoIO.save(file1, gtb1)
+    gtb2 = GeoIO.load(file1)
+    @test CoordRefSystems.ncoords(crs(gtb2)) == 3
+    @test crs(gtb2) <: GeodeticLatLonAlt{WGS84Latest}
 
-    # test for GeoPackage containing 3d geometry
-    file1 = joinpath(datadir, "geometry3d.gpkg")
-    file2 = joinpath(savedir, "geometry3d.gpkg")
-    gtb1 = GeoIO.load(file1)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    # test for Cartesian3D{NoDatum} CRS
+    g1 = [Point(Cartesian3D{NoDatum}(1.0,1.0,1.0))]
+    gtb1 = georef(nothing, g1)
+    GeoIO.save(file1, gtb1)
+    gtb2 = GeoIO.load(file1)
+    @test CoordRefSystems.ncoords(crs(gtb2)) == 3
+    @test crs(gtb2) <: Cartesian3D{NoDatum}
   end
 end
