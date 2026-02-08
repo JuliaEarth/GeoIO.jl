@@ -104,5 +104,10 @@
     gtb2 = GeoIO.load(file1)
     @test CoordRefSystems.ncoords(crs(gtb2)) == 3
     @test crs(gtb2) <: Cartesian3D{NoDatum}
+
+    # test to guarantee table values when geometry is missing
+    file1 = joinpath(datadir, "missing.gpkg")
+    gtb1 = GeoIO.loadvalues(file1)
+    @test gtb1 == (id = [1,2], identifier = ["A","B"])
   end
 end
