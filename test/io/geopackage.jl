@@ -89,6 +89,7 @@
     gtb2 = GeoIO.load(file1)
     @test crs(gtb2) <: WebMercator{WGS84Latest}
 
+    # tests to ensure correct CRS is applied to feature table geometries
     # test for GeodeticLatLonAlt{WGS84Latest} CRS
     g1 = [Point(LatLonAlt{WGS84Latest}(1.0,1.0,1.0))]
     gtb1 = georef(nothing, g1)
@@ -96,7 +97,6 @@
     gtb2 = GeoIO.load(file1)
     @test CoordRefSystems.ncoords(crs(gtb2)) == 3
     @test crs(gtb2) <: GeodeticLatLonAlt{WGS84Latest}
-
     # test for Cartesian3D{NoDatum} CRS
     g1 = [Point(Cartesian3D{NoDatum}(1.0,1.0,1.0))]
     gtb1 = georef(nothing, g1)
@@ -105,7 +105,8 @@
     @test CoordRefSystems.ncoords(crs(gtb2)) == 3
     @test crs(gtb2) <: Cartesian3D{NoDatum}
 
-    # test to guarantee table values when geometry is missing
+    # test to guarantee table values when feature table geometries are missing
+    # in the geometry column of the vector `features` user data table
     file1 = joinpath(datadir, "missing.gpkg")
     gtb1 = GeoIO.loadvalues(file1)
     @test gtb1 == (id = [1,2], identifier = ["A","B"])
