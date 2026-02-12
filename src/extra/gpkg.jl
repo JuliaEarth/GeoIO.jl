@@ -187,3 +187,244 @@ function skipgpkgheader!(buff)
   # Float64[minx, maxx, miny, maxy, minz, maxz] => skip 48 bytes
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 end
+
+# ------------------------------------------------------------------
+# GeoPackage Writer: saves GeoTable to GeoPackage SQLite database
+# ------------------------------------------------------------------
+
+function gpkgwrite(fname, geotable; layername="data", kwargs...)
+  geoms = domain(geotable)
+  table = values(geotable)
+  CRS = crs(geoms)
+
+  # SRS info
+  srsid, org, orgcode, srsname, wktdef = _gpkgsrsinfo(CRS)
+
+  # Z dimension flag: 0=prohibited, 1=mandatory
+  z = CoordRefSystems.ncoords(CRS) ≥ 3 ? 1 : 0
+
+  # geometry type name from first geometry
+  geomtype = _gpkggeomtype(geoms[1])
+
+  # remove existing file
+  isfile(fname) && rm(fname)
+
+  # create database
+  db = SQLite.DB(fname)
+
+  try
+    # set GPKG application ID (0x47504B47 = 'GPKG') and version 1.3.1
+    DBInterface.execute(db, "PRAGMA application_id = 1196444487;")
+    DBInterface.execute(db, "PRAGMA user_version = 10301;")
+
+    # create required metadata tables
+    _gpkgcreatemeta!(db)
+
+    # insert default SRS entries required by spec
+    _gpkgdefaultsrs!(db)
+
+    # insert actual CRS if not a default one
+    if srsid ∉ (0, -1)
+      DBInterface.execute(
+        db,
+        "INSERT OR IGNORE INTO gpkg_spatial_ref_sys (srs_name, srs_id, organization, organization_coordsys_id, definition) VALUES (?, ?, ?, ?, ?);",
+        (srsname, srsid, org, orgcode, wktdef)
+      )
+    end
+
+    # create feature table
+    _gpkgcreatefeaturetable!(db, layername, table)
+
+    # insert contents metadata
+    DBInterface.execute(
+      db,
+      "INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id) VALUES (?, 'features', ?, ?);",
+      (layername, layername, srsid)
+    )
+
+    # insert geometry column metadata
+    DBInterface.execute(
+      db,
+      "INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m) VALUES (?, 'geom', ?, ?, ?, 0);",
+      (layername, geomtype, srsid, z)
+    )
+
+    # insert features
+    _gpkginsertfeatures!(db, layername, geoms, table, srsid)
+  finally
+    DBInterface.close!(db)
+  end
+
+  fname
+end
+
+# create required GeoPackage metadata tables
+function _gpkgcreatemeta!(db)
+  DBInterface.execute(db, """
+    CREATE TABLE gpkg_spatial_ref_sys (
+      srs_name TEXT NOT NULL,
+      srs_id INTEGER NOT NULL PRIMARY KEY,
+      organization TEXT NOT NULL,
+      organization_coordsys_id INTEGER NOT NULL,
+      definition TEXT NOT NULL,
+      description TEXT
+    );
+  """)
+
+  DBInterface.execute(db, """
+    CREATE TABLE gpkg_contents (
+      table_name TEXT NOT NULL PRIMARY KEY,
+      data_type TEXT NOT NULL,
+      identifier TEXT UNIQUE,
+      description TEXT DEFAULT '',
+      last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      min_x DOUBLE,
+      min_y DOUBLE,
+      max_x DOUBLE,
+      max_y DOUBLE,
+      srs_id INTEGER,
+      CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+    );
+  """)
+
+  DBInterface.execute(db, """
+    CREATE TABLE gpkg_geometry_columns (
+      table_name TEXT NOT NULL,
+      column_name TEXT NOT NULL,
+      geometry_type_name TEXT NOT NULL,
+      srs_id INTEGER NOT NULL,
+      z TINYINT NOT NULL,
+      m TINYINT NOT NULL,
+      CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+      CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+      CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+    );
+  """)
+end
+
+# insert default SRS entries required by the GeoPackage spec
+function _gpkgdefaultsrs!(db)
+  DBInterface.execute(db, """
+    INSERT INTO gpkg_spatial_ref_sys (srs_name, srs_id, organization, organization_coordsys_id, definition) VALUES
+    ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined'),
+    ('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined');
+  """)
+end
+
+# create the feature table with geometry and attribute columns
+function _gpkgcreatefeaturetable!(db, layername, table)
+  colsql = ["fid INTEGER PRIMARY KEY AUTOINCREMENT", "geom BLOB"]
+  if !isnothing(table)
+    schema = Tables.schema(table)
+    for (name, type) in zip(schema.names, schema.types)
+      push!(colsql, "\"$(name)\" $(_gpkgsqltype(type))")
+    end
+  end
+  DBInterface.execute(db, "CREATE TABLE \"$layername\" ($(join(colsql, ", ")));")
+end
+
+# insert all features into the feature table
+function _gpkginsertfeatures!(db, layername, geoms, table, srsid)
+  ngeom = nelements(geoms)
+
+  if isnothing(table)
+    DBInterface.execute(db, "BEGIN TRANSACTION;")
+    for i in 1:ngeom
+      blob = _gpkgbinary(geoms[i], srsid)
+      DBInterface.execute(db, "INSERT INTO \"$layername\" (geom) VALUES (?);", (blob,))
+    end
+    DBInterface.execute(db, "COMMIT;")
+  else
+    schema = Tables.schema(table)
+    cols = Tables.columns(table)
+    colnames = join(["geom"; ["\"$(n)\"" for n in schema.names]], ", ")
+    ncols = length(schema.names) + 1
+    placeholders = join(fill("?", ncols), ", ")
+    sql = "INSERT INTO \"$layername\" ($colnames) VALUES ($placeholders);"
+
+    DBInterface.execute(db, "BEGIN TRANSACTION;")
+    for i in 1:ngeom
+      blob = _gpkgbinary(geoms[i], srsid)
+      vals = Any[blob]
+      for name in schema.names
+        push!(vals, Tables.getcolumn(cols, name)[i])
+      end
+      DBInterface.execute(db, sql, vals)
+    end
+    DBInterface.execute(db, "COMMIT;")
+  end
+end
+
+# create GPKG binary blob (header + WKB) for a geometry
+function _gpkgbinary(geom, srsid)
+  buff = IOBuffer()
+  # GeoPackageBinary header
+  write(buff, UInt8(0x47)) # 'G'
+  write(buff, UInt8(0x50)) # 'P'
+  write(buff, UInt8(0))    # version 1
+  write(buff, UInt8(0x01)) # flags: little endian, no envelope, non-empty, standard
+  write(buff, htol(Int32(srsid)))
+  # WKB geometry
+  meshes2wkb!(buff, geom)
+  take!(buff)
+end
+
+# extract SRS info from CRS type
+function _gpkgsrsinfo(CRS)
+  try
+    code = CoordRefSystems.code(CRS)
+    id, org = _gpkgsrsidorg(code)
+    wktdef = CoordRefSystems.wkt2(code)
+    srsname = "$org:$id"
+    (id, org, id, srsname, wktdef)
+  catch
+    if CRS <: LatLon || CRS <: LatLonAlt
+      (0, "NONE", 0, "Undefined geographic SRS", "undefined")
+    else
+      (-1, "NONE", -1, "Undefined cartesian SRS", "undefined")
+    end
+  end
+end
+
+_gpkgsrsidorg(::Type{EPSG{Code}}) where {Code} = (Code, "EPSG")
+_gpkgsrsidorg(::Type{ESRI{Code}}) where {Code} = (Code, "ESRI")
+
+# determine WKB geometry type name for gpkg_geometry_columns
+function _gpkggeomtype(geom)
+  if geom isa Point
+    "POINT"
+  elseif geom isa Chain
+    "LINESTRING"
+  elseif geom isa Polygon
+    "POLYGON"
+  elseif geom isa Multi
+    g1 = first(parent(geom))
+    if g1 isa Point
+      "MULTIPOINT"
+    elseif g1 isa Chain
+      "MULTILINESTRING"
+    elseif g1 isa Polygon
+      "MULTIPOLYGON"
+    else
+      "GEOMETRY"
+    end
+  else
+    "GEOMETRY"
+  end
+end
+
+# map Julia types to SQLite column types
+function _gpkgsqltype(T)
+  T = nonmissingtype(T)
+  if T <: Bool
+    "INTEGER"
+  elseif T <: Integer
+    "INTEGER"
+  elseif T <: AbstractFloat
+    "REAL"
+  elseif T <: AbstractString
+    "TEXT"
+  else
+    "TEXT"
+  end
+end

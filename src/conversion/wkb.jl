@@ -86,3 +86,104 @@ function wkb2coords(buff, crs, swapbytes)
     crs(xyz...)
   end
 end
+
+# ------------------------------------------------------------------
+# WKB Writer: converts Meshes.jl geometries to WKB binary format
+# ------------------------------------------------------------------
+
+# Z dimension offset for ISO WKB geometry types
+_wkbzoffset(CRS) = CoordRefSystems.ncoords(CRS) ≥ 3 ? UInt32(1000) : UInt32(0)
+
+function meshes2wkb(geom)
+  buff = IOBuffer()
+  meshes2wkb!(buff, geom)
+  take!(buff)
+end
+
+function meshes2wkb!(buff, geom::Point)
+  write(buff, UInt8(1)) # little endian
+  wkbtype = UInt32(1) + _wkbzoffset(crs(geom))
+  write(buff, htol(wkbtype))
+  coords2wkb!(buff, geom)
+end
+
+function meshes2wkb!(buff, geom::Ring)
+  write(buff, UInt8(1))
+  wkbtype = UInt32(2) + _wkbzoffset(crs(geom))
+  write(buff, htol(wkbtype))
+  n = nvertices(geom)
+  write(buff, htol(UInt32(n + 1))) # +1 for closing point
+  for p in vertices(geom)
+    coords2wkb!(buff, p)
+  end
+  coords2wkb!(buff, vertex(geom, 1)) # close ring
+end
+
+function meshes2wkb!(buff, geom::Rope)
+  write(buff, UInt8(1))
+  wkbtype = UInt32(2) + _wkbzoffset(crs(geom))
+  write(buff, htol(wkbtype))
+  n = nvertices(geom)
+  write(buff, htol(UInt32(n)))
+  for p in vertices(geom)
+    coords2wkb!(buff, p)
+  end
+end
+
+function meshes2wkb!(buff, geom::Polygon)
+  write(buff, UInt8(1))
+  wkbtype = UInt32(3) + _wkbzoffset(crs(geom))
+  write(buff, htol(wkbtype))
+  rs = rings(geom)
+  write(buff, htol(UInt32(length(rs))))
+  for r in rs
+    _ring2wkb!(buff, r)
+  end
+end
+
+function meshes2wkb!(buff, geom::Multi)
+  write(buff, UInt8(1))
+  gs = parent(geom)
+  g1 = first(gs)
+  basetype = if g1 isa Point
+    UInt32(4)
+  elseif g1 isa Chain
+    UInt32(5)
+  elseif g1 isa Polygon
+    UInt32(6)
+  else
+    error("unsupported Multi geometry type: $(typeof(g1))")
+  end
+  wkbtype = basetype + _wkbzoffset(crs(geom))
+  write(buff, htol(wkbtype))
+  write(buff, htol(UInt32(length(gs))))
+  for g in gs
+    meshes2wkb!(buff, g)
+  end
+end
+
+# write a ring as part of a polygon (no WKB header, just point count + coords)
+function _ring2wkb!(buff, ring)
+  n = nvertices(ring)
+  write(buff, htol(UInt32(n + 1))) # +1 for closing point
+  for p in vertices(ring)
+    coords2wkb!(buff, p)
+  end
+  coords2wkb!(buff, vertex(ring, 1)) # close ring
+end
+
+function coords2wkb!(buff, point)
+  c = coords(point)
+  if c isa LatLon
+    write(buff, htol(Float64(ustrip(c.lon))))
+    write(buff, htol(Float64(ustrip(c.lat))))
+  elseif c isa LatLonAlt
+    write(buff, htol(Float64(ustrip(c.lon))))
+    write(buff, htol(Float64(ustrip(c.lat))))
+    write(buff, htol(Float64(ustrip(c.alt))))
+  else
+    write(buff, htol(Float64(ustrip(c.x))))
+    write(buff, htol(Float64(ustrip(c.y))))
+    CoordRefSystems.ncoords(typeof(c)) ≥ 3 && write(buff, htol(Float64(ustrip(c.z))))
+  end
+end
