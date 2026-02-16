@@ -93,7 +93,7 @@ function gpkgextract(db; layer=1)
   # According to https://www.geopackage.org/spec/#r27
   # The z value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
   # 0: z values prohibited; 1: z values mandatory; 2: z values optional
-  crs = gpkgcrs(isone(metadata.z), srsid; code=code)
+  crs = gpkgcrs(isone(metadata.z), srsid; org=org, code=code)
 
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
@@ -141,7 +141,7 @@ function gpkgextract(db; layer=1)
   end
 end
 
-function gpkgcrs(z, srsid; code=0)
+function gpkgcrs(z, srsid; org="NONE", code=0)
   if srsid == 0 || srsid == 99999
     # An srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
     # An srs_id of 99999 is recognized as a placeholder code, we will default to undefined geographic crs
@@ -195,28 +195,6 @@ function skipgpkgheader!(buff)
   E > 0 && skip(buff, 8 * 2 * (E + 1))
 end
 
-function readgpkgsrsid!(buff)
-  # skip the GeoPackageBinaryHeader for the 'GP' magic
-  skip(buff, 2)
-
-  # skip version (0 => version 1)
-  skip(buff, 1)
-
-  # bit layout of GeoPackageBinary flag byte
-  # see comments in `skipgpkgheader!`
-  E = (read(buff, UInt8) & 0b00001110) >> 1
-
-  # store srs id
-  srsid = read(buff, Int32)
-
-  # skip calculated envelope size given envelope code E
-  # see comments in `skipgpkgheader!`
-  E > 0 && skip(buff, 8 * 2 * (E + 1))
-
-  # 2: envelope is [minx, maxx, miny, maxy, minz, maxz]
-  gpkgcrs(E >= 2, Int(srsid))
-end
-
 function gpkgwrite(fname, geotable)
   isfile(fname) && rm(fname)
   db = SQLite.DB(fname)
@@ -251,7 +229,9 @@ function gpkgwrite(fname, geotable)
 
   DBInterface.close!(db)
 end
-
+# Note: SQLite will refuse to open a savepoint if a statement is currently "active",
+# If the transaction stack is not empty when the BEGIN command is invoked,
+# then the command will fail with an SQLiteException
 function exhaustresultrow!(db, sql)
   q = DBInterface.execute(db, sql)
   # iterate until result row is exhausted to ensure the statement is 'DONE'
