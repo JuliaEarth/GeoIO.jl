@@ -70,102 +70,36 @@
     # note: If the geometry type_name value is "GEOMETRYCOLLECTION" then the
     # feature table geometry column MAY contain geometries of type GeometryCollection
     # containing zero or more geometries of any allowed geometry type
-    geoms =  [
-        Multi([
-        Point(LatLon{WGS84Latest}(1.0,1.0)),
-        Rope([Point(LatLon{WGS84Latest}(1.0,1.0)), Point(LatLon{WGS84Latest}(2.0,1.0))]),
-        PolyArea([
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                ]
-            ),
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(0.0,0.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(0.0,0.0))
-                ]
-            )
-        ])
-      ]),
-        Multi([
-                Point(LatLon{WGS84Latest}(1.0,1.0)),
-                Point(LatLon{WGS84Latest}(2.0,1.0)),
-                Point(LatLon{WGS84Latest}(3.0,1.0)),
-        ]),
-        Multi([
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                ]
-            ),
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(0.0,0.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(0.0,0.0))
-                ]
-            )
-        ]),
-        Multi(
-            [
-         PolyArea([
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                ]
-            ),
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(0.0,0.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(0.0,0.0))
-                ]
-            )
-        ]),
-        PolyArea([
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(1.0,1.0)),
-                ]
-            ),
-            Ring(
-                [
-                    Point(LatLon{WGS84Latest}(0.0,0.0)),
-                    Point(LatLon{WGS84Latest}(2.0,1.0)),
-                    Point(LatLon{WGS84Latest}(3.0,1.0)),
-                    Point(LatLon{WGS84Latest}(0.0,0.0))
-                ]
-            )
-        ])
-            ]
-        )
-
-              ]
+    geoms = [
+	Multi([
+	    Point(LatLon(1.0, 1.0)),
+	    Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0)])),
+	    PolyArea([
+		Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(1.0, 1.0)])),
+		Ring(Point.([LatLon(0.0, 0.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(0.0, 0.0)])),
+	    ]),
+	]),
+	Multi(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+	Multi([
+	    Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(1.0, 1.0)])),
+	    Ring(Point.([LatLon(0.0, 0.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(0.0, 0.0)])),
+	]),
+	Multi([
+	    PolyArea([
+		Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(1.0, 1.0)])),
+		Ring(Point.([LatLon(0.0, 0.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(0.0, 0.0)])),
+	    ]),
+	    PolyArea([
+		Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(1.0, 1.0)])),
+		Ring(Point.([LatLon(0.0, 0.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0), LatLon(0.0, 0.0)])),
+	    ]),
+	]),
+    ]
     gtb1 = georef(nothing, geoms)
-    file1 = joinpath(savedir, "gdal.gpkg")
+    file1 = joinpath(savedir, "geometrycollection.gpkg")
     GeoIO.save(file1, gtb1)
     gtb2 = GeoIO.load(file1)
-    @test typeof(gtb2.geometry[1]) <: Multi
-    @test typeof(gtb2.geometry[2]) <: MultiPoint
-    @test typeof(gtb2.geometry[3]) <: MultiChain
-    @test typeof(gtb2.geometry[4]) <: MultiPolygon
+    @test gtb2 == gtb1
 
     # test for GeoPackage spatial reference system records
     # that are not contained in the minimal `gpkg_spatial_ref_sys` SQLite table
@@ -182,15 +116,13 @@
     gtb1 = georef(nothing, geoms)
     GeoIO.save(file1, gtb1)
     gtb2 = GeoIO.load(file1)
-    @test CoordRefSystems.ncoords(crs(gtb2)) == 3
-    @test crs(gtb2) <: GeodeticLatLonAlt{WGS84Latest}
+    @test crs(gtb2) <: LatLonAlt{WGS84Latest}
 
     # test for Cartesian3D{NoDatum} CRS
     geoms = [Point(Cartesian3D{NoDatum}(1.0,1.0,1.0))]
     gtb1 = georef(nothing, geoms)
     GeoIO.save(file1, gtb1)
     gtb2 = GeoIO.load(file1)
-    @test CoordRefSystems.ncoords(crs(gtb2)) == 3
     @test crs(gtb2) <: Cartesian3D{NoDatum}
 
     # test to guarantee table values when feature table geometries are missing
