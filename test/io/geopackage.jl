@@ -32,9 +32,9 @@
 
   @testset "save" begin
     # note: GeoPackage does not preserve column order
-    file = joinpath(datadir, "points.gpkg")
+    file1 = joinpath(datadir, "points.gpkg")
     file2 = joinpath(savedir, "points.gpkg")
-    gtb1 = GeoIO.load(file)
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))
@@ -43,9 +43,9 @@
     @test gtb2.name == gtb1.name
     @test gtb2.variable == gtb1.variable
 
-    file = joinpath(datadir, "lines.gpkg")
+    file1 = joinpath(datadir, "lines.gpkg")
     file2 = joinpath(savedir, "lines.gpkg")
-    gtb1 = GeoIO.load(file)
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))
@@ -54,9 +54,9 @@
     @test gtb2.name == gtb1.name
     @test gtb2.variable == gtb1.variable
 
-    file = joinpath(datadir, "polygons.gpkg")
+    file1 = joinpath(datadir, "polygons.gpkg")
     file2 = joinpath(savedir, "polygons.gpkg")
-    gtb1 = GeoIO.load(file)
+    gtb1 = GeoIO.load(file1)
     GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Set(names(gtb2)) == Set(names(gtb1))
