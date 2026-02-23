@@ -123,14 +123,14 @@
     gtb = GeoIO.loadvalues(file)
     @test gtb == (id=[1, 2], identifier=["A", "B"])
 
-    # test for whether the geometry is a closed chain with duplicate start and
-    # end points and is written as a Ring with the duplicate end point removed
+    # chains with equal start and end points are rings
     file = joinpath(savedir, "isclosed.gpkg")
     geoms = [Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 2.0), LatLon(3.0, 3.0), LatLon(1.0, 1.0)]))]
     gtb1 = georef(nothing, geoms)
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
-    @test typeof(only(gtb2.geometry)) <: Ring
-    @test nvertices(only(gtb2.geometry)) == 3
+    ring = only(gtb2.geometry)
+    @test ring isa Ring
+    @test nvertices(ring) == 3
   end
 end
