@@ -238,9 +238,8 @@ end
 # savepoint if a statement is currently "active". The transaction stack must be
 # empty when the BEGIN command is invoked (in SQLite.transaction)
 function exhaustresultrow!(db, sql)
-  q = DBInterface.execute(db, sql)
   # iterate until result row is exhausted to ensure the statement is 'DONE'
-  for _ in q
+  for _ in DBInterface.execute(db, sql)
   end
 end
 
