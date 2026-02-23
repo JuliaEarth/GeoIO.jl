@@ -204,24 +204,23 @@ function gpkgwrite(fname, geotable)
   # initialize database
   db = SQLite.DB(fname)
 
-  # https://sqlite.org/pragma.html#pragma_synchronous
-  # Commits can be orders of magnitude faster with
-  # Setting PRAGMA synchronous=OFF but, can cause
-  # the database to go corrupt if there is an
-  # operating system crash or power failure.
-  exhaustresultrow!(db, "PRAGMA synchronous=0")
-
-  # stores the rollback journal entirely in RAM.
-  # eliminates all journal‑related disk I/O with the fastest transactions,
-  # but if the process crashes, uncommitted changes and the journal itself are lost.
-  exhaustresultrow!(db, "PRAGMA journal_mode = MEMORY")
-
-  # According to https://www.geopackage.org/spec/#r2
-  # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
-  # in the "application_id" field and an appropriate value in "user_version"
-  # field of the SQLite db header to indicate that it is a GeoPackage
-  exhaustresultrow!(db, "PRAGMA application_id = 0x47504B47")
-  exhaustresultrow!(db, "PRAGMA user_version = 10400")
+  DBInterface.execute(
+    db,
+    # https://sqlite.org/pragma.html#pragma_synchronous
+    # Commits can be orders of magnitude faster with
+    # Setting PRAGMA synchronous=OFF but, can cause
+    # the database to go corrupt if there is an
+    # operating system crash or power failure.
+    "PRAGMA synchronous = OFF;" *
+    # According to https://www.geopackage.org/spec/#r2
+    # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
+    # in the "application_id" field and an appropriate value in "user_version"
+    # field of the SQLite db header to indicate that it is a GeoPackage
+    """
+    PRAGMA application_id = 0x47504B47;
+    PRAGMA user_version = 10400;
+    """
+  )
 
   # write geotable to database
   writegpkgtables!(db, geotable)
@@ -232,15 +231,6 @@ function gpkgwrite(fname, geotable)
   DBInterface.execute(db, "PRAGMA optimize")
 
   DBInterface.close!(db)
-end
-
-# Note: By setting your `journal_mode` to `MEMORY`, SQLite will refuse to open a
-# savepoint if a statement is currently "active". The transaction stack must be
-# empty when the BEGIN command is invoked (in SQLite.transaction)
-function exhaustresultrow!(db, sql)
-  # iterate until result row is exhausted to ensure the statement is 'DONE'
-  for _ in DBInterface.execute(db, sql)
-  end
 end
 
 function writegpkgtables!(db, geotable)
