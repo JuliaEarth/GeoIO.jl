@@ -198,7 +198,10 @@ function skipgpkgheader!(buff)
 end
 
 function gpkgwrite(fname, geotable)
+  # remove file if necessary
   isfile(fname) && rm(fname)
+
+  # initialize database
   db = SQLite.DB(fname)
 
   # https://sqlite.org/pragma.html#pragma_synchronous
