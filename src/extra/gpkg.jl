@@ -82,8 +82,10 @@ function gpkgextract(db; layer=1)
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
   org = uppercase(metadata.org)
+
   # code is a numeric ID of the spatial reference system assigned by the organization
   code = metadata.code
+
   # According to https://www.geopackage.org/spec/#r33
   # Feature table geometry columns SHALL contain geometries
   # with the srs_id specified for the column by the
