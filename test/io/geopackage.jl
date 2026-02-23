@@ -67,77 +67,67 @@
   end
 
   @testset "gpkgbinary" begin
-    # note: If the geometry type_name value is "GEOMETRYCOLLECTION" then the
-    # feature table geometry column MAY contain geometries of type GeometryCollection
-    # containing zero or more geometries of any allowed geometry type
+    # heterogeneous multi-geometries are stored as "GEOMETRYCOLLECTION" in GPKGBINARY format,
+    # but are loaded as Multi{Geometry} for convenience and consistency with other formats
+    file = joinpath(savedir, "multigeom.gpkg")
     geoms = [
-        Multi([
-            Point(LatLon(1.0, 1.0)),
-            Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0)])),
-            PolyArea([
-                Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
-                Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)])),
-            ]),
+      Multi([
+        Point(LatLon(1.0, 1.0)),
+        Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0)])),
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+        ])
+      ]),
+      Multi(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+      Multi([
+        Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+        Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+      ]),
+      Multi([
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
         ]),
-        Multi(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
-        Multi([
-            Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
-            Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)])),
-        ]),
-        Multi([
-            PolyArea([
-                Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
-                Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)])),
-            ]),
-            PolyArea([
-                Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
-                Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)])),
-            ]),
-        ]),
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+        ])
+      ])
     ]
     gtb1 = georef(nothing, geoms)
-    file = joinpath(savedir, "geomcollection.gpkg")
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test gtb2 == gtb1
 
-    # test for GeoPackage spatial reference system records
-    # that are not contained in the minimal `gpkg_spatial_ref_sys` SQLite table
-    geoms = [Point(WebMercator{WGS84Latest}(1.0,1.0))]
+    # make sure CRS is preserved when saving and loading
+    file = joinpath(savedir, "crs.gpkg")
+    geoms = [Point(WebMercator{WGS84Latest}(1.0, 1.0))]
     gtb1 = georef(nothing, geoms)
-    file = joinpath(savedir, "srs.gpkg")
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test crs(gtb2) <: WebMercator{WGS84Latest}
-
-    # tests to ensure correct CRS is applied to feature table geometries
-    # test for GeodeticLatLonAlt{WGS84Latest} CRS
-    geoms = [Point(LatLonAlt{WGS84Latest}(1.0,1.0,1.0))]
+    geoms = [Point(LatLonAlt{WGS84Latest}(1.0, 1.0, 1.0))]
     gtb1 = georef(nothing, geoms)
-    file = joinpath(savedir, "latlonalt.gpkg")
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test crs(gtb2) <: LatLonAlt{WGS84Latest}
-
-    # test for Cartesian3D{NoDatum} CRS
-    geoms = [Point(Cartesian3D{NoDatum}(1.0,1.0,1.0))]
+    geoms = [Point(Cartesian3D{NoDatum}(1.0, 1.0, 1.0))]
     gtb1 = georef(nothing, geoms)
-    file = joinpath(savedir, "cartesian3d.gpkg")
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test crs(gtb2) <: Cartesian3D{NoDatum}
 
-    # test to guarantee table values when feature table geometries are missing
-    # in the geometry column of the vector `features` user data table
+    # make sure table values are present when geometries are missing
     file = joinpath(datadir, "missing.gpkg")
     gtb = GeoIO.loadvalues(file)
-    @test gtb == (id = [1,2], identifier = ["A","B"])
+    @test gtb == (id=[1, 2], identifier=["A", "B"])
 
     # test for whether the geometry is a closed chain with duplicate start and
     # end points and is written as a Ring with the duplicate end point removed
-    geoms = [Rope(Point.([LatLon(1.0,1.0), LatLon(2.0,2.0), LatLon(3.0,3.0), LatLon(1.0,1.0)]))]
-    gtb1 = georef(nothing, geoms)
     file = joinpath(savedir, "isclosed.gpkg")
+    geoms = [Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 2.0), LatLon(3.0, 3.0), LatLon(1.0, 1.0)]))]
+    gtb1 = georef(nothing, geoms)
     GeoIO.save(file, gtb1)
     gtb2 = GeoIO.load(file)
     @test typeof(only(gtb2.geometry)) <: Ring
