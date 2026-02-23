@@ -143,14 +143,14 @@ function gpkgextract(db; layer=1)
   end
 end
 
-function gpkgcrs(z, srsid; org="NONE", code=0)
+function gpkgcrs(is3D, srsid; org="NONE", code=0)
   if srsid == 0 || srsid == 99999
     # An srs_id of 0 SHALL be used for undefined geographic coordinate reference systems
     # An srs_id of 99999 is recognized as a placeholder code, we will default to undefined geographic crs
-    z ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
+    is3D ? LatLonAlt{WGS84Latest} : LatLon{WGS84Latest}
   elseif srsid == -1
     # An srs_id of -1 SHALL be used for undefined Cartesian coordinate reference systems
-    z ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
+    is3D ? Cartesian3D{NoDatum} : Cartesian2D{NoDatum}
   elseif code in (0, -1)
     # typically srs_id and code values are the same, however if code is undefined (0,-1)
     # and if srs_id is defined then default to getting a CRS type given srs_id instead of code
