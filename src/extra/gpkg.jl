@@ -216,7 +216,6 @@ function gpkgwrite(fname, geotable)
   # but if the process crashes, uncommitted changes and the journal itself are lost.
   exhaustresultrow!(db, "PRAGMA journal_mode = MEMORY")
 
-
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version"
@@ -241,7 +240,8 @@ end
 function exhaustresultrow!(db, sql)
   q = DBInterface.execute(db, sql)
   # iterate until result row is exhausted to ensure the statement is 'DONE'
-  for _ in q end
+  for _ in q
+  end
 end
 
 function writegpkgtables!(db, geotable)
@@ -336,11 +336,11 @@ function writegpkgspatialrefsys!(db, crs)
     # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
     DBInterface.execute(
       db,
-    """
-    INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-    VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
-    """
+      """
+      INSERT OR REPLACE INTO gpkg_spatial_ref_sys
+        (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
+      VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
+      """
     )
   end
 end
@@ -540,10 +540,7 @@ function writegpkgrteeindexes!(db, extents)
   # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
   # The index data structure needs to be manually populated, updated and queried.
   minx, maxx, miny, maxy = extents
-  DBInterface.execute(
-      db,
-      "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)"
-  )
+  DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)")
 
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
