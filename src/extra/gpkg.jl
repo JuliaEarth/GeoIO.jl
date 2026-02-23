@@ -234,9 +234,9 @@ function gpkgwrite(fname, geotable)
   DBInterface.close!(db)
 end
 
-# Note: By setting your `journal_mode` to `MEMORY`,
-# SQLite will refuse to open a savepoint if a statement is currently "active",
-# the transaction stack must be empty when the BEGIN command is invoked (in SQLite.transaction)
+# Note: By setting your `journal_mode` to `MEMORY`, SQLite will refuse to open a
+# savepoint if a statement is currently "active". The transaction stack must be
+# empty when the BEGIN command is invoked (in SQLite.transaction)
 function exhaustresultrow!(db, sql)
   q = DBInterface.execute(db, sql)
   # iterate until result row is exhausted to ensure the statement is 'DONE'
