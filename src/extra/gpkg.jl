@@ -204,23 +204,19 @@ function gpkgwrite(fname, geotable)
   # initialize database
   db = SQLite.DB(fname)
 
-  DBInterface.execute(
-    db,
-    # https://sqlite.org/pragma.html#pragma_synchronous
-    # Commits can be orders of magnitude faster with
-    # Setting PRAGMA synchronous=OFF but, can cause
-    # the database to go corrupt if there is an
-    # operating system crash or power failure.
-    "PRAGMA synchronous = OFF;" *
-    # According to https://www.geopackage.org/spec/#r2
-    # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
-    # in the "application_id" field and an appropriate value in "user_version"
-    # field of the SQLite db header to indicate that it is a GeoPackage
-    """
-    PRAGMA application_id = 0x47504B47;
-    PRAGMA user_version = 10400;
-    """
-  )
+  # https://sqlite.org/pragma.html#pragma_synchronous
+  # Commits can be orders of magnitude faster with
+  # Setting PRAGMA synchronous=OFF but, can cause
+  # the database to go corrupt if there is an
+  # operating system crash or power failure.
+  DBInterface.execute(db, "PRAGMA synchronous = OFF")
+
+  # According to https://www.geopackage.org/spec/#r2
+  # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
+  # in the "application_id" field and an appropriate value in "user_version"
+  # field of the SQLite db header to indicate that it is a GeoPackage
+  DBInterface.execute(db, "PRAGMA application_id = 0x47504B47")
+  DBInterface.execute(db, "PRAGMA user_version = 10400")
 
   # write geotable to database
   writegpkgtables!(db, geotable)
