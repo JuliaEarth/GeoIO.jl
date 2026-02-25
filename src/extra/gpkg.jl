@@ -230,54 +230,56 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
+  # retrieve domain and values
   dom = domain(geotable)
-  extents = gpkgextents(dom)
+  tab = values(geotable)
+
+  # compute extent and infer geometry type
+  extent = gpkgextent(dom)
+  geomtype = _sqlgeomtype(eltype(dom))
+
+  # GeoPackage SQL Geometry Binary Format
+  gpkgbinary = map(dom) do geom
+    meshes2gpkgbinary(crs(dom), geom, extent)
+  end
+
+  # build row table with values and binary geometries
+  rowtable =
+    isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
+    [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
+
+  # retrieve column schema
+  schema = Tables.schema(rowtable)
+
   SQLite.transaction(db) do
-    geomtype = _sqlgeomtype(eltype(dom))
     # required metadata tables and metadata table
     # that identifies geometry columns and types
     writegpkgspatialrefsys!(db, crs(dom))
-    writegpkgcontents!(db, dom, extents)
+    writegpkgcontents!(db, dom, extent)
     writegpkggeomcolumns!(db, dom, geomtype)
 
-    dom = domain(geotable)
-    tab = values(geotable)
-
-    # GeoPackage SQL Geometry Binary Format
-    gpkgbinary = map(dom) do geom
-      meshes2gpkgbinary!(crs(dom), geom, extents)
-    end
-
-    layer =
-    # if no values in table then store only geometry in features
-      isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
-      # else store the geometry as the first column and the remaining table columns in features
-      [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
-
-    rows = Tables.rows(layer)
-    sch = Tables.schema(rows)
-    creategpkgfeaturetable!(db, sch, geomtype)
+    creategpkgfeaturetable!(db, schema, geomtype)
 
     # spatial indexes on geometry columns
     # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes!(db, extents)
+    writegpkgrteeindexes!(db, extent)
     # create and insert vector feature user data tables
-    writegpkgfeaturetable!(db, rows, sch)
+    writegpkgfeaturetable!(db, rowtable, schema)
   end
 end
 
-function gpkgextents(dom)
+function gpkgextent(dom)
   bbox = boundingbox(dom)
   cmin = coords(minimum(bbox))
   cmax = coords(maximum(bbox))
-  gpkgextents(cmin, cmax)
+  gpkgextent(cmin, cmax)
 end
 
-gpkgextents(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
-gpkgextents(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
-gpkgextents(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextents(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextents(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
+gpkgextent(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
+gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
+gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
 
 function writegpkgspatialrefsys!(db, crs)
   # According to https://www.geopackage.org/spec/#r10
@@ -336,9 +338,9 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
 
-function writegpkgcontents!(db, dom, extents)
+function writegpkgcontents!(db, dom, extent)
   srsid = gpkgsrsid(crs(dom))
-  minx, maxx, miny, maxy = extents
+  minx, maxx, miny, maxy = extent
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -460,10 +462,10 @@ function buildfeaturetableinsert!(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary!(crs, geom, extents)
+function meshes2gpkgbinary(crs, geom, extent)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
-  gpkgbinaryheader!(buff, crs, geom, extents)
+  gpkgbinaryheader!(buff, crs, geom, extent)
   meshes2wkb!(buff, geom)
   take!(buff)
 end
@@ -477,7 +479,7 @@ _sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
 _sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
 _sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
 
-function gpkgbinaryheader!(buff, crs, geom, extents)
+function gpkgbinaryheader!(buff, crs, geom, extent)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
@@ -498,18 +500,18 @@ function gpkgbinaryheader!(buff, crs, geom, extents)
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
   # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(extents[1])))
-  write(buff, htol(Float64(extents[2])))
-  write(buff, htol(Float64(extents[3])))
-  write(buff, htol(Float64(extents[4])))
+  write(buff, htol(Float64(extent[1])))
+  write(buff, htol(Float64(extent[2])))
+  write(buff, htol(Float64(extent[3])))
+  write(buff, htol(Float64(extent[4])))
   if CoordRefSystems.ncoords(crs) == 3
     # [..., minz, maxz]
-    write(buff, htol(Float64(extents[5])))
-    write(buff, htol(Float64(extents[6])))
+    write(buff, htol(Float64(extent[5])))
+    write(buff, htol(Float64(extent[6])))
   end
 end
 
-function writegpkgrteeindexes!(db, extents)
+function writegpkgrteeindexes!(db, extent)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
@@ -524,7 +526,7 @@ function writegpkgrteeindexes!(db, extents)
   # And provides a significant performance advantage for searches with basic envelope spatial criteria
   # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
   # The index data structure needs to be manually populated, updated and queried.
-  minx, maxx, miny, maxy = extents
+  minx, maxx, miny, maxy = extent
   DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)")
 
   # https://www.geopackage.org/spec/#r75
