@@ -223,19 +223,19 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
-    SQLite.transaction(db) do
-        # required metadata tables and metadata table
-        # that identifies geometry columns and types
-        writegpkgspatialrefsys!(db, geotable)
-        writegpkgcontents!(db, geotable)
-        writegpkggeomcolumns!(db, geotable)
+  SQLite.transaction(db) do
+    # required metadata tables and metadata table
+    # that identifies geometry columns and types
+    writegpkgspatialrefsys!(db, geotable)
+    writegpkgcontents!(db, geotable)
+    writegpkggeomcolumns!(db, geotable)
 
-        # spatial indexes on geometry columns
-        # SQLite Virtual Table R-tree extension
-        writegpkgrteeindexes!(db, geotable)
-        # create and insert vector feature user data tables
-        writegpkgfeaturetable!(db, geotable)
-    end
+    # spatial indexes on geometry columns
+    # SQLite Virtual Table R-tree extension
+    writegpkgrteeindexes!(db, geotable)
+    # create and insert vector feature user data tables
+    writegpkgfeaturetable!(db, geotable)
+  end
 end
 
 function gpkgextent(dom)
@@ -389,7 +389,7 @@ function writegpkgfeaturetable!(db, geotable)
   geomtype = _sqlgeomtype(eltype(dom))
   tab = values(geotable)
   rows = if isnothing(tab)
-    [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom ]
+    [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom]
   else
     [(; t..., geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom))) for (t, g) in zip(Tables.rowtable(tab), dom)]
   end
@@ -508,8 +508,8 @@ function writegpkgrteeindexes!(db, geotable)
   # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
   # The index data structure needs to be manually populated, updated and queried.
   for (i, geom) in enumerate(domain(geotable))
-      minx, maxx, miny, maxy = gpkgextent(geom)
-      DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($i, $minx, $maxx, $miny, $maxy)")
+    minx, maxx, miny, maxy = gpkgextent(geom)
+    DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($i, $minx, $maxx, $miny, $maxy)")
   end
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
