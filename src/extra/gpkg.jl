@@ -252,7 +252,7 @@ gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin
 gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
 
 function writegpkgspatialrefsys!(db, geotable)
-  crs = Meshes.crs(domain(geotable))
+  srs = crs(domain(geotable))
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
   DBInterface.execute(
@@ -287,8 +287,8 @@ function writegpkgspatialrefsys!(db, geotable)
   )
 
   # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
-  if gpkgsrsid(crs) != 4326 && gpkgsrsid(crs) > 0
-    org, srsid, srswkt = gpkgspatialrefsys(crs)
+  if gpkgsrsid(srs) != 4326 && gpkgsrsid(srs) > 0
+    org, srsid, srswkt = gpkgspatialrefsys(srs)
     # According to https://www.geopackage.org/spec/#r115
     # This conforms to the Well-Known Text for Coordinate Reference Systems extension
     # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
@@ -347,12 +347,12 @@ end
 
 function writegpkggeomcolumns!(db, geotable)
   dom = domain(geotable)
-  crs = Meshes.crs(dom)
-  srsid = gpkgsrsid(crs)
+  srs = crs(dom)
+  srsid = gpkgsrsid(srs)
   geomtype = _sqlgeomtype(eltype(dom))
   # 0: z values prohibited; 1: z values mandatory;
   # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-  z = CoordRefSystems.ncoords(crs) > 2 ? 1 : 0
+  z = CoordRefSystems.ncoords(srs) > 2 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
