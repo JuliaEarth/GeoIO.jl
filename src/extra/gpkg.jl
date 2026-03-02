@@ -204,13 +204,6 @@ function gpkgwrite(fname, geotable)
   # initialize database
   db = SQLite.DB(fname)
 
-  # https://sqlite.org/pragma.html#pragma_synchronous
-  # Commits can be orders of magnitude faster with
-  # Setting PRAGMA synchronous=OFF but, can cause
-  # the database to go corrupt if there is an
-  # operating system crash or power failure.
-  DBInterface.execute(db, "PRAGMA synchronous = OFF")
-
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version"
@@ -230,42 +223,19 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
-  # retrieve domain and values
-  dom = domain(geotable)
-  tab = values(geotable)
+    SQLite.transaction(db) do
+        # required metadata tables and metadata table
+        # that identifies geometry columns and types
+        writegpkgspatialrefsys!(db, geotable)
+        writegpkgcontents!(db, geotable)
+        writegpkggeomcolumns!(db, geotable)
 
-  # compute extent and infer geometry type
-  extent = gpkgextent(dom)
-  geomtype = _sqlgeomtype(eltype(dom))
-
-  # GeoPackage SQL Geometry Binary Format
-  gpkgbinary = map(dom) do geom
-    meshes2gpkgbinary(crs(dom), geom, extent)
-  end
-
-  # build row table with values and binary geometries
-  rowtable =
-    isnothing(tab) ? [(; geometry=g,) for g in gpkgbinary] :
-    [(; t..., geometry=g) for (t, g) in zip(Tables.rowtable(tab), gpkgbinary)]
-
-  # retrieve column schema
-  schema = Tables.schema(rowtable)
-
-  SQLite.transaction(db) do
-    # required metadata tables and metadata table
-    # that identifies geometry columns and types
-    writegpkgspatialrefsys!(db, crs(dom))
-    writegpkgcontents!(db, dom, extent)
-    writegpkggeomcolumns!(db, dom, geomtype)
-
-    creategpkgfeaturetable!(db, schema, geomtype)
-
-    # spatial indexes on geometry columns
-    # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes!(db, extent)
-    # create and insert vector feature user data tables
-    writegpkgfeaturetable!(db, rowtable, schema)
-  end
+        # spatial indexes on geometry columns
+        # SQLite Virtual Table R-tree extension
+        writegpkgrteeindexes!(db, geotable)
+        # create and insert vector feature user data tables
+        writegpkgfeaturetable!(db, geotable)
+    end
 end
 
 function gpkgextent(dom)
@@ -281,7 +251,8 @@ gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, 
 gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
 
-function writegpkgspatialrefsys!(db, crs)
+function writegpkgspatialrefsys!(db, geotable)
+  crs = Meshes.crs(domain(geotable))
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
   DBInterface.execute(
@@ -338,9 +309,10 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
 gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
 
-function writegpkgcontents!(db, dom, extent)
+function writegpkgcontents!(db, geotable)
+  dom = domain(geotable)
   srsid = gpkgsrsid(crs(dom))
-  minx, maxx, miny, maxy = extent
+  minx, maxx, miny, maxy = gpkgextent(dom)
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -373,12 +345,14 @@ function writegpkgcontents!(db, dom, extent)
   )
 end
 
-function writegpkggeomcolumns!(db, dom, geomtype)
-  srsid = gpkgsrsid(crs(dom))
-
+function writegpkggeomcolumns!(db, geotable)
+  dom = domain(geotable)
+  crs = Meshes.crs(dom)
+  srsid = gpkgsrsid(crs)
+  geomtype = _sqlgeomtype(eltype(dom))
   # 0: z values prohibited; 1: z values mandatory;
   # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-  z = CoordRefSystems.ncoords(crs(dom)) > 2 ? 1 : 0
+  z = CoordRefSystems.ncoords(crs) > 2 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
@@ -410,7 +384,31 @@ function writegpkggeomcolumns!(db, dom, geomtype)
   )
 end
 
-function writegpkgfeaturetable!(db, rows, sch)
+function writegpkgfeaturetable!(db, geotable)
+  dom = domain(geotable)
+  geomtype = _sqlgeomtype(eltype(dom))
+  tab = values(geotable)
+  rows = if isnothing(tab)
+    [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom ]
+  else
+    [(; t..., geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom))) for (t, g) in zip(Tables.rowtable(tab), dom)]
+  end
+  sch = Tables.schema(rows)
+  columns = [
+    string(
+      SQLite.esc_id(String(sch.names[i])),
+      ' ',
+      # Using SQLite flexible typing we can assign the geometry type code strings.
+      # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
+      sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
+    ) for i in eachindex(sch.names)
+  ]
+  # https://www.geopackage.org/spec/#r29
+  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
+  # The use of the AUTOINCREMENT keyword is optional but recommended.
+  # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
+  DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')))")
+
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
   stmt, handle = buildfeaturetableinsert!(db, sch)
@@ -433,23 +431,6 @@ function writegpkgfeaturetable!(db, rows, sch)
   end
 end
 
-function creategpkgfeaturetable!(db, sch, geomtype)
-  columns = [
-    string(
-      SQLite.esc_id(String(sch.names[i])),
-      ' ',
-      # Using SQLite flexible typing we can assign the geometry type code strings.
-      # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
-      sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
-    ) for i in eachindex(sch.names)
-  ]
-  # https://www.geopackage.org/spec/#r29
-  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
-  # The use of the AUTOINCREMENT keyword is optional but recommended.
-  # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-  DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')))")
-end
-
 function buildfeaturetableinsert!(db, sch)
   # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
   params = chop(repeat("?,", length(sch.names)))
@@ -465,7 +446,7 @@ end
 function meshes2gpkgbinary(crs, geom, extent)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
-  gpkgbinaryheader!(buff, crs, geom, extent)
+  gpkgbinaryheader!(buff, crs, extent)
   meshes2wkb!(buff, geom)
   take!(buff)
 end
@@ -479,7 +460,7 @@ _sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
 _sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
 _sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
 
-function gpkgbinaryheader!(buff, crs, geom, extent)
+function gpkgbinaryheader!(buff, crs, extent)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
   # 8-bit unsigned integer, 0 = version 1
@@ -511,7 +492,7 @@ function gpkgbinaryheader!(buff, crs, geom, extent)
   end
 end
 
-function writegpkgrteeindexes!(db, extent)
+function writegpkgrteeindexes!(db, geotable)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
@@ -526,9 +507,10 @@ function writegpkgrteeindexes!(db, extent)
   # And provides a significant performance advantage for searches with basic envelope spatial criteria
   # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
   # The index data structure needs to be manually populated, updated and queried.
-  minx, maxx, miny, maxy = extent
-  DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES (1, $minx, $maxx, $miny, $maxy)")
-
+  for (i, geom) in enumerate(domain(geotable))
+      minx, maxx, miny, maxy = gpkgextent(geom)
+      DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($i, $minx, $maxx, $miny, $maxy)")
+  end
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
   # column value to specify implementation of spatial indexes on a geometry column
