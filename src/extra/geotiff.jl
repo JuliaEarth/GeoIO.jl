@@ -2,8 +2,16 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function geotiffread(fname; kwargs...)
-  geotiff = GeoTIFF.load(fname; kwargs...)
+function geotiffread(fname; layer, kwargs...)
+  raw = GeoTIFF.load(fname; kwargs...)
+  geotiff = if raw isa GeoTIFF.GeoTIFFImageIterator
+    n = length(raw)
+    layer ∈ 1:n || throw(ArgumentError("layer $layer is out of bounds. File has $n layers."))
+    layer == 1 && @warn "File contains $n layers. Loading layer 1 by default."
+    first(Iterators.drop(raw, layer - 1))
+  else
+    raw
+  end
 
   # raw image
   img = GeoTIFF.image(geotiff)
