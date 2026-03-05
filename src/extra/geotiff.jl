@@ -3,13 +3,13 @@
 # ------------------------------------------------------------------
 
 function geotiffread(fname; layer, kwargs...)
-  raw = GeoTIFF.load(fname; kwargs...)
-  geotiff = if raw isa GeoTIFF.GeoTIFFImageIterator
-    nlayers = length(raw)
+  data = GeoTIFF.load(fname; kwargs...)
+  geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
+    nlayers = length(data)
     1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
-    Iterators.drop(raw, layer - 1) |> first
+    Iterators.drop(data, layer - 1) |> first
   else
-    raw
+    data
   end
 
   # raw image
