@@ -46,6 +46,18 @@
     @test eltype(gtb.color) <: Colorant
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (100, 100)
+
+    # multi-layer GeoTIFF file
+    file = joinpath(datadir, "iterattor.tif")
+    gtb = @test_logs (:warn, "File contains 2 layers. Loading layer 1 by default.") GeoIO.load(file)
+    @test propertynames(gtb) == [:channel1, :channel2, :geometry]
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (91, 46)
+    gtb = GeoIO.load(file, layer=2)
+    @test propertynames(gtb) == [:channel1, :channel2, :geometry]
+    @test gtb.geometry isa TransformedGrid
+    @test size(gtb.geometry) == (69, 73)
+    @test_throws ArgumentError GeoIO.load(file, layer=3)
   end
 
   @testset "save" begin

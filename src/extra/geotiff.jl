@@ -8,7 +8,7 @@ function geotiffread(fname; layer, kwargs...)
     n = length(raw)
     layer ∈ 1:n || throw(ArgumentError("layer $layer is out of bounds. File has $n layers."))
     layer == 1 && @warn "File contains $n layers. Loading layer 1 by default."
-    first(Iterators.drop(raw, layer - 1))
+    Iterators.drop(raw, layer - 1) |> first
   else
     raw
   end
