@@ -518,14 +518,15 @@ function gpkgextent(dom)
   bbox = boundingbox(dom)
   cmin = coords(minimum(bbox))
   cmax = coords(maximum(bbox))
-  Float64.(gpkgextent(cmin, cmax))
+  exts = gpkgextent(cmin, cmax)
+  Float64.(ustrip.(exts))
 end
 
-gpkgextent(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
-gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
-gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
+gpkgextent(cmin::LatLon, cmax::LatLon) = (cmin.lon, cmax.lon, cmin.lat, cmax.lat)
+gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = (cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt)
+gpkgextent(cmin::Projected, cmax::Projected) = (cmin.x, cmax.x, cmin.y, cmax.y)
+gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = (cmin.x, cmax.x, cmin.y, cmax.y)
+gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = (cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z)
 
 gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
