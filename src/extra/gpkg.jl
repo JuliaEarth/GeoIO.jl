@@ -368,12 +368,14 @@ end
 
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
-  geomtype = sqlgeomtype(dom)
   tab = values(geotable)
+  CRS = crs(dom)
+  geomtype = sqlgeomtype(dom)
+
   rows = if isnothing(tab)
-    [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom]
+    [(; geometry=meshes2gpkgbinary(CRS, geom, gpkgextent(dom)),) for geom in dom]
   else
-    [(; t..., geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom))) for (t, g) in zip(Tables.rowtable(tab), dom)]
+    [(; row..., geometry=meshes2gpkgbinary(CRS, geom, gpkgextent(dom))) for (row, geom) in zip(Tables.rows(tab), dom)]
   end
   sch = Tables.schema(rows)
   columns = [
