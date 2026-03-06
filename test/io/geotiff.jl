@@ -48,7 +48,7 @@
     @test size(gtb.geometry) == (100, 100)
 
     # multi-layer GeoTIFF file
-    file = joinpath(datadir, "iterattor.tif")
+    file = joinpath(datadir, "iterator.tif")
     gtb = GeoIO.load(file)
     @test propertynames(gtb) == [:channel1, :channel2, :geometry]
     @test gtb.geometry isa TransformedGrid
