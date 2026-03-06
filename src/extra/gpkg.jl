@@ -292,12 +292,6 @@ function writegpkgspatialrefsys!(db, geotable)
   end
 end
 
-gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
-gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
-
-gpkgsrsid(crs) = CoordRefSystems.integer(CoordRefSystems.code(crs))
-gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
-
 function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
   srsid = gpkgsrsid(crs(dom))
@@ -543,3 +537,9 @@ gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin
 gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
 gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
+
+gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
+gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
+
+gpkgsrsid(CRS) = CoordRefSystems.integer(CoordRefSystems.code(CRS))
+gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
