@@ -425,46 +425,6 @@ function buildfeaturetableinsert!(db, sch)
   stmt, SQLite._get_stmt_handle(stmt)
 end
 
-function meshes2gpkgbinary(crs, geom, extent)
-  # store feature geometry in SQL BLOB specified by GeoPackageBinary format
-  buff = IOBuffer()
-  gpkgbinaryheader!(buff, crs, extent)
-  meshes2wkb!(buff, geom)
-  take!(buff)
-end
-
-function gpkgbinaryheader!(buff, crs, extent)
-  # 'GP' in ASCII
-  write(buff, [0x47, 0x50])
-  # 8-bit unsigned integer, 0 = version 1
-  write(buff, zero(UInt8))
-
-  if CoordRefSystems.ncoords(crs) == 3
-    # bit layout of GeoPackageBinary flags byte indicates:
-    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
-    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
-    write(buff, 0b00000101)
-  else
-    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
-    write(buff, 0b00000011)
-  end
-
-  # write the SRS ID, with the endianness specified by the byte order flag
-  write(buff, htol(Int32(gpkgsrsid(crs))))
-
-  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
-  # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(extent[1])))
-  write(buff, htol(Float64(extent[2])))
-  write(buff, htol(Float64(extent[3])))
-  write(buff, htol(Float64(extent[4])))
-  if CoordRefSystems.ncoords(crs) == 3
-    # [..., minz, maxz]
-    write(buff, htol(Float64(extent[5])))
-    write(buff, htol(Float64(extent[6])))
-  end
-end
-
 function writegpkgrteeindexes!(db, geotable)
   # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
@@ -512,6 +472,46 @@ function creategpkgextensions(db)
     VALUES ('features', 'geometry', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')
     """
   )
+end
+
+function meshes2gpkgbinary(crs, geom, extent)
+  # store feature geometry in SQL BLOB specified by GeoPackageBinary format
+  buff = IOBuffer()
+  gpkgbinaryheader!(buff, crs, extent)
+  meshes2wkb!(buff, geom)
+  take!(buff)
+end
+
+function gpkgbinaryheader!(buff, crs, extent)
+  # 'GP' in ASCII
+  write(buff, [0x47, 0x50])
+  # 8-bit unsigned integer, 0 = version 1
+  write(buff, zero(UInt8))
+
+  if CoordRefSystems.ncoords(crs) == 3
+    # bit layout of GeoPackageBinary flags byte indicates:
+    # The geometry header includes an envelope [minx, maxx, miny, maxy, minz, maxz]
+    # and Little Endian (least significant byte first) is the byte order used for SRS ID and envelope values in the header
+    write(buff, 0b00000101)
+  else
+    # The geometry header includes an envelope [minx, maxx, miny, maxy] and least significant byte first is the byte order
+    write(buff, 0b00000011)
+  end
+
+  # write the SRS ID, with the endianness specified by the byte order flag
+  write(buff, htol(Int32(gpkgsrsid(crs))))
+
+  # write the envelope for all content in GeoPackage SQL Geometry Binary Format
+  # [minx, maxx, miny, maxy]
+  write(buff, htol(Float64(extent[1])))
+  write(buff, htol(Float64(extent[2])))
+  write(buff, htol(Float64(extent[3])))
+  write(buff, htol(Float64(extent[4])))
+  if CoordRefSystems.ncoords(crs) == 3
+    # [..., minz, maxz]
+    write(buff, htol(Float64(extent[5])))
+    write(buff, htol(Float64(extent[6])))
+  end
 end
 
 function gpkgextent(dom)
