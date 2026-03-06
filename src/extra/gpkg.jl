@@ -499,18 +499,18 @@ function gpkgbinaryheader!(buff, crs, extent)
   end
 
   # write the SRS ID, with the endianness specified by the byte order flag
-  write(buff, htol(Int32(gpkgsrsid(crs))))
+  write(buff, htol(gpkgsrsid(crs)))
 
   # write the envelope for all content in GeoPackage SQL Geometry Binary Format
   # [minx, maxx, miny, maxy]
-  write(buff, htol(Float64(extent[1])))
-  write(buff, htol(Float64(extent[2])))
-  write(buff, htol(Float64(extent[3])))
-  write(buff, htol(Float64(extent[4])))
+  write(buff, htol(extent[1]))
+  write(buff, htol(extent[2]))
+  write(buff, htol(extent[3]))
+  write(buff, htol(extent[4]))
   if CoordRefSystems.ncoords(crs) == 3
     # [..., minz, maxz]
-    write(buff, htol(Float64(extent[5])))
-    write(buff, htol(Float64(extent[6])))
+    write(buff, htol(extent[5]))
+    write(buff, htol(extent[6]))
   end
 end
 
@@ -518,7 +518,7 @@ function gpkgextent(dom)
   bbox = boundingbox(dom)
   cmin = coords(minimum(bbox))
   cmax = coords(maximum(bbox))
-  gpkgextent(cmin, cmax)
+  Float64.(gpkgextent(cmin, cmax))
 end
 
 gpkgextent(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
@@ -530,8 +530,8 @@ gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin
 gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
-gpkgsrsid(CRS) = CoordRefSystems.integer(CoordRefSystems.code(CRS))
-gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
+gpkgsrsid(CRS) = Int32(CoordRefSystems.integer(CoordRefSystems.code(CRS)))
+gpkgsrsid(::Type{T}) where {T<:Cartesian} = Int32(-1)
 
 sqlgeomtype(dom::Domain) = sqlgeomtype(eltype(dom))
 sqlgeomtype(::Type{<:Point}) = "POINT"
