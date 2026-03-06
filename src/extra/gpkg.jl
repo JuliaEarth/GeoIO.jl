@@ -331,12 +331,10 @@ end
 
 function writegpkggeomcolumns!(db, geotable)
   dom = domain(geotable)
-  srs = crs(dom)
-  srsid = gpkgsrsid(srs)
-  geomtype = _sqlgeomtype(eltype(dom))
-  # 0: z values prohibited; 1: z values mandatory;
-  # (x,y{,z}) where x is easting or longitude, y is northing or latitude, and z is optional elevation
-  z = CoordRefSystems.ncoords(srs) > 2 ? 1 : 0
+  geomtype = sqlgeomtype(dom)
+  CRS = crs(dom)
+  srsid = gpkgsrsid(CRS)
+  z = CoordRefSystems.ncoords(CRS) > 2 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
   # A  GeoPackage with a gpkg_contents table row with a "features" data_type
@@ -370,7 +368,7 @@ end
 
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
-  geomtype = _sqlgeomtype(eltype(dom))
+  geomtype = sqlgeomtype(dom)
   tab = values(geotable)
   rows = if isnothing(tab)
     [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom]
@@ -435,14 +433,15 @@ function meshes2gpkgbinary(crs, geom, extent)
   take!(buff)
 end
 
-_sqlgeomtype(::Type{<:Point}) = "POINT"
-_sqlgeomtype(::Type{<:Chain}) = "LINESTRING"
-_sqlgeomtype(::Type{<:Polygon}) = "POLYGON"
-_sqlgeomtype(::Type{<:MultiPoint}) = "MULTIPOINT"
-_sqlgeomtype(::Type{<:MultiChain}) = "MULTILINESTRING"
-_sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
-_sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
-_sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
+sqlgeomtype(dom::Domain) = sqlgeomtype(eltype(dom))
+sqlgeomtype(::Type{<:Point}) = "POINT"
+sqlgeomtype(::Type{<:Chain}) = "LINESTRING"
+sqlgeomtype(::Type{<:Polygon}) = "POLYGON"
+sqlgeomtype(::Type{<:MultiPoint}) = "MULTIPOINT"
+sqlgeomtype(::Type{<:MultiChain}) = "MULTILINESTRING"
+sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
+sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
+sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
 
 function gpkgbinaryheader!(buff, crs, extent)
   # 'GP' in ASCII
