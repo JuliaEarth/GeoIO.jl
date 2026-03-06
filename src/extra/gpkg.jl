@@ -95,7 +95,7 @@ function gpkgextract(db; layer=1)
   # According to https://www.geopackage.org/spec/#r27
   # The z value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
   # 0: z values prohibited; 1: z values mandatory; 2: z values optional
-  crs = gpkgcrs(isone(metadata.z), srsid; org=org, code=code)
+  CRS = gpkgcrs(isone(metadata.z), srsid; org=org, code=code)
 
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
@@ -135,7 +135,7 @@ function gpkgextract(db; layer=1)
       skipgpkgheader!(buff)
 
       # convert WKB geometry into Meshes.jl geometry
-      wkb2meshes(buff, crs)
+      wkb2meshes(buff, CRS)
     end
 
     # return row as named tuple with geometry
