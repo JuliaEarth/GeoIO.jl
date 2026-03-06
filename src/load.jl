@@ -148,7 +148,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
 
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-    return geotiffread(fname; kwargs...)
+    return geotiffread(fname; layer, kwargs...)
   end
 
   # CDM formats
