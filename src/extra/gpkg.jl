@@ -294,8 +294,8 @@ end
 
 function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
-  srsid = gpkgsrsid(crs(dom))
   minx, maxx, miny, maxy = gpkgextent(dom)
+  srsid = gpkgsrsid(crs(dom))
 
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
