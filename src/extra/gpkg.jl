@@ -433,16 +433,6 @@ function meshes2gpkgbinary(crs, geom, extent)
   take!(buff)
 end
 
-sqlgeomtype(dom::Domain) = sqlgeomtype(eltype(dom))
-sqlgeomtype(::Type{<:Point}) = "POINT"
-sqlgeomtype(::Type{<:Chain}) = "LINESTRING"
-sqlgeomtype(::Type{<:Polygon}) = "POLYGON"
-sqlgeomtype(::Type{<:MultiPoint}) = "MULTIPOINT"
-sqlgeomtype(::Type{<:MultiChain}) = "MULTILINESTRING"
-sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
-sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
-sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
-
 function gpkgbinaryheader!(buff, crs, extent)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
@@ -542,3 +532,13 @@ gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(CRS) = CoordRefSystems.integer(CoordRefSystems.code(CRS))
 gpkgsrsid(::Type{T}) where {T<:Cartesian} = -1
+
+sqlgeomtype(dom::Domain) = sqlgeomtype(eltype(dom))
+sqlgeomtype(::Type{<:Point}) = "POINT"
+sqlgeomtype(::Type{<:Chain}) = "LINESTRING"
+sqlgeomtype(::Type{<:Polygon}) = "POLYGON"
+sqlgeomtype(::Type{<:MultiPoint}) = "MULTIPOINT"
+sqlgeomtype(::Type{<:MultiChain}) = "MULTILINESTRING"
+sqlgeomtype(::Type{<:MultiPolygon}) = "MULTIPOLYGON"
+sqlgeomtype(::Type{<:Multi}) = "GEOMETRYCOLLECTION"
+sqlgeomtype(::Type{<:Geometry}) = "GEOMETRY"
