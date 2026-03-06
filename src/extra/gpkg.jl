@@ -238,21 +238,10 @@ function writegpkgtables!(db, geotable)
   end
 end
 
-function gpkgextent(dom)
-  bbox = boundingbox(dom)
-  cmin = coords(minimum(bbox))
-  cmax = coords(maximum(bbox))
-  gpkgextent(cmin, cmax)
-end
-
-gpkgextent(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
-gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
-gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
-gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
-
 function writegpkgspatialrefsys!(db, geotable)
-  srs = crs(domain(geotable))
+  CRS = crs(domain(geotable))
+  srsid = gpkgsrsid(CRS)
+
   # According to https://www.geopackage.org/spec/#r10
   # A GeoPackage SHALL include a gpkg_spatial_ref_sys table
   DBInterface.execute(
@@ -286,9 +275,9 @@ function writegpkgspatialrefsys!(db, geotable)
     """
   )
 
-  # Insert non-existing CRS record into gpkg_spatial_ref_sys table.
-  if gpkgsrsid(srs) != 4326 && gpkgsrsid(srs) > 0
-    org, srsid, srswkt = gpkgspatialrefsys(srs)
+  # insert non-existing CRS record into gpkg_spatial_ref_sys table.
+  if srsid != 4326 && srsid > 0
+    org, srsid, srswkt = gpkgspatialrefsys(CRS)
     # According to https://www.geopackage.org/spec/#r115
     # This conforms to the Well-Known Text for Coordinate Reference Systems extension
     # the gpkg_spatial_ref_sys table SHALL have an additional column called definition_12_063
@@ -313,6 +302,7 @@ function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
   srsid = gpkgsrsid(crs(dom))
   minx, maxx, miny, maxy = gpkgextent(dom)
+
   # According to https://www.geopackage.org/spec/#r13
   # A GeoPackage SHALL include a gpkg_contents table
   DBInterface.execute(
@@ -540,3 +530,16 @@ function creategpkgextensions(db)
     """
   )
 end
+
+function gpkgextent(dom)
+  bbox = boundingbox(dom)
+  cmin = coords(minimum(bbox))
+  cmax = coords(maximum(bbox))
+  gpkgextent(cmin, cmax)
+end
+
+gpkgextent(cmin::LatLon, cmax::LatLon) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat))
+gpkgextent(cmin::LatLonAlt, cmax::LatLonAlt) = ustrip.((cmin.lon, cmax.lon, cmin.lat, cmax.lat, cmin.alt, cmax.alt))
+gpkgextent(cmin::Projected, cmax::Projected) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y))
+gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = ustrip.((cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z))
