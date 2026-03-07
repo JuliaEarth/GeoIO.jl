@@ -223,6 +223,7 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
+  DBInterface.execute(db, "PRAGMA synchronous = OFF")
   SQLite.transaction(db) do
     # required metadata tables and metadata table
     # that identifies geometry columns and types
@@ -236,6 +237,7 @@ function writegpkgtables!(db, geotable)
     # create and insert vector feature user data tables
     writegpkgfeaturetable!(db, geotable)
   end
+  DBInterface.execute(db, "PRAGMA synchronous = ON")
 end
 
 function writegpkgspatialrefsys!(db, geotable)
@@ -369,35 +371,32 @@ end
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
   geomtype = sqlgeomtype(dom)
-  tab = values(geotable)
-  rows = if isnothing(tab)
-    [(; geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom)),) for g in dom]
-  else
-    [(; t..., geometry=meshes2gpkgbinary(crs(dom), g, gpkgextent(dom))) for (t, g) in zip(Tables.rowtable(tab), dom)]
+  sch = Tables.schema(Tables.rows(geotable))
+  columndefs = map(zip(sch.names, sch.types)) do (name, type)
+    if name != :geometry
+      "$(SQLite.esc_id(String(name))) $(SQLite.sqlitetype(type))"
+    else
+      "geometry $geomtype"
+    end
   end
-  sch = Tables.schema(rows)
-  columns = [
-    string(
-      SQLite.esc_id(String(sch.names[i])),
-      ' ',
-      # Using SQLite flexible typing we can assign the geometry type code strings.
-      # Thus for the Well-Known Binary Geometry SQL BLOBs we can assign appropriate datatypes.
-      sch.names[i] != :geometry ? SQLite.sqlitetype(sch.types !== nothing ? sch.types[i] : Any) : geomtype
-    ) for i in eachindex(sch.names)
-  ]
+
   # https://www.geopackage.org/spec/#r29
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-  DBInterface.execute(db, "CREATE TABLE features ($(join(columns, ',')))")
+  DBInterface.execute(db, "CREATE TABLE features ($(join(columndefs, ',')))")
 
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
   stmt, handle = buildfeaturetableinsert!(db, sch)
-  for row in rows
+  for row in Tables.rows(geotable)
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
-      SQLite.bind!(stmt, col, val)
+      if typeof(val) <: Geometry
+          SQLite.bind!(stmt, col, meshes2gpkgbinary(crs(dom), val, gpkgextent(val)))
+      else
+          SQLite.bind!(stmt, col, val)
+      end
     end
     # executes the prepared statement and GC.@preserve prevents the 'row' object from being garbage collected
     r = GC.@preserve row SQLite.C.sqlite3_step(handle)
