@@ -256,7 +256,6 @@ function writegpkgspatialrefsys!(db, geotable)
       organization_coordsys_id INTEGER NOT NULL,
       definition               TEXT    NOT NULL,
       description              TEXT,
-      definition_12_063        TEXT NOT NULL
     )
     """
   )
@@ -270,10 +269,10 @@ function writegpkgspatialrefsys!(db, geotable)
     db,
     """
     INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-      (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-    VALUES ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system', 'undefined'),
-      ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid', 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]')
+      (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
+    VALUES ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system'),
+      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system'),
+      ('WGS 84 geodectic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid')
     """
   )
 
@@ -287,8 +286,8 @@ function writegpkgspatialrefsys!(db, geotable)
       db,
       """
       INSERT OR REPLACE INTO gpkg_spatial_ref_sys
-        (srs_name, srs_id, organization, organization_coordsys_id, definition, description, definition_12_063)
-      VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '', '$srswkt')
+        (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
+      VALUES ('', '$srsid', '$org', '$srsid', '$srswkt', '')
       """
     )
   end
