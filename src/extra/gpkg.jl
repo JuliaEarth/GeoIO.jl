@@ -255,7 +255,7 @@ function writegpkgspatialrefsys!(db, geotable)
       organization             TEXT    NOT NULL,
       organization_coordsys_id INTEGER NOT NULL,
       definition               TEXT    NOT NULL,
-      description              TEXT,
+      description              TEXT
     )
     """
   )
