@@ -225,7 +225,7 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
-  SQLite.transaction(db) do
+  DBInterface.transaction(db) do
     # required metadata tables and metadata table
     # that identifies geometry columns and types
     writegpkgspatialrefsys!(db, geotable)
@@ -400,7 +400,7 @@ function writegpkgfeaturetable!(db, geotable)
   # write rows of geotable to database
   for row in Tables.rows(geotable)
     # bind the values of the current row to the prepared SQL statement
-    values = map(enumerate(Tables.columnnames(row))) do (id, col)
+    params = map(enumerate(Tables.columnnames(row))) do (id, col)
         val = Tables.getcolumn(row, col)
         if typeof(val) <: Geometry
             extents = gpkgextent(val)
@@ -415,7 +415,7 @@ function writegpkgfeaturetable!(db, geotable)
             val
         end
     end
-    DBInterface.execute(stmt, values)
+    DBInterface.execute(stmt, params)
   end
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
