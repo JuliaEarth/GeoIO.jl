@@ -330,7 +330,7 @@ end
 
 function writegpkggeomcolumns!(db, geotable)
   dom = domain(geotable)
-  geomtype = sqlgeomtype(dom)
+  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
   srsid = gpkgsrsid(CRS)
   z = CoordRefSystems.ncoords(CRS) == 3 ? 1 : 0
@@ -360,14 +360,14 @@ function writegpkggeomcolumns!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_geometry_columns
       (table_name, column_name, geometry_type_name, srs_id, z, m)
-    VALUES ('features', 'geometry', '$geomtype', $srsid, $z, 0)
+    VALUES ('features', 'geometry', '$gtype', $srsid, $z, 0)
     """
   )
 end
 
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
-  geomtype = sqlgeomtype(dom)
+  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
 
   sch = Tables.schema(geotable)
@@ -404,20 +404,21 @@ function writegpkgfeaturetable!(db, geotable)
     # bind the values of the current row to the prepared SQL statement
     params = map(enumerate(Tables.columnnames(row))) do (id, col)
         val = Tables.getcolumn(row, col)
-        if typeof(val) <: Geometry
-            extents = gpkgextent(val)
+        if val isa Geometry
+            extent = gpkgextent(val)
             # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
             # This implementation does not define triggers to maintain the R-tree spatial indexes
             # The index data structure needs to be manually populated, updated and queried.
-            DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($id, $(extents[1]), $(extents[2]), $(extents[3]), $(extents[4]))")
+            DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($id, $(extent[1]), $(extent[2]), $(extent[3]), $(extent[4]))")
             # convert Meshes.Geometry to GeoPackageBinary SQL Geometry BLOB
-            meshes2gpkgbinary(CRS, val, extents)
+            meshes2gpkgbinary(CRS, val, extent)
         else
             val
         end
     end
     DBInterface.execute(stmt, params)
   end
+
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
   # column value to specify implementation of spatial indexes on a geometry column
