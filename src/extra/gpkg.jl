@@ -381,7 +381,7 @@ function writegpkgfeaturetable!(db, geotable)
     if name == :geometry
       "geometry $geomtype"
     else
-      "$(SQLite.esc_id(String(name))) $(SQLite.sqlitetype(type))"
+      "$(SQLite.esc_id(string(name))) $(SQLite.sqlitetype(type))"
     end
   end
   DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
