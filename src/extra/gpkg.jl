@@ -402,7 +402,7 @@ function writegpkgfeaturetable!(db, geotable)
         SQLite.bind!(stmt, col, val)
       end
     end
-    # executes the prepared statement and GC.@preserve prevents the 'row' object from being garbage collected
+    # GC.@preserve prevents the 'row' object from being garbage collected
     r = GC.@preserve row SQLite.C.sqlite3_step(handle)
     if r == SQLite.C.SQLITE_DONE
       # insertion successful, reset for next execution
