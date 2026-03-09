@@ -377,14 +377,14 @@ function writegpkgfeaturetable!(db, geotable)
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
   sch = Tables.schema(geotable)
-  colnames = map(zip(sch.names, sch.types)) do (name, type)
+  coldefs = map(zip(sch.names, sch.types)) do (name, type)
     if name == :geometry
       "geometry $geomtype"
     else
       "$(SQLite.esc_id(String(name))) $(SQLite.sqlitetype(type))"
     end
   end
-  DBInterface.execute(db, "CREATE TABLE features ($(join(colnames, ',')))")
+  DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
 
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
