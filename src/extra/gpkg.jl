@@ -211,14 +211,15 @@ function gpkgwrite(fname, geotable)
   DBInterface.execute(db, "PRAGMA application_id = 0x47504B47")
   DBInterface.execute(db, "PRAGMA user_version = 10400")
 
-  # write GPKG tables to database
+  # setting synchronous to OFF is a good option when creating a new database from scratch
+  # see SQLite documentation https://sqlite.org/pragma.html#pragma_synchronous
   DBInterface.execute(db, "PRAGMA synchronous = OFF")
+  # write GPKG tables to database
   writegpkgtables!(db, geotable)
-  DBInterface.execute(db, "PRAGMA synchronous = ON")
 
-  # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should
   # run "PRAGMA optimize;" just once, prior to closing each database connection.
+  # See SQLite documentation https://sqlite.org/pragma.html#pragma_optimize
   DBInterface.execute(db, "PRAGMA optimize")
 
   DBInterface.close!(db)
@@ -292,7 +293,7 @@ end
 
 function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
-  minx, maxx, miny, maxy = gpkgextent(dom)
+  extents = gpkgextent(dom)
   srsid = gpkgsrsid(crs(dom))
 
   # According to https://www.geopackage.org/spec/#r13
@@ -322,7 +323,7 @@ function writegpkgcontents!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_contents
       (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
-    VALUES ('features', 'features', 'features', $minx, $miny, $maxx, $maxy, $srsid)
+    VALUES ('features', 'features', 'features', $extents[1], $extents[3], $extents[2], $extents[4], $srsid)
     """
   )
 end
@@ -332,7 +333,7 @@ function writegpkggeomcolumns!(db, geotable)
   geomtype = sqlgeomtype(dom)
   CRS = crs(dom)
   srsid = gpkgsrsid(CRS)
-  z = CoordRefSystems.ncoords(CRS) > 2 ? 1 : 0
+  z = CoordRefSystems.ncoords(CRS) == 3 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
   # A GeoPackage with a gpkg_contents table row with a
@@ -378,12 +379,13 @@ function writegpkgfeaturetable!(db, geotable)
     end
   end
 
-  # https://www.geopackage.org/spec/#r29
-  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias
-  # The primary key column using the AUTOINCREMENT keyword is avoided as it is optional and imposes extra overhead
+  # See sample feature table defintion here https://www.geopackage.org/spec/#example_feature_table_sql
+  # This implementation omits the AUTOINCREMENT keyword in the feature table definition
+  # with the understanding that doing so has the potential to allow primary key identifiers to be reused
+  # See specification note https://www.geopackage.org/spec/#K6a
   DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
 
-    # https://www.geopackage.org/spec/#r77
+  # According to https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
   DBInterface.execute(
@@ -405,8 +407,7 @@ function writegpkgfeaturetable!(db, geotable)
         if typeof(val) <: Geometry
             extents = gpkgextent(val)
             # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
-            # And provides a significant performance advantage for searches with basic envelope spatial criteria
-            # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
+            # This implementation does not define triggers to maintain the R-tree spatial indexes
             # The index data structure needs to be manually populated, updated and queried.
             DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($id, $(extents[1]), $(extents[2]), $(extents[3]), $(extents[4]))")
             # convert Meshes.Geometry to GeoPackageBinary SQL Geometry BLOB
