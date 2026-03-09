@@ -204,6 +204,10 @@ function gpkgwrite(fname, geotable)
   # initialize database
   db = SQLite.DB(fname)
 
+  # setting synchronous to OFF is a good option when creating a new database from scratch
+  # see SQLite documentation https://sqlite.org/pragma.html#pragma_synchronous
+  DBInterface.execute(db, "PRAGMA synchronous = OFF")
+
   # According to https://www.geopackage.org/spec/#r2
   # A GeoPackage SHALL contain a value of 0x47504B47 ("GPKG" in ASCII)
   # in the "application_id" field and an appropriate value in "user_version"
@@ -211,9 +215,6 @@ function gpkgwrite(fname, geotable)
   DBInterface.execute(db, "PRAGMA application_id = 0x47504B47")
   DBInterface.execute(db, "PRAGMA user_version = 10400")
 
-  # setting synchronous to OFF is a good option when creating a new database from scratch
-  # see SQLite documentation https://sqlite.org/pragma.html#pragma_synchronous
-  DBInterface.execute(db, "PRAGMA synchronous = OFF")
   # write GPKG tables to database
   writegpkgtables!(db, geotable)
 
@@ -293,7 +294,7 @@ end
 
 function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
-  extents = gpkgextent(dom)
+  extent = gpkgextent(dom)
   srsid = gpkgsrsid(crs(dom))
 
   # According to https://www.geopackage.org/spec/#r13
@@ -323,7 +324,7 @@ function writegpkgcontents!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_contents
       (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
-    VALUES ('features', 'features', 'features', $extents[1], $extents[3], $extents[2], $extents[4], $srsid)
+    VALUES ('features', 'features', 'features', $extent[1], $extent[3], $extent[2], $extent[4], $srsid)
     """
   )
 end
@@ -367,13 +368,12 @@ end
 
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
-  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
 
   sch = Tables.schema(geotable)
   coldefs = map(zip(sch.names, sch.types)) do (name, type)
     if name == :geometry
-      "geometry $geomtype"
+      "geometry $(sqlgeomtype(dom))"
     else
       "$(SQLite.esc_id(string(name))) $(SQLite.sqlitetype(type))"
     end
