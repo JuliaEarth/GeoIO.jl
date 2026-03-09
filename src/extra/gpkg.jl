@@ -483,6 +483,7 @@ end
 function gpkgbinaryheader!(buff, crs, extent)
   # 'GP' in ASCII
   write(buff, [0x47, 0x50])
+
   # 8-bit unsigned integer, 0 = version 1
   write(buff, zero(UInt8))
 
