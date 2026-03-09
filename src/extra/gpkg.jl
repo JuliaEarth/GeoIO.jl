@@ -329,7 +329,7 @@ end
 
 function writegpkggeomcolumns!(db, geotable)
   dom = domain(geotable)
-  geomtype = sqlgeomtype(dom)
+  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
   srsid = gpkgsrsid(CRS)
   z = CoordRefSystems.ncoords(CRS) > 2 ? 1 : 0
@@ -359,14 +359,14 @@ function writegpkggeomcolumns!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_geometry_columns
       (table_name, column_name, geometry_type_name, srs_id, z, m)
-    VALUES ('features', 'geometry', '$geomtype', $srsid, $z, 0)
+    VALUES ('features', 'geometry', '$gtype', $srsid, $z, 0)
     """
   )
 end
 
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
-  geomtype = sqlgeomtype(dom)
+  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
 
   # https://www.geopackage.org/spec/#r29
@@ -375,7 +375,7 @@ function writegpkgfeaturetable!(db, geotable)
   sch = Tables.schema(geotable)
   coldefs = map(zip(sch.names, sch.types)) do (name, type)
     if name == :geometry
-      "geometry $geomtype"
+      "geometry $gtype"
     else
       "$(SQLite.esc_id(string(name))) $(SQLite.sqlitetype(type))"
     end
