@@ -386,9 +386,13 @@ function writegpkgfeaturetable!(db, geotable)
   end
   DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
 
-  # prepared sql statement and the handle
-  # to hold references to values in the statement to be bound by `SQLite.bind!`
-  stmt, handle = buildfeaturetableinsert!(db, sch)
+  # prepared sql statement and handle
+  vars = join(SQLite.esc_id.(string.(sch.names)), ",")
+  vals = join(repeat("?", length(sch.names)), ",")
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
+  handle = SQLite._get_stmt_handle(stmt)
+
+  # write rows of geotable to database
   for row in Tables.rows(geotable)
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
@@ -410,18 +414,6 @@ function writegpkgfeaturetable!(db, geotable)
       throw(SQLite.sqliteexception(db, stmt))
     end
   end
-end
-
-function buildfeaturetableinsert!(db, sch)
-  # generate the SQL parameter string for binding values, chop removes the last comma, resulting in "?,?,?"
-  params = chop(repeat("?,", length(sch.names)))
-  # generate the comma-separated list of escaped column names for the SQL query
-  columns = join(SQLite.esc_id.(string.(sch.names)), ",")
-  # Note: the `sql` statement is not actually executed, but only compiled
-  # mainly for usage where the same statement is executed multiple times with different parameters bound as values
-  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($columns) VALUES ($params)")
-  # _get_stmt_handle used for holding references to bound statement values via bind!
-  stmt, SQLite._get_stmt_handle(stmt)
 end
 
 function writegpkgrteeindexes!(db, geotable)
