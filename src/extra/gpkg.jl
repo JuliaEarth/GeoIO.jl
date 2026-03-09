@@ -338,8 +338,8 @@ function writegpkggeomcolumns!(db, geotable)
   z = CoordRefSystems.ncoords(CRS) > 2 ? 1 : 0
 
   # According to https://www.geopackage.org/spec/#r21
-  # A  GeoPackage with a gpkg_contents table row with a "features" data_type
-  # SHALL contain a gpkg_geometry_columns table
+  # A GeoPackage with a gpkg_contents table row with a
+  # "features" data_type SHALL contain a gpkg_geometry_columns
   DBInterface.execute(
     db,
     """
