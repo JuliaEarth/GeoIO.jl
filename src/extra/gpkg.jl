@@ -370,20 +370,21 @@ end
 function writegpkgfeaturetable!(db, geotable)
   dom = domain(geotable)
   geomtype = sqlgeomtype(dom)
-  sch = Tables.schema(Tables.rows(geotable))
-  columndefs = map(zip(sch.names, sch.types)) do (name, type)
-    if name != :geometry
-      "$(SQLite.esc_id(String(name))) $(SQLite.sqlitetype(type))"
-    else
-      "geometry $geomtype"
-    end
-  end
+  CRS = crs(dom)
 
   # https://www.geopackage.org/spec/#r29
   # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
   # The use of the AUTOINCREMENT keyword is optional but recommended.
   # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
-  DBInterface.execute(db, "CREATE TABLE features ($(join(columndefs, ',')))")
+  sch = Tables.schema(geotable)
+  colnames = map(zip(sch.names, sch.types)) do (name, type)
+    if name == :geometry
+      "geometry $geomtype"
+    else
+      "$(SQLite.esc_id(String(name))) $(SQLite.sqlitetype(type))"
+    end
+  end
+  DBInterface.execute(db, "CREATE TABLE features ($(join(colnames, ',')))")
 
   # prepared sql statement and the handle
   # to hold references to values in the statement to be bound by `SQLite.bind!`
@@ -391,10 +392,10 @@ function writegpkgfeaturetable!(db, geotable)
   for row in Tables.rows(geotable)
     # bind the values of the current row to the prepared SQL statement
     Tables.eachcolumn(sch, row) do val, col, _
-      if typeof(val) <: Geometry
-          SQLite.bind!(stmt, col, meshes2gpkgbinary(crs(dom), val, gpkgextent(val)))
+      if val isa Geometry
+        SQLite.bind!(stmt, col, meshes2gpkgbinary(CRS, val, gpkgextent(val)))
       else
-          SQLite.bind!(stmt, col, val)
+        SQLite.bind!(stmt, col, val)
       end
     end
     # executes the prepared statement and GC.@preserve prevents the 'row' object from being garbage collected
@@ -513,8 +514,8 @@ function gpkgbinaryheader!(buff, crs, extent)
   end
 end
 
-function gpkgextent(dom)
-  bbox = boundingbox(dom)
+function gpkgextent(obj)
+  bbox = boundingbox(obj)
   cmin = coords(minimum(bbox))
   cmax = coords(maximum(bbox))
   exts = gpkgextent(cmin, cmax)
