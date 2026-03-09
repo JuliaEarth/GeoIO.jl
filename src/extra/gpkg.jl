@@ -232,9 +232,6 @@ function writegpkgtables!(db, geotable)
     writegpkgcontents!(db, geotable)
     writegpkggeomcolumns!(db, geotable)
 
-    # spatial indexes on geometry columns
-    # SQLite Virtual Table R-tree extension
-    writegpkgrteeindexes!(db, geotable)
     # create and insert vector feature user data tables
     writegpkgfeaturetable!(db, geotable)
   end
@@ -372,10 +369,6 @@ function writegpkgfeaturetable!(db, geotable)
   geomtype = sqlgeomtype(dom)
   CRS = crs(dom)
 
-  # https://www.geopackage.org/spec/#r29
-  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias.
-  # The use of the AUTOINCREMENT keyword is optional but recommended.
-  # The AUTOINCREMENT keyword imposes extra overhead and should be avoided if not strictly needed.
   sch = Tables.schema(geotable)
   coldefs = map(zip(sch.names, sch.types)) do (name, type)
     if name == :geometry
@@ -384,40 +377,13 @@ function writegpkgfeaturetable!(db, geotable)
       "$(SQLite.esc_id(string(name))) $(SQLite.sqlitetype(type))"
     end
   end
+
+  # https://www.geopackage.org/spec/#r29
+  # A feature table SHALL have a primary key column of type INTEGER and that column SHALL act as a rowid alias
+  # The primary key column using the AUTOINCREMENT keyword is avoided as it is optional and imposes extra overhead
   DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
 
-  # prepared SQL statement and handle
-  vars = join(SQLite.esc_id.(string.(sch.names)), ",")
-  vals = join(repeat("?", length(sch.names)), ",")
-  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
-  handle = SQLite._get_stmt_handle(stmt)
-
-  # write rows of geotable to database
-  for row in Tables.rows(geotable)
-    # bind the values of the current row to the prepared SQL statement
-    Tables.eachcolumn(sch, row) do val, col, _
-      if val isa Geometry
-        SQLite.bind!(stmt, col, meshes2gpkgbinary(CRS, val, gpkgextent(val)))
-      else
-        SQLite.bind!(stmt, col, val)
-      end
-    end
-    # GC.@preserve prevents the 'row' object from being garbage collected
-    r = GC.@preserve row SQLite.C.sqlite3_step(handle)
-    if r == SQLite.C.SQLITE_DONE
-      # insertion successful, reset for next execution
-      SQLite.C.sqlite3_reset(handle)
-    elseif r != SQLite.C.SQLITE_ROW
-      # error occurred (e.g., SQLITE_BUSY, SQLITE_ERROR, or others).
-      # throw a Julia-specific SQLite exception after resetting the statement handle.
-      SQLite.C.sqlite3_reset(handle)
-      throw(SQLite.sqliteexception(db, stmt))
-    end
-  end
-end
-
-function writegpkgrteeindexes!(db, geotable)
-  # https://www.geopackage.org/spec/#r77
+    # https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
   # using the SQLite Virtual Table R-trees
   DBInterface.execute(
@@ -427,13 +393,29 @@ function writegpkgrteeindexes!(db, geotable)
     "CREATE VIRTUAL TABLE rtree_features_geometry USING rtree(id, minx, maxx, miny, maxy)"
   )
 
-  # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
-  # And provides a significant performance advantage for searches with basic envelope spatial criteria
-  # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
-  # The index data structure needs to be manually populated, updated and queried.
-  for (i, geom) in enumerate(domain(geotable))
-    minx, maxx, miny, maxy = gpkgextent(geom)
-    DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($i, $minx, $maxx, $miny, $maxy)")
+  # prepared SQL statement and handle
+  vars = join(SQLite.esc_id.(string.(sch.names)), ",")
+  vals = join(repeat("?", length(sch.names)), ",")
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
+  # write rows of geotable to database
+  for row in Tables.rows(geotable)
+    # bind the values of the current row to the prepared SQL statement
+    values = map(enumerate(Tables.columnnames(row))) do (id, col)
+        val = Tables.getcolumn(row, col)
+        if typeof(val) <: Geometry
+            extents = gpkgextent(val)
+            # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
+            # And provides a significant performance advantage for searches with basic envelope spatial criteria
+            # that return subsets of the rows in a feature table with a non-trivial number (thousands or more) of rows.
+            # The index data structure needs to be manually populated, updated and queried.
+            DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($id, $(extents[1]), $(extents[2]), $(extents[3]), $(extents[4]))")
+            # convert Meshes.Geometry to GeoPackageBinary SQL Geometry BLOB
+            meshes2gpkgbinary(CRS, val, extents)
+        else
+            val
+        end
+    end
+    DBInterface.execute(stmt, values)
   end
   # https://www.geopackage.org/spec/#r75
   # The "gpkg_rtree_index" extension name uses a gpkg_extensions table extension_name
