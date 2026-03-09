@@ -386,7 +386,7 @@ function writegpkgfeaturetable!(db, geotable)
   end
   DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
 
-  # prepared sql statement and handle
+  # prepared SQL statement and handle
   vars = join(SQLite.esc_id.(string.(sch.names)), ",")
   vals = join(repeat("?", length(sch.names)), ",")
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
