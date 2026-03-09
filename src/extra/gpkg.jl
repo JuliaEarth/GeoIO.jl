@@ -211,8 +211,10 @@ function gpkgwrite(fname, geotable)
   DBInterface.execute(db, "PRAGMA application_id = 0x47504B47")
   DBInterface.execute(db, "PRAGMA user_version = 10400")
 
-  # write geotable to database
+  # write GPKG tables to database
+  DBInterface.execute(db, "PRAGMA synchronous = OFF")
   writegpkgtables!(db, geotable)
+  DBInterface.execute(db, "PRAGMA synchronous = ON")
 
   # https://sqlite.org/pragma.html#pragma_optimize
   # Applications with short-lived database connections should
@@ -223,7 +225,6 @@ function gpkgwrite(fname, geotable)
 end
 
 function writegpkgtables!(db, geotable)
-  DBInterface.execute(db, "PRAGMA synchronous = OFF")
   SQLite.transaction(db) do
     # required metadata tables and metadata table
     # that identifies geometry columns and types
@@ -237,7 +238,6 @@ function writegpkgtables!(db, geotable)
     # create and insert vector feature user data tables
     writegpkgfeaturetable!(db, geotable)
   end
-  DBInterface.execute(db, "PRAGMA synchronous = ON")
 end
 
 function writegpkgspatialrefsys!(db, geotable)
