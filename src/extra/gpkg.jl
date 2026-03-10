@@ -324,7 +324,7 @@ function writegpkgcontents!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_contents
       (table_name, data_type, identifier, min_x, min_y, max_x, max_y, srs_id)
-    VALUES ('features', 'features', 'features', $extent[1], $extent[3], $extent[2], $extent[4], $srsid)
+    VALUES ('features', 'features', 'features', $(extent[1]), $(extent[3]), $(extent[2]), $(extent[4]), $srsid)
     """
   )
 end
