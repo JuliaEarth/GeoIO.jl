@@ -294,7 +294,7 @@ end
 
 function writegpkgcontents!(db, geotable)
   dom = domain(geotable)
-  extent = gpkgextent(dom)
+  extent = Float64.(gpkgextent(dom))
   srsid = gpkgsrsid(crs(dom))
 
   # According to https://www.geopackage.org/spec/#r13
@@ -405,13 +405,13 @@ function writegpkgfeaturetable!(db, geotable)
     params = map(enumerate(Tables.columnnames(row))) do (id, col)
         val = Tables.getcolumn(row, col)
         if val isa Geometry
-            extent = gpkgextent(val)
+            extent = Float32.(gpkgextent(val))
             # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
             # This implementation does not define triggers to maintain the R-tree spatial indexes
             # The index data structure needs to be manually populated, updated and queried.
             DBInterface.execute(db, "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($id, $(extent[1]), $(extent[2]), $(extent[3]), $(extent[4]))")
             # convert Meshes.Geometry to GeoPackageBinary SQL Geometry BLOB
-            meshes2gpkgbinary(CRS, val, extent)
+            meshes2gpkgbinary(CRS, val, Float64.(extent))
         else
             val
         end
@@ -495,7 +495,7 @@ function gpkgextent(obj)
   cmin = coords(minimum(bbox))
   cmax = coords(maximum(bbox))
   exts = gpkgextent(cmin, cmax)
-  Float64.(ustrip.(exts))
+  ustrip.(exts)
 end
 
 gpkgextent(cmin::LatLon, cmax::LatLon) = (cmin.lon, cmax.lon, cmin.lat, cmax.lat)
