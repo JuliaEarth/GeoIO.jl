@@ -331,8 +331,8 @@ end
 
 function writegpkggeomcolumns!(db, geotable)
   dom = domain(geotable)
-  gtype = sqlgeomtype(dom)
   CRS = crs(dom)
+  gtype = sqlgeomtype(dom)
   srsid = gpkgsrsid(CRS)
   z = CoordRefSystems.ncoords(CRS) == 3 ? 1 : 0
 
