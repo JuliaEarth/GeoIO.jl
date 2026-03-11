@@ -103,14 +103,14 @@ _wkbtype(::MultiChain) = 0x00000005
 _wkbtype(::MultiPolygon) = 0x00000006
 _wkbtype(::Multi) = 0x00000007
 
-function meshes2wkb!(buff, geom)
+function meshes2wkb!(buff, geom, is3D)
   wkbtype = _wkbtype(geom)
 
   # wkbByteOrder = Little Endian
   write(buff, one(UInt8))
 
   # wkbGeometryType
-  write(buff, wkbtype)
+  is3D ? write(buff, UInt32(wkbtype+1000)) : write(buff, wkbtype)
 
   if 1 ≤ wkbtype ≤ 3
     _meshes2wkb!(buff, geom)
@@ -118,7 +118,7 @@ function meshes2wkb!(buff, geom)
     gs = parent(geom)
     write(buff, UInt32(length(gs)))
     for g in gs
-        meshes2wkb!(buff, g)
+        meshes2wkb!(buff, g, is3D)
     end
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
