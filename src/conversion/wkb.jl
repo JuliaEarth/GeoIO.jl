@@ -2,6 +2,10 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+# -------------------------------------
+# WKB (Well-Known Binary) -> Meshes.jl
+# -------------------------------------
+
 # supports standard, extended, and ISO WKB geometry with Z dimensions (M/ZM not supported)
 function wkb2meshes(buff, crs)
   # swap bytes of coordinates if necessary
@@ -41,7 +45,7 @@ function wkb2meshes(buff, crs)
     wkb2chain(buff, crs, swapbytes)
   elseif wkbtype == 3
     wkb2poly(buff, crs, swapbytes)
-  elseif 4 ≤ wkbtype ≤ 6 # multi-geometries
+  elseif 4 ≤ wkbtype ≤ 7 # multi-geometries and geometry collections
     # do a recursive call to read inner geometries
     ngeoms = read(buff, UInt32)
     geoms = [wkb2meshes(buff, crs) for _ in 1:ngeoms]
@@ -84,5 +88,94 @@ function wkb2coords(buff, crs, swapbytes)
     crs(xyz[2], xyz[1], xyz[3])
   else
     crs(xyz...)
+  end
+end
+
+# -------------------------------------
+# Meshes.jl -> WKB (Well-Known Binary)
+# -------------------------------------
+
+_wkbtype(::Point) = 0x00000001
+_wkbtype(::Chain) = 0x00000002
+_wkbtype(::Polygon) = 0x00000003
+_wkbtype(::MultiPoint) = 0x00000004
+_wkbtype(::MultiChain) = 0x00000005
+_wkbtype(::MultiPolygon) = 0x00000006
+_wkbtype(::Multi) = 0x00000007
+
+function meshes2wkb!(buff, geom, is3D)
+  wkbtype = _wkbtype(geom)
+
+  # wkbByteOrder = Little Endian (1)
+  write(buff, one(UInt8))
+
+  # wkbGeometryType: use ISO WKB convention (+1000 for Z dimension)
+  is3D ? write(buff, UInt32(wkbtype + 1000)) : write(buff, wkbtype)
+
+  if 1 ≤ wkbtype ≤ 3
+    _meshes2wkb!(buff, geom)
+  elseif 4 ≤ wkbtype ≤ 7
+    gs = parent(geom)
+    write(buff, UInt32(length(gs)))
+    for g in gs
+      meshes2wkb!(buff, g, is3D)
+    end
+  else
+    throw(ErrorException("Unsupported WKB Geometry Type: $wkbtype"))
+  end
+end
+
+_meshes2wkb!(buff, point::Point) = _meshes2wkb!(buff, coords(point))
+
+function _meshes2wkb!(buff, c::LatLon)
+  write(buff, htol(Float64(ustrip(c.lon))))
+  write(buff, htol(Float64(ustrip(c.lat))))
+end
+
+function _meshes2wkb!(buff, c::LatLonAlt)
+  write(buff, htol(Float64(ustrip(c.lon))))
+  write(buff, htol(Float64(ustrip(c.lat))))
+  write(buff, htol(Float64(ustrip(c.alt))))
+end
+
+function _meshes2wkb!(buff, c::CoordRefSystems.Projected)
+  write(buff, htol(Float64(ustrip(c.x))))
+  write(buff, htol(Float64(ustrip(c.y))))
+end
+
+function _meshes2wkb!(buff, c::Cartesian2D)
+  write(buff, htol(Float64(ustrip(c.x))))
+  write(buff, htol(Float64(ustrip(c.y))))
+end
+
+function _meshes2wkb!(buff, c::Cartesian3D)
+  write(buff, htol(Float64(ustrip(c.x))))
+  write(buff, htol(Float64(ustrip(c.y))))
+  write(buff, htol(Float64(ustrip(c.z))))
+end
+
+function _meshes2wkb!(buff, chain::Chain)
+  npoints = nvertices(chain)
+  points = vertices(chain)
+  if isclosed(chain)
+    # closed ring: repeat first point at end
+    write(buff, UInt32(npoints + 1))
+    for point in points
+      _meshes2wkb!(buff, point)
+    end
+    _meshes2wkb!(buff, first(points))
+  else
+    write(buff, UInt32(npoints))
+    for point in points
+      _meshes2wkb!(buff, point)
+    end
+  end
+end
+
+function _meshes2wkb!(buff, poly::Polygon)
+  rs = rings(poly)
+  write(buff, UInt32(length(rs)))
+  for r in rs
+    _meshes2wkb!(buff, r)
   end
 end
