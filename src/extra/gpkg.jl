@@ -52,7 +52,12 @@ function gpkgextract(db; layer=1)
       srs.organization AS org,
       srs.organization_coordsys_id AS code
     FROM gpkg_geometry_columns g
-    JOIN gpkg_spatial_ref_sys srs ON g.srs_id = srs.srs_id
+    """ *
+    # According to https://www.geopackage.org/spec/#r16
+    # Values of the gpkg_contents table srs_id column
+    # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column.
+    """
+    JOIN gpkg_spatial_ref_sys srs ON c.srs_id = srs.srs_id
     """ *
     # According to https://www.geopackage.org/spec/#r24
     # The column_name column value in a gpkg_geometry_columns row
