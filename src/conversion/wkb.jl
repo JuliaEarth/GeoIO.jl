@@ -111,7 +111,7 @@ function meshes2wkb!(buff, geom)
 
   # wkbGeometryType
   ncoords = CoordRefSystems.ncoords(crs(geom))
-  ncoords == 3 ? write(buff, wkbtype+UInt32(1000)) : write(buff, wkbtype)
+  ncoords == 3 ? write(buff, wkbtype + UInt32(1000)) : write(buff, wkbtype)
 
   if 1 ≤ wkbtype ≤ 3
     _meshes2wkb!(buff, geom)
@@ -119,7 +119,7 @@ function meshes2wkb!(buff, geom)
     gs = parent(geom)
     write(buff, UInt32(length(gs)))
     for g in gs
-        meshes2wkb!(buff, g)
+      meshes2wkb!(buff, g)
     end
   else
     throw(ErrorException("Well-Known Binary Geometry unknown: $wkbtype"))
