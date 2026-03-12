@@ -400,9 +400,11 @@ function writegpkgfeaturetable!(db, geotable)
   )
 
   # prepared SQL statement and handle
+  vars = join(SQLite.esc_id.(string.(sch.names)), ",")
+  vals = join(repeat("?", length(sch.names)), ",")
   stmt = SQLite.Stmt(
     db,
-    "INSERT OR REPLACE INTO features ($(join(SQLite.esc_id.(string.(sch.names)), ","))) VALUES ($(join(repeat("?", length(sch.names)), ",")))"
+    "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)"
   )
   # write rows of geotable to database
   for row in Tables.rows(geotable)
