@@ -275,7 +275,7 @@ function writegpkgspatialrefsys!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_spatial_ref_sys
       (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
-    VALUES ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined geographic coordinate reference system'),
+    VALUES ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined Cartesian coordinate reference systems'),
       ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system'),
       ('WGS 84 geodetic', 4326, 'EPSG', 4326, 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid')
     """
@@ -523,7 +523,10 @@ gpkgextent(cmin::Projected, cmax::Projected) = (cmin.x, cmax.x, cmin.y, cmax.y)
 gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = (cmin.x, cmax.x, cmin.y, cmax.y)
 gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = (cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z)
 
-gpkgspatialrefsys(::Type{T}) where {T<:CRS} = "EPSG", gpkgsrsid(T), CoordRefSystems.wkt2(T)
+function gpkgspatialrefsys(::Type{T}) where {T<:CRS}
+  org = CoordRefSystems.code(T) <: EPSG ? "EPSG" : "ESRI"
+  org, gpkgsrsid(T), CoordRefSystems.wkt2(T)
+end
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(CRS) = Int32(CoordRefSystems.integer(CoordRefSystems.code(CRS)))
