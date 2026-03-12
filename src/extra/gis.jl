@@ -41,7 +41,7 @@ function giswrite(fname, geotable; warn, kwargs...)
     CRS = crs(domain(geotable))
     GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
   elseif endswith(fname, ".gpkg")
-      gpkgwrite(fname, geotable)
+    gpkgwrite(fname, geotable)
   else # fallback to GDAL
     agwrite(fname, geotable; kwargs...)
   end
