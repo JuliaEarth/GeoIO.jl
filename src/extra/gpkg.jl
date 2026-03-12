@@ -407,10 +407,7 @@ function writegpkgfeaturetable!(db, geotable)
   # prepared SQL statement and handle
   vars = join(SQLite.esc_id.(string.(sch.names)), ",")
   vals = join(repeat("?", length(sch.names)), ",")
-  stmt = SQLite.Stmt(
-    db,
-    "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)"
-  )
+  stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
   # write rows of geotable to database
   for row in Tables.rows(geotable)
     # bind the values of the current row to the prepared SQL statement
@@ -523,10 +520,8 @@ gpkgextent(cmin::Projected, cmax::Projected) = (cmin.x, cmax.x, cmin.y, cmax.y)
 gpkgextent(cmin::Cartesian2D, cmax::Cartesian2D) = (cmin.x, cmax.x, cmin.y, cmax.y)
 gpkgextent(cmin::Cartesian3D, cmax::Cartesian3D) = (cmin.x, cmax.x, cmin.y, cmax.y, cmin.z, cmax.z)
 
-function gpkgspatialrefsys(::Type{T}) where {T<:CRS}
-  org = CoordRefSystems.code(T) <: EPSG ? "EPSG" : "ESRI"
-  org, gpkgsrsid(T), CoordRefSystems.wkt2(T)
-end
+gpkgspatialrefsys(::Type{T}) where {T<:CRS} =
+  CoordRefSystems.code(T) <: EPSG ? "EPSG" : "ESRI", gpkgsrsid(T), CoordRefSystems.wkt2(T)
 gpkgspatialrefsys(::Cartesian) = "NONE", -1, ""
 
 gpkgsrsid(CRS) = Int32(CoordRefSystems.integer(CoordRefSystems.code(CRS)))
