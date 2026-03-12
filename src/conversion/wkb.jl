@@ -110,7 +110,8 @@ function meshes2wkb!(buff, geom)
   write(buff, one(UInt8))
 
   # wkbGeometryType
-  CoordRefSystems.ncoords(crs(geom)) == 3 ? write(buff, wkbtype+UInt32(1000)) : write(buff, wkbtype)
+  ncoords = CoordRefSystems.ncoords(crs(geom))
+  ncoords == 3 ? write(buff, wkbtype+UInt32(1000)) : write(buff, wkbtype)
 
   if 1 ≤ wkbtype ≤ 3
     _meshes2wkb!(buff, geom)
