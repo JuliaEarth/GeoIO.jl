@@ -96,7 +96,7 @@ function gpkgextract(db; layer=1)
   # According to https://www.geopackage.org/spec/#r27
   # The z value in a gpkg_geometry_columns table row SHALL be one of 0, 1, or 2
   # 0: z values prohibited; 1: z values mandatory; 2: z values optional
-  CRS = gpkgcrs(metadata.z != 0, srsid; org=org, code=code)
+  CRS = gpkgcrs(!iszero(metadata.z), srsid; org=org, code=code)
 
   # According to https://www.geopackage.org/spec/#r14
   # The table_name column value in a gpkg_contents table row 
@@ -289,7 +289,7 @@ function writegpkgspatialrefsys!(db, geotable)
         (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
       VALUES ('', ?, ?, ?, ?, '')
       """,
-      (srsid, org, srsid, srswkt),
+      (srsid, org, srsid, srswkt)
     )
   end
 end
@@ -363,8 +363,9 @@ function writegpkggeomcolumns!(db, geotable)
     """
     INSERT OR REPLACE INTO gpkg_geometry_columns
       (table_name, column_name, geometry_type_name, srs_id, z, m)
-    VALUES ('features', 'geometry', '$gtype', $srsid, $z, 0)
-    """
+    VALUES ('features', 'geometry', ?, $srsid, $z, 0)
+    """,
+    (gtype,)
   )
 end
 
@@ -403,15 +404,12 @@ function writegpkgfeaturetable!(db, geotable)
   stmt = SQLite.Stmt(db, "INSERT OR REPLACE INTO features ($vars) VALUES ($vals)")
   # write rows of geotable to database
   for row in Tables.rows(geotable)
-    extent = nothing
     # bind the values of the current row to the prepared SQL statement
     params = map(Tables.columnnames(row)) do col
         val = Tables.getcolumn(row, col)
         if val isa Geometry
-            # The R-tree min/max x/y parameters are min- and max-value pairs (stored as 32-bit floating point numbers)
-            extent = Float32.(gpkgextent(val))
             # convert Meshes.Geometry to GeoPackageBinary SQL Geometry BLOB
-            meshes2gpkgbinary(CRS, val, Float64.(extent))
+            meshes2gpkgbinary(CRS, val, Float64.(gpkgextent(val)))
         else
             val
         end
@@ -420,11 +418,13 @@ function writegpkgfeaturetable!(db, geotable)
     # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
     # This implementation does not define triggers to maintain the R-tree spatial indexes
     # The index data structure needs to be manually populated, updated and queried.
+      # The R-tree function id parameter is the virtual table 64-bit signed integer primary key id column
     fid = SQLite.last_insert_rowid(db)
+    # The R-tree min/max x/y parameters are min- and max-value pairs (stored as 32-bit floating point numbers)
+    extent = Float32.(gpkgextent(row.geometry))
     DBInterface.execute(
       db,
-      "INSERT OR REPLACE INTO rtree_features_geometry VALUES (?, ?, ?, ?, ?)",
-      (fid, extent[1], extent[2], extent[3], extent[4]),
+      "INSERT OR REPLACE INTO rtree_features_geometry VALUES ($fid, $(extent[1]), $(extent[2]), $(extent[3]), $(extent[4]))"
     )
   end
 
@@ -462,7 +462,7 @@ function meshes2gpkgbinary(crs, geom, extent)
   # store feature geometry in SQL BLOB specified by GeoPackageBinary format
   buff = IOBuffer()
   gpkgbinaryheader!(buff, crs, extent)
-  meshes2wkb!(buff, geom, CoordRefSystems.ncoords(crs) == 3)
+  meshes2wkb!(buff, geom)
   take!(buff)
 end
 
