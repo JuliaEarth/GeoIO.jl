@@ -66,37 +66,71 @@
     @test gtb2.variable == gtb1.variable
   end
 
-  @testset "missing" begin
-    # note: GeoPackage may contain sqlite null for missing geometries
-    file1 = joinpath(datadir, "gdal_sample.gpkg")
-    file2 = tempname() * ".gpkg"
+  @testset "gpkgbinary" begin
+    # heterogeneous multi-geometries are stored as "GEOMETRYCOLLECTION" in GPKGBINARY format,
+    # but are loaded as Multi{Geometry} for convenience and consistency with other formats
+    file = joinpath(savedir, "multigeom.gpkg")
+    geoms = [
+      Multi([
+        Point(LatLon(1.0, 1.0)),
+        Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0)])),
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+        ])
+      ]),
+      Multi(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+      Multi([
+        Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+        Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+      ]),
+      Multi([
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+        ]),
+        PolyArea([
+          Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
+          Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
+        ])
+      ])
+    ]
+    gtb1 = georef(nothing, geoms)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test gtb2 == gtb1
 
-    # point2d LatLon
-    gtb1 = GeoIO.load(file1; layer=13)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    # make sure CRS is preserved when saving and loading
+    file = joinpath(savedir, "crs.gpkg")
+    geoms = [Point(WebMercator{WGS84Latest}(1.0, 1.0))]
+    gtb1 = georef(nothing, geoms)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test crs(gtb2) <: WebMercator{WGS84Latest}
+    geoms = [Point(LatLonAlt{WGS84Latest}(1.0, 1.0, 1.0))]
+    gtb1 = georef(nothing, geoms)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test crs(gtb2) <: LatLonAlt{WGS84Latest}
+    geoms = [Point(Cartesian3D{NoDatum}(1.0, 1.0, 1.0))]
+    gtb1 = georef(nothing, geoms)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    @test crs(gtb2) <: Cartesian3D{NoDatum}
 
-    # linestring2d EPSG{4326}
-    gtb1 = GeoIO.load(file1; layer=5)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
+    # make sure table values are present when geometries are missing
+    file = joinpath(datadir, "missing.gpkg")
+    gtb = GeoIO.loadvalues(file)
+    @test gtb == (id=[1, 2], identifier=["A", "B"])
 
-    # polygon2d EPSG{32631}
-    gtb1 = GeoIO.load(file1; layer=15)
-    GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
-    @test Set(names(gtb2)) == Set(names(gtb1))
-    @test gtb2.geometry == gtb1.geometry
-
-    # point3d LatLon
-    # gtb1 = GeoIO.load(file1; layer=14)
-    # GeoIO.save(file2, gtb1)
-    # gtb2 = GeoIO.load(file2)
-    # @test Set(names(gtb2)) == Set(names(gtb1))
-    # @test gtb2.geometry == gtb1.geometry
+    # chains with equal start and end points are rings
+    file = joinpath(savedir, "isclosed.gpkg")
+    geoms = [Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 2.0), LatLon(3.0, 3.0), LatLon(1.0, 1.0)]))]
+    gtb1 = georef(nothing, geoms)
+    GeoIO.save(file, gtb1)
+    gtb2 = GeoIO.load(file)
+    ring = only(gtb2.geometry)
+    @test ring isa Ring
+    @test nvertices(ring) == 3
   end
 end
