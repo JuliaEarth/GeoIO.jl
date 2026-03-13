@@ -53,18 +53,18 @@ function gpkgextract(db; layer=1)
       srs.organization_coordsys_id AS code
     FROM gpkg_geometry_columns g
     """ *
-    # According to https://www.geopackage.org/spec/#r16
-    # Values of the gpkg_contents table srs_id column
-    # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column.
-    """
-    JOIN gpkg_spatial_ref_sys srs ON c.srs_id = srs.srs_id
-    """ *
     # According to https://www.geopackage.org/spec/#r24
     # The column_name column value in a gpkg_geometry_columns row
     # SHALL be the name of a column in the table or view specified
     # by the table_name column value for that row.
     """
     JOIN gpkg_contents c ON (g.table_name = c.table_name)
+    """ *
+    # According to https://www.geopackage.org/spec/#r16
+    # Values of the gpkg_contents table srs_id column
+    # SHALL reference values in the gpkg_spatial_ref_sys table srs_id column.
+    """
+    JOIN gpkg_spatial_ref_sys srs ON c.srs_id = srs.srs_id
     """ *
     # According to https://www.geopackage.org/spec/#r23
     # gpkg_geometry_columns table_name column SHALL reference values
