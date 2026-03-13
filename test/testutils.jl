@@ -17,7 +17,7 @@ function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
   AG.GDAL.osrexporttoprojjson(spref, wktptr, options)
   unsafe_string(wktptr[])
 end
-gdalprojjsondict(code) = JSON.parse(gdalprojjsonstring(code), Dict)
+gdalprojjsondict(code) = JSON.parse(gdalprojjsonstring(code); dicttype=Dict{String, Any})
 
 # validate generated json against PROJJSON schema
 function isvalidprojjson(json)
@@ -40,6 +40,7 @@ function deltaprojjson(json1, json2; exact=false)
 
   # return full diff in case of exact comparison
   exact && return diffpaths
+
   # paths to ignore in approximate comparison
   # bbox, area, scope, ... are not required to
   # fully describe the coordinate reference system
