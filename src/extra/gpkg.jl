@@ -388,11 +388,11 @@ function writegpkgfeaturetable!(db, geotable)
     end
   end
 
-  # See sample feature table definition here https://www.geopackage.org/spec/#example_feature_table_sql
-  # This implementation omits the AUTOINCREMENT keyword in the feature table definition
-  # with the understanding that doing so has the potential to allow primary key identifiers to be reused
-  # See specification note https://www.geopackage.org/spec/#K6a
-  DBInterface.execute(db, "CREATE TABLE features ($(join(coldefs, ',')))")
+  # See example feature table definition SQL https://www.geopackage.org/spec/#example_feature_table_sql
+  # According to https://www.geopackage.org/spec/#r29
+  # A feature table SHALL have a primary key column of type INTEGER
+  # and that column SHALL act as a rowid alias
+  DBInterface.execute(db, "CREATE TABLE features (fid INTEGER PRIMARY KEY NOT NULL, $(join(coldefs, ',')))")
 
   # According to https://www.geopackage.org/spec/#r77
   # Extended GeoPackage requires spatial indexes on feature table geometry columns
@@ -421,13 +421,15 @@ function writegpkgfeaturetable!(db, geotable)
       end
     end
     DBInterface.execute(stmt, params)
+
     # The R-tree Spatial Indexes extension provides a means to encode an R-tree index for geometry values
     # This implementation does not define triggers to maintain the R-tree spatial indexes
-    # The index data structure needs to be manually populated, updated and queried.
+    # all rows within SQLite tables have a 64-bit signed integer key that uniquely identifies the row within its table
     # The R-tree function id parameter is the virtual table 64-bit signed integer primary key id column
     fid = SQLite.last_insert_rowid(db)
     # The R-tree min/max x/y parameters are min- and max-value pairs (stored as 32-bit floating point numbers)
     extent = Float32.(gpkgextent(row.geometry))
+    # The index data structure needs to be manually populated
     DBInterface.execute(
       db,
       "INSERT OR REPLACE INTO rtree_features_geometry VALUES (?, ?, ?, ?, ?)",
