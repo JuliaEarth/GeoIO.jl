@@ -1,6 +1,6 @@
 name = "GeoIO"
 uuid = "f5a160d5-e41d-4189-8b61-d57781c419e3"
-version = "1.21.5"
+version = "1.22.0"
 authors = ["Elias Carvalho <eliascarvdev@gmail.com> and contributors"]
 
 [deps]
