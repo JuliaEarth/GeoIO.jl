@@ -329,7 +329,7 @@ function projjson(CRS)
   try
     code = CoordRefSystems.code(CRS)
     jsonstr = projjsonstring(code)
-    json = JSON.parse(jsonstr; dicttype=Dict{String, Any})
+    json = JSON.parse(jsonstr)
     GFT.ProjJSON(json)
   catch
     nothing
