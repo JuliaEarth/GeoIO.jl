@@ -388,7 +388,7 @@ function writegpkgfeaturetable!(db, geotable)
     end
   end
 
-  # See sample feature table defintion here https://www.geopackage.org/spec/#example_feature_table_sql
+  # See sample feature table definition here https://www.geopackage.org/spec/#example_feature_table_sql
   # This implementation omits the AUTOINCREMENT keyword in the feature table definition
   # with the understanding that doing so has the potential to allow primary key identifiers to be reused
   # See specification note https://www.geopackage.org/spec/#K6a
