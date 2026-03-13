@@ -34,11 +34,6 @@ and are documented below.
 
 * Other options are passed to `GeoJSON.write`, see the GeoJSON.jl documentation for more details;
 
-### GeoPackage
-
-* `layername`: name of the layer where the data will be saved (default to `"data"`);
-* `options`: dictionary with options that will be passed to GDAL;
-
 ### GeoParquet
 
 * Other options are passed to `GeoParquet.write`, see the GeoParquet.jl documentation for more details;

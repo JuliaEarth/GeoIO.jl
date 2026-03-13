@@ -47,7 +47,6 @@ testfiles = [
   "io/grib.jl",
   "io/gslib.jl",
   "io/images.jl",
-  "io/kml.jl",
   "io/msh.jl",
   "io/netcdf.jl",
   "io/obj.jl",
