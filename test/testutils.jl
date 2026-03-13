@@ -56,9 +56,6 @@ function deltaprojjson(json1, json2; exact=false)
   # EC#2 (example 22248):
   # Sometimes GDAL's PROJJSON includes an optional base_crs.coordinate_system that we can't support
   push!(pathstoignore, "base_crs.coordinate_system")
-  push!(pathstoignore, "base_crs")
-  push!(pathstoignore, "conversion")
-  push!(pathstoignore, "datum")
 
   # delete paths that are irrelevant for our comparison
   for p in pathstoignore

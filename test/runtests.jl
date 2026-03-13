@@ -9,7 +9,7 @@ using FixedPointNumbers
 using Colors
 using Dates
 using Unitful
-using JSON3
+using JSON
 using JSONSchema
 import ReadVTK
 import GeoInterface as GI
