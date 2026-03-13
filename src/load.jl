@@ -50,10 +50,6 @@ and are documented below.
 
 * Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
 
-### Formats handled by GDAL (GeoPackage, KML)
-
-* Other options are passed to `ArchGDAL.read`, see the ArchGDAL.jl documentation for more details;
-
 ### OFF
 
 * `defaultcolor`: default color of the geometries if the file does not have this data

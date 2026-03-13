@@ -42,8 +42,8 @@ function giswrite(fname, geotable; warn, kwargs...)
     GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
   elseif endswith(fname, ".gpkg")
     gpkgwrite(fname, geotable)
-  else # fallback to GDAL
-    agwrite(fname, geotable; kwargs...)
+  else
+    throw(ArgumentError("unsupported file format"))
   end
 end
 
@@ -57,9 +57,8 @@ function gistable(fname; layer, numtype, kwargs...)
     return GPQ.read(fname; kwargs...)
   elseif endswith(fname, ".gpkg")
     return gpkgtable(fname; layer)
-  else # fallback to GDAL
-    data = AG.read(fname; kwargs...)
-    return AG.getlayer(data, layer - 1)
+  else
+    throw(ArgumentError("unsupported file format"))
   end
 end
 
