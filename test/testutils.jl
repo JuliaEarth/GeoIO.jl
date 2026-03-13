@@ -17,12 +17,12 @@ function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
   AG.GDAL.osrexporttoprojjson(spref, wktptr, options)
   unsafe_string(wktptr[])
 end
-gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
+gdalprojjsondict(code) = JSON.parse(gdalprojjsonstring(code), Dict)
 
 # validate generated json against PROJJSON schema
 function isvalidprojjson(json)
   path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
-  schema = Schema(JSON3.parsefile(path))
+  schema = Schema(JSON.parsefile(path))
   isvalid(schema, json)
 end
 
@@ -40,7 +40,6 @@ function deltaprojjson(json1, json2; exact=false)
 
   # return full diff in case of exact comparison
   exact && return diffpaths
-
   # paths to ignore in approximate comparison
   # bbox, area, scope, ... are not required to
   # fully describe the coordinate reference system
@@ -57,6 +56,9 @@ function deltaprojjson(json1, json2; exact=false)
   # EC#2 (example 22248):
   # Sometimes GDAL's PROJJSON includes an optional base_crs.coordinate_system that we can't support
   push!(pathstoignore, "base_crs.coordinate_system")
+  push!(pathstoignore, "base_crs")
+  push!(pathstoignore, "conversion")
+  push!(pathstoignore, "datum")
 
   # delete paths that are irrelevant for our comparison
   for p in pathstoignore
