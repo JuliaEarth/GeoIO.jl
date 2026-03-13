@@ -30,7 +30,7 @@ Additional keyword arguments are forwarded to the backends.
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on May 9, 2025:
+Below is the output generated on Mar 13, 2026:
 
 ```julia
 julia> GeoIO.formats()
