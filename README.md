@@ -30,21 +30,22 @@ Additional keyword arguments are forwarded to the backends.
 ### Supported formats
 
 To see the formats supported by GeoIO.jl, use the `formats` function.
-Below is the output generated on May 9, 2025:
+
+Below is the output generated on Mar 13, 2026:
 
 ```julia
 julia> GeoIO.formats()
 ┌───────────┬─────────────────┬───────────────┐
 │ extension │      load       │     save      │
+│  String   │     String      │    String     │
 ├───────────┼─────────────────┼───────────────┤
 │   .csv    │     CSV.jl      │    CSV.jl     │
 │ .geojson  │   GeoJSON.jl    │  GeoJSON.jl   │
-│   .gpkg   │   ArchGDAL.jl   │  ArchGDAL.jl  │
+│   .gpkg   │    GeoIO.jl     │   GeoIO.jl    │
 │   .grib   │ GRIBDatasets.jl │               │
 │  .gslib   │   GslibIO.jl    │  GslibIO.jl   │
 │   .jpeg   │   ImageIO.jl    │  ImageIO.jl   │
 │   .jpg    │   ImageIO.jl    │  ImageIO.jl   │
-│   .kml    │   ArchGDAL.jl   │               │
 │   .msh    │    GeoIO.jl     │   GeoIO.jl    │
 │    .nc    │  NCDatasets.jl  │ NCDatasets.jl │
 │   .obj    │    GeoIO.jl     │   GeoIO.jl    │
