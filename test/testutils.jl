@@ -82,19 +82,19 @@ end
 #     ".A[1]"
 #     ".B"
 function finddiffpaths(d1::AbstractDict, d2::AbstractDict, path="")
-    paths = String[]
-    allkeys = union(keys(d1), keys(d2))
-    for key in allkeys
-        newpath = isempty(path) ? string(key) : string(path, ".", key)
-        if haskey(d1, key) && haskey(d2, key)
-            if !isequalvalue(d1[key], d2[key])
-                append!(paths, finddiffpaths(d1[key], d2[key], newpath))
-            end
-        else
-            push!(paths, newpath)
-        end
-    end
-    return paths
+  paths = String[]
+  allkeys = union(keys(d1), keys(d2))
+  for key in allkeys
+      newpath = isempty(path) ? string(key) : string(path, ".", key)
+      if haskey(d1, key) && haskey(d2, key)
+          if !isequalvalue(d1[key], d2[key])
+              append!(paths, finddiffpaths(d1[key], d2[key], newpath))
+          end
+      else
+          push!(paths, newpath)
+      end
+  end
+  paths
 end
 
 function finddiffpaths(v1::Vector, v2::Vector, path)
