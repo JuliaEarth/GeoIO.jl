@@ -17,12 +17,12 @@ function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
   AG.GDAL.osrexporttoprojjson(spref, wktptr, options)
   unsafe_string(wktptr[])
 end
-gdalprojjsondict(code) = JSON3.read(gdalprojjsonstring(code), Dict)
+gdalprojjsondict(code) = JSON.parse(gdalprojjsonstring(code))
 
 # validate generated json against PROJJSON schema
 function isvalidprojjson(json)
   path = joinpath(@__DIR__, "artifacts", "projjson.schema.json")
-  schema = Schema(JSON3.parsefile(path))
+  schema = Schema(JSON.parsefile(path))
   isvalid(schema, json)
 end
 
@@ -75,17 +75,17 @@ end
 #
 # Example:
 #
-#    julia> d1 = Dict(:A=>[0,20], :B=>3, :C=>4)
-#    julia> d2 =  Dict(:A=>[10,20], :C=>4)
+#    julia> d1 = JSON.object(:A=>[0,20], :B=>3, :C=>4)
+#    julia> d2 = Dict(:A=>[10,20], :C=>4)
 #    julia> finddiffpaths(d1, d2)
 #    2-element Vector{String}:
 #     ".A[1]"
 #     ".B"
-function finddiffpaths(d1::Dict, d2::Dict, path="")
+function finddiffpaths(d1::AbstractDict, d2::AbstractDict, path="")
   paths = String[]
   allkeys = union(keys(d1), keys(d2))
   for key in allkeys
-    newpath = string(path, ".", key)
+    newpath = isempty(path) ? string(key) : string(path, ".", key)
     if haskey(d1, key) && haskey(d2, key)
       if !isequalvalue(d1[key], d2[key])
         append!(paths, finddiffpaths(d1[key], d2[key], newpath))

@@ -57,7 +57,7 @@ import GeoInterface as GI
 import GeoFormatTypes as GFT
 
 # PROJJSON CRS
-import JSON3
+import JSON
 
 # VTK extensions
 const VTKEXTS = [".vtu", ".vtp", ".vtr", ".vts", ".vti"]
