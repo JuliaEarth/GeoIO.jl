@@ -87,9 +87,8 @@ function finddiffpaths(d1::AbstractDict, d2::AbstractDict, path="")
     for key in allkeys
         newpath = isempty(path) ? string(key) : string(path, ".", key)
         if haskey(d1, key) && haskey(d2, key)
-            diffs = finddiffpaths(d1[key], d2[key], newpath)
-            if !isnothing(diffs)
-                append!(paths, diffs)
+            if !isequalvalue(d1[key], d2[key])
+                append!(paths, finddiffpaths(d1[key], d2[key], newpath))
             end
         else
             push!(paths, newpath)
