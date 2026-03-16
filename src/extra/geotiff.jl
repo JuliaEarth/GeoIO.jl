@@ -2,6 +2,11 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+function geotiffnlayers(fname; kwargs...)
+  data = GeoTIFF.load(fname; kwargs...)
+  data isa GeoTIFF.GeoTIFFImageIterator ? length(data) : 1
+end
+
 function geotiffread(fname; layer, kwargs...)
   data = GeoTIFF.load(fname; kwargs...)
   geotiff = if data isa GeoTIFF.GeoTIFFImageIterator

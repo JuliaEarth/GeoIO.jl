@@ -2,6 +2,24 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
+function gpkgnlayers(fname)
+  db = gpkgdatabase(fname)
+  result = DBInterface.execute(
+    db,
+    """
+    SELECT COUNT(*) AS count
+    FROM gpkg_geometry_columns g
+    JOIN gpkg_contents c ON (g.table_name = c.table_name)
+    JOIN gpkg_spatial_ref_sys srs ON c.srs_id = srs.srs_id
+    WHERE c.data_type = 'features'
+    AND g.srs_id = c.srs_id
+    """
+  )
+  n = first(result).count
+  DBInterface.close!(db)
+  Int(n)
+end
+
 function gpkgtable(fname; layer=1)
   db = gpkgdatabase(fname)
   table = gpkgextract(db; layer)

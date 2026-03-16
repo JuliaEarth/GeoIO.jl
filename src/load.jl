@@ -83,7 +83,35 @@ GeoIO.load("file.tiff")
 GeoIO.load("file.nc")
 ```
 """
-function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwargs...)
+"""
+    GeoIO.nlayers(fname; kwargs...)
+
+Return the number of layers in the file.
+Returns 1 for single-layer formats.
+"""
+function nlayers(fname; kwargs...)
+  if endswith(fname, ".gpkg")
+    return gpkgnlayers(fname)
+  elseif any(ext -> endswith(fname, ext), GEOTIFFEXTS)
+    return geotiffnlayers(fname; kwargs...)
+  else
+    return 1
+  end
+end
+
+"""
+    GeoIO.loadall(fname; kwargs...)
+
+Return an iterator of geotables, one per layer in the file.
+For single-layer formats, the iterator yields one element.
+Forward `kwargs` to [`load`](@ref) for each layer.
+"""
+function loadall(fname; kwargs...)
+  n = nlayers(fname; kwargs...)
+  (load(fname; layer=i, _warn_multilayer=false, kwargs...) for i in 1:n)
+end
+
+function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, _warn_multilayer=true, kwargs...)
   # CSV format
   if endswith(fname, ".csv")
     if :coords ∉ keys(kwargs)
@@ -144,6 +172,10 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
 
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
+    if _warn_multilayer && layer == 1
+      n = nlayers(fname; kwargs...)
+      n > 1 && @warn "File has $n layers; loading only layer 1. Use layer=i or loadall."
+    end
     return geotiffread(fname; layer, kwargs...)
   end
 
@@ -153,6 +185,10 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
   end
 
   # GIS formats
+  if endswith(fname, ".gpkg") && _warn_multilayer && layer == 1
+    n = nlayers(fname)
+    n > 1 && @warn "File has $n layers; loading only layer 1. Use layer=i or loadall."
+  end
   geotable = gisread(fname; layer, numtype, kwargs...)
 
   # repair geometries
