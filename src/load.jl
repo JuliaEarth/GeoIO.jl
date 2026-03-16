@@ -23,8 +23,8 @@ It is also possible to specify the `layer` to read within the
 file, the length unit `lenunit` of the coordinates when the
 format does not include units in its specification, and the
 number type `numtype` of the coordinate values. The function
-displays a warning whenever a multi-layer file is loaded with
-only the first layer. The warning can be disabled with `warn=false`.
+displays a warning whenever a multi-layer file is loaded.
+The warning can be disabled with `warn=false`.
 
 Other `kwargs` options are forwarded to the backend packages
 and are documented below.
@@ -86,11 +86,9 @@ GeoIO.load("file.nc")
 ```
 """
 function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, warn=true, kwargs...)
-  multilayer = endswith(fname, ".gpkg") || any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-  if multilayer && warn && layer == 1
-    n = nlayers(fname; kwargs...)
-    if n > 1
-      @warn """
+  n = nlayers(fname; kwargs...)
+  if n > 1 && warn
+    @warn """
       File has $n layers; loading only layer 1. Use layer=i to load a specific layer,
       or iterate over all layers with a for loop:
 
@@ -101,7 +99,6 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 
       The warning can be disabled with warn=false.
       """
-    end
   end
 
   # CSV format
@@ -240,10 +237,10 @@ For single-layer formats, returns 1.
 """
 function nlayers(fname; kwargs...)
   if endswith(fname, ".gpkg")
-    return gpkgnlayers(fname)
+    gpkgnlayers(fname)
   elseif any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-    return geotiffnlayers(fname; kwargs...)
+    geotiffnlayers(fname; kwargs...)
   else
-    return 1
+    1
   end
 end

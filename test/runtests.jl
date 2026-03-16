@@ -60,7 +60,10 @@ testfiles = [
   "gisissues.jl",
 
   # geotables without values
-  "novalues.jl"
+  "novalues.jl",
+
+  # nlayers and multi-layer warning
+  "nlayers.jl"
 ]
 
 @testset "GeoIO.jl" begin
