@@ -23,7 +23,7 @@ It is also possible to specify the `layer` to read within the
 file, the length unit `lenunit` of the coordinates when the
 format does not include units in its specification, and the
 number type `numtype` of the coordinate values. The function
-displays a warning whenever a multi-layer file is loaded.
+displays a warning whenever a file with multiple layers is loaded.
 The warning can be disabled with `warn=false`.
 
 Other `kwargs` options are forwarded to the backend packages
@@ -86,23 +86,6 @@ GeoIO.load("file.nc")
 ```
 """
 function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, warn=true, kwargs...)
-  if endswith(fname, ".gpkg") && warn
-    n = nlayers(fname)
-    if n > 1
-      @warn """
-      File has $n layers. Use layer=i to load a specific layer,
-      or iterate over all layers with a for loop:
-
-        for i in 1:GeoIO.nlayers(fname)
-          geotable = GeoIO.load(fname; layer=i)
-          ...
-        end
-
-      The warning can be disabled with warn=false.
-      """
-    end
-  end
-
   # CSV format
   if endswith(fname, ".csv")
     if :coords ∉ keys(kwargs)
@@ -172,7 +155,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
   end
 
   # GIS formats
-  geotable = gisread(fname; layer, numtype, kwargs...)
+  geotable = gisread(fname; layer, numtype, warn, kwargs...)
 
   # repair geometries
   if repair
@@ -183,7 +166,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 end
 
 """
-    GeoIO.loadvalues(fname; rows=:all, layer=1, numtype=Float64, kwargs...)
+    GeoIO.loadvalues(fname; rows=:all, layer=1, numtype=Float64, warn=true, kwargs...)
 
 Load `values` of geospatial table from file `fname` stored in any GIS format,
 skipping the steps to build the `domain` (i.e., geometry column).
@@ -191,7 +174,7 @@ skipping the steps to build the `domain` (i.e., geometry column).
 The function is particularly useful when geometries are missing. In this case,
 the option `rows=:invalid` can be used to retrieve the values of the rows that
 were dropped by [`load`](@ref). All other `kwargs` options documented therein
-for GIS formats are supported, including the `layer` and the `numtype` options.
+for GIS formats are supported, including the `layer`, `numtype`, and `warn` options.
 
 ## Examples
 
@@ -203,9 +186,9 @@ GeoIO.loadvalues("file.shp")
 GeoIO.loadvalues("file.shp"; rows=:invalid)
 ```
 """
-function loadvalues(fname; rows=:all, layer=1, numtype=Float64, kwargs...)
+function loadvalues(fname; rows=:all, layer=1, numtype=Float64, warn=true, kwargs...)
   # extract Tables.jl table from GIS format
-  table = gistable(fname; layer, numtype, kwargs...)
+  table = gistable(fname; layer, numtype, warn, kwargs...)
 
   # retrieve variables and geometry column
   cols = Tables.columns(table)
@@ -228,21 +211,5 @@ function loadvalues(fname; rows=:all, layer=1, numtype=Float64, kwargs...)
     values
   else
     throw(ArgumentError("argument `rows` must be either `:all` or `:invalid`"))
-  end
-end
-
-"""
-    GeoIO.nlayers(fname; kwargs...)
-
-Returns the number of layers in the file.
-For single-layer formats, returns 1.
-"""
-function nlayers(fname; kwargs...)
-  if endswith(fname, ".gpkg")
-    gpkgnlayers(fname)
-  elseif any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-    geotiffnlayers(fname; kwargs...)
-  else
-    1
   end
 end

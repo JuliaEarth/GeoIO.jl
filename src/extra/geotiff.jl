@@ -2,25 +2,13 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function geotiffnlayers(fname; kwargs...)
-  data = GeoTIFF.load(fname; kwargs...)
-  data isa GeoTIFF.GeoTIFFImageIterator ? length(data) : 1
-end
-
 function geotiffread(fname; layer, warn=true, kwargs...)
   data = GeoTIFF.load(fname; kwargs...)
   geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
     n = length(data)
     if n > 1 && warn
       @warn """
-      File has $n layers. Use layer=i to load a specific layer,
-      or iterate over all layers with a for loop:
-
-        for i in 1:GeoIO.nlayers(fname)
-          geotable = GeoIO.load(fname; layer=i)
-          ...
-        end
-
+      File has $n layers. Use layer=i for i in 1:$n to load a specific layer.
       The warning can be disabled with warn=false.
       """
     end

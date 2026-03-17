@@ -2,16 +2,18 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gpkgnlayers(fname)
+function gpkgtable(fname; layer=1, warn=true)
   db = gpkgdatabase(fname)
-  result = DBInterface.execute(db, "SELECT COUNT(*) AS count FROM gpkg_geometry_columns")
-  n = first(result).count
-  DBInterface.close!(db)
-  Int(n)
-end
-
-function gpkgtable(fname; layer=1)
-  db = gpkgdatabase(fname)
+  if warn
+    result = DBInterface.execute(db, "SELECT COUNT(*) AS count FROM gpkg_geometry_columns")
+    n = Int(first(result).count)
+    if n > 1
+      @warn """
+      File has $n layers. Use layer=i for i in 1:$n to load a specific layer.
+      The warning can be disabled with warn=false.
+      """
+    end
+  end
   table = gpkgextract(db; layer)
   DBInterface.close!(db)
   table

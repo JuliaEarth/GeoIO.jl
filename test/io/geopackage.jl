@@ -28,6 +28,18 @@
     @test gtb.geometry[1] isa PolyArea
 
     @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa AbstractGeoTable
+
+    # multi-layer GeoPackage warning (gdal.gpkg has multiple layers)
+    file = joinpath(datadir, "gdal.gpkg")
+    has_multilayer = AG.read(file) do ds
+      AG.nlayer(ds) > 1
+    end
+    if has_multilayer
+      gtb = @test_logs (:warn, r"layers") GeoIO.load(file)
+      @test gtb isa AbstractGeoTable
+      gtb = GeoIO.load(file; warn=false)
+      @test gtb isa AbstractGeoTable
+    end
   end
 
   @testset "save" begin
