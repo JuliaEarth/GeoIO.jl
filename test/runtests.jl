@@ -62,7 +62,7 @@ testfiles = [
   # geotables without values
   "novalues.jl",
 
-  # nlayers and multi-layer warning
+  # files with multiple layers
   "nlayers.jl"
 ]
 

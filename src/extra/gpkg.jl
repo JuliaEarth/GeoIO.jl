@@ -4,17 +4,7 @@
 
 function gpkgnlayers(fname)
   db = gpkgdatabase(fname)
-  result = DBInterface.execute(
-    db,
-    """
-    SELECT COUNT(*) AS count
-    FROM gpkg_geometry_columns g
-    JOIN gpkg_contents c ON (g.table_name = c.table_name)
-    JOIN gpkg_spatial_ref_sys srs ON c.srs_id = srs.srs_id
-    WHERE c.data_type = 'features'
-    AND g.srs_id = c.srs_id
-    """
-  )
+  result = DBInterface.execute(db, "SELECT COUNT(*) AS count FROM gpkg_geometry_columns")
   n = first(result).count
   DBInterface.close!(db)
   Int(n)

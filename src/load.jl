@@ -86,10 +86,11 @@ GeoIO.load("file.nc")
 ```
 """
 function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, warn=true, kwargs...)
-  n = nlayers(fname; kwargs...)
-  if n > 1 && warn
-    @warn """
-      File has $n layers; loading only layer 1. Use layer=i to load a specific layer,
+  if endswith(fname, ".gpkg") && warn
+    n = nlayers(fname)
+    if n > 1
+      @warn """
+      File has $n layers. Use layer=i to load a specific layer,
       or iterate over all layers with a for loop:
 
         for i in 1:GeoIO.nlayers(fname)
@@ -99,6 +100,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 
       The warning can be disabled with warn=false.
       """
+    end
   end
 
   # CSV format
@@ -161,7 +163,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-    return geotiffread(fname; layer, kwargs...)
+    return geotiffread(fname; layer, warn, kwargs...)
   end
 
   # CDM formats

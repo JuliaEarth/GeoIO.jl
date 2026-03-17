@@ -7,11 +7,24 @@ function geotiffnlayers(fname; kwargs...)
   data isa GeoTIFF.GeoTIFFImageIterator ? length(data) : 1
 end
 
-function geotiffread(fname; layer, kwargs...)
+function geotiffread(fname; layer, warn=true, kwargs...)
   data = GeoTIFF.load(fname; kwargs...)
   geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
-    nlayers = length(data)
-    1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
+    n = length(data)
+    if n > 1 && warn
+      @warn """
+      File has $n layers. Use layer=i to load a specific layer,
+      or iterate over all layers with a for loop:
+
+        for i in 1:GeoIO.nlayers(fname)
+          geotable = GeoIO.load(fname; layer=i)
+          ...
+        end
+
+      The warning can be disabled with warn=false.
+      """
+    end
+    1 ≤ layer ≤ n || throw(ArgumentError("layer $layer is out of bounds. File has $n layers."))
     Iterators.drop(data, layer - 1) |> first
   else
     data
