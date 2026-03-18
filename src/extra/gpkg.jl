@@ -95,16 +95,6 @@ function gpkgextract(db; layer, warn)
   )
 
   metadata = first(layerinfo)
-  nlayers = metadata.nlayers
-  if nlayers > 1 && warn
-    @warn """
-    File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$nlayers`
-    to load a specific layer. You can disable this warning by setting `warn=false`.
-    """
-  end
-  1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
-  
-
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
   org = uppercase(metadata.org)
