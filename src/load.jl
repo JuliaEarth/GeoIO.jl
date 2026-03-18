@@ -23,8 +23,8 @@ It is also possible to specify the `layer` to read within the
 file, the length unit `lenunit` of the coordinates when the
 format does not include units in its specification, and the
 number type `numtype` of the coordinate values. The function
-displays a warning whenever a file with multiple layers is loaded.
-The warning can be disabled with `warn=false`.
+displays a warning whenever a file with multiple layers is
+loaded. The warning can be disabled by setting `warn=false`.
 
 Other `kwargs` options are forwarded to the backend packages
 and are documented below.
