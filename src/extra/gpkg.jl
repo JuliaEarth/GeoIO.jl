@@ -2,15 +2,15 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gpkgtable(fname; layer=1, warn=true)
+function gpkgtable(fname; layer, warn)
   db = gpkgdatabase(fname)
   if warn
     result = DBInterface.execute(db, "SELECT COUNT(*) AS count FROM gpkg_geometry_columns")
-    n = Int(first(result).count)
-    if n > 1
+    nlayers = Int(first(result).count)
+    if nlayers > 1
       @warn """
-      File has $n layers. Use layer=i for i in 1:$n to load a specific layer.
-      The warning can be disabled with warn=false.
+      File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+      to load a specific layer. You can disable this warning by setting `warn=false`.
       """
     end
   end
