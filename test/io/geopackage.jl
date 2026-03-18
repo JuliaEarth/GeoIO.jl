@@ -33,7 +33,7 @@
     file = joinpath(datadir, "gdal.gpkg")
     gtb = GeoIO.load(file, warn=false)
     @test gtb isa AbstractGeoTable
-    gtb = @test_logs (:warn, r"layers") GeoIO.load(file)
+    gtb = @test_logs (:warn, r"File has 16 layers") (:warn, r"Dropping 1 rows with missing geometries") GeoIO.load(file)
     @test gtb isa AbstractGeoTable
   end
 
