@@ -3,9 +3,12 @@
 # ------------------------------------------------------------------
 
 function geotiffread(fname; layer, warn, kwargs...)
+  # load file from disk
   data = GeoTIFF.load(fname; kwargs...)
-  nlayers = length(data)
+
+  # extract single layer
   geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
+    nlayers = length(data)
     if nlayers > 1 && warn
       @warn """
       File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
