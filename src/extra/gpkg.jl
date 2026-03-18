@@ -42,7 +42,7 @@ end
 
 function gpkgextract(db; layer, warn)
   # display warning in case of multiple layers
-  nlayers = DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")
+  nlayers = first(DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")).nlayers
   if nlayers > 1 && warn
     @warn """
     File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$nlayers`
