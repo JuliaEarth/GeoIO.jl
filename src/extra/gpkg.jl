@@ -45,7 +45,7 @@ function gpkgextract(db; layer, warn)
   nlayers = first(DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")).nlayers
   if nlayers > 1 && warn
     @warn """
-    File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+    File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
     to load a specific layer. You can disable this warning by setting `warn=false`.
     """
   end
