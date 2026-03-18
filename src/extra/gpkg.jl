@@ -40,7 +40,7 @@ function gpkgdatabase(fname)
   db
 end
 
-function gpkgextract(db; layer=1, warn=true)
+function gpkgextract(db; layer, warn)
   # get the feature table given the layer number
   layerinfo = DBInterface.execute(
     db,
