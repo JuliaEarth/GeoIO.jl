@@ -1,4 +1,7 @@
-    nlayers = length(data)
+function geotiffread(fname; layer, warn, kwargs...)
+  data = GeoTIFF.load(fname; kwargs...)
+  nlayers = length(data)
+  geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
     if nlayers > 1 && warn
       @warn """
       File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
