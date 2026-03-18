@@ -4,17 +4,7 @@
 
 function gpkgtable(fname; layer, warn)
   db = gpkgdatabase(fname)
-  if warn
-    result = DBInterface.execute(db, "SELECT COUNT(*) AS count FROM gpkg_geometry_columns")
-    nlayers = Int(first(result).count)
-    if nlayers > 1
-      @warn """
-      File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
-      to load a specific layer. You can disable this warning by setting `warn=false`.
-      """
-    end
-  end
-  table = gpkgextract(db; layer)
+  table = gpkgextract(db; layer, warn)
   DBInterface.close!(db)
   table
 end
@@ -50,7 +40,7 @@ function gpkgdatabase(fname)
   db
 end
 
-function gpkgextract(db; layer=1)
+function gpkgextract(db; layer=1, warn=true)
   # get the feature table given the layer number
   layerinfo = DBInterface.execute(
     db,
@@ -89,12 +79,19 @@ function gpkgextract(db; layer=1)
     # the gpkg_contents table.
     """
     AND g.srs_id = c.srs_id
-    LIMIT 1 OFFSET ($layer-1)
     """
   )
 
-  isnothing(layerinfo) && throw(ErrorException("layer $layer not found in GeoPackage"))
-  metadata = first(layerinfo)
+  rows = collect(layerinfo)
+  nlayers = length(rows)
+  if nlayers > 1 && warn
+    @warn """
+    File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+    to load a specific layer. You can disable this warning by setting `warn=false`.
+    """
+  end
+  (layer < 1 || layer > nlayers) && throw(ArgumentError("layer $layer not found in GeoPackage (1:$nlayers)"))
+  metadata = rows[layer]
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
   org = uppercase(metadata.org)
