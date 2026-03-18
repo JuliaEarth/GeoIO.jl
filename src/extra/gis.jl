@@ -2,7 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gisread(fname; layer, numtype, warn=true, kwargs...)
+function gisread(fname; layer, numtype, warn, kwargs...)
   # extract Tables.jl table from GIS format
   table = gistable(fname; layer, numtype, warn, kwargs...)
 
@@ -48,7 +48,7 @@ function giswrite(fname, geotable; warn, kwargs...)
 end
 
 # helper function to extract Tables.jl table from GIS formats
-function gistable(fname; layer, numtype, warn=true, kwargs...)
+function gistable(fname; layer, numtype, warn, kwargs...)
   if endswith(fname, ".shp")
     return SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
