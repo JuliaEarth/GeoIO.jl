@@ -1,18 +1,11 @@
-# ------------------------------------------------------------------
-# Licensed under the MIT License. See LICENSE in the project root.
-# ------------------------------------------------------------------
-
-function geotiffread(fname; layer, warn=true, kwargs...)
-  data = GeoTIFF.load(fname; kwargs...)
-  geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
-    n = length(data)
-    if n > 1 && warn
+    nlayers = length(data)
+    if nlayers > 1 && warn
       @warn """
-      File has $n layers. Use layer=i for i in 1:$n to load a specific layer.
-      The warning can be disabled with warn=false.
+      File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+      to load a specific layer. You can disable this warning by setting `warn=false`.
       """
     end
-    1 ≤ layer ≤ n || throw(ArgumentError("layer $layer is out of bounds. File has $n layers."))
+    1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
     Iterators.drop(data, layer - 1) |> first
   else
     data
