@@ -7,7 +7,7 @@ function gisread(fname; layer, numtype, warn, kwargs...)
   table = gistable(fname; layer, numtype, warn, kwargs...)
 
   # convert Tables.jl table to GeoTable
-  asgeotable(table)
+  asgeotable(table; warn)
 end
 
 function giswrite(fname, geotable; warn, kwargs...)
@@ -63,7 +63,7 @@ function gistable(fname; layer, numtype, warn, kwargs...)
 end
 
 # helper function to convert Tables.jl table to GeoTable
-function asgeotable(rawtable)
+function asgeotable(rawtable; warn)
   # table of attributes and column of geometries
   cols = Tables.columns(rawtable)
   names = Tables.columnnames(cols)
@@ -74,8 +74,12 @@ function asgeotable(rawtable)
 
   # identify rows with missing geometries
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
-  if !isempty(miss)
-    @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
+  if !isempty(miss) && warn
+    @warn """
+    Dropping $(length(miss)) rows with missing geometries.
+    Please use `GeoIO.loadvalues(fname; rows=:invalid)` to
+    load their corresponding values.
+    """
   end
   valid = setdiff(1:length(geoms), miss)
 
