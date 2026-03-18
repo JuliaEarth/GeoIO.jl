@@ -41,15 +41,19 @@ function gpkgdatabase(fname)
 end
 
 function gpkgextract(db; layer, warn)
-# count the layers in the feature table
-nlayers = DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")
-if nlayers > 1 && warn
-@warn """
-File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$nlayers` to load a specific layer. You can disable this warning by setting `warn=false`.
-"""
-end
-1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
-# get the feature table given the layer number
+  # display warning in case of multiple layers
+  nlayers = DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")
+  if nlayers > 1 && warn
+    @warn """
+    File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+    to load a specific layer. You can disable this warning by setting `warn=false`.
+    """
+  end
+
+  # display error if layer number is out of bounds
+  1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
+
+  # get the feature table given the layer number
   layerinfo = DBInterface.execute(
     db,
     """
