@@ -62,8 +62,7 @@ function gpkgextract(db; layer, warn)
       g.column_name AS geomcolumn,
       c.srs_id AS srsid,
       srs.organization AS org,
-      srs.organization_coordsys_id AS code,
-      COUNT(*) OVER() AS nlayers
+      srs.organization_coordsys_id AS code
     FROM gpkg_geometry_columns g
     """ *
     # According to https://www.geopackage.org/spec/#r24
