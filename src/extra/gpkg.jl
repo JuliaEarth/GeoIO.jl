@@ -50,7 +50,8 @@ function gpkgextract(db; layer, warn)
       g.column_name AS geomcolumn,
       c.srs_id AS srsid,
       srs.organization AS org,
-      srs.organization_coordsys_id AS code
+      srs.organization_coordsys_id AS code,
+      COUNT(*) OVER() AS nlayers
     FROM gpkg_geometry_columns g
     """ *
     # According to https://www.geopackage.org/spec/#r24
@@ -82,16 +83,14 @@ function gpkgextract(db; layer, warn)
     """
   )
 
-  rows = collect(layerinfo)
-  nlayers = length(rows)
-  if nlayers > 1 && warn
+  if layerinfo.nlayers > 1 && warn
     @warn """
-    File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+    File has $(layerinfo.nlayers) layers. Use `layer=i` for any `i` in the range `1:$(layerinfo.nlayers)`
     to load a specific layer. You can disable this warning by setting `warn=false`.
     """
   end
-  1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
-  metadata = rows[layer]
+  1 ≤ layer ≤ layerinfo.nlayers|| throw(ArgumentError("layer $layer is out of bounds. File has $(layerinfo.nlayers) layers."))
+  metadata = first(layerinfo)
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
   org = uppercase(metadata.org)
