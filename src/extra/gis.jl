@@ -2,12 +2,12 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gisread(fname; layer, numtype, kwargs...)
+function gisread(fname; layer, numtype, warn, kwargs...)
   # extract Tables.jl table from GIS format
-  table = gistable(fname; layer, numtype, kwargs...)
+  table = gistable(fname; layer, numtype, warn, kwargs...)
 
   # convert Tables.jl table to GeoTable
-  asgeotable(table)
+  asgeotable(table; warn)
 end
 
 function giswrite(fname, geotable; warn, kwargs...)
@@ -48,7 +48,7 @@ function giswrite(fname, geotable; warn, kwargs...)
 end
 
 # helper function to extract Tables.jl table from GIS formats
-function gistable(fname; layer, numtype, kwargs...)
+function gistable(fname; layer, numtype, warn, kwargs...)
   if endswith(fname, ".shp")
     return SHP.Table(fname; kwargs...)
   elseif endswith(fname, ".geojson")
@@ -56,14 +56,14 @@ function gistable(fname; layer, numtype, kwargs...)
   elseif endswith(fname, ".parquet")
     return GPQ.read(fname; kwargs...)
   elseif endswith(fname, ".gpkg")
-    return gpkgtable(fname; layer)
+    return gpkgtable(fname; layer, warn)
   else
     throw(ArgumentError("unsupported file format"))
   end
 end
 
 # helper function to convert Tables.jl table to GeoTable
-function asgeotable(rawtable)
+function asgeotable(rawtable; warn)
   # table of attributes and column of geometries
   cols = Tables.columns(rawtable)
   names = Tables.columnnames(cols)
@@ -74,8 +74,12 @@ function asgeotable(rawtable)
 
   # identify rows with missing geometries
   miss = findall(g -> ismissing(g) || isnothing(g), geoms)
-  if !isempty(miss)
-    @warn "Dropping $(length(miss)) rows with missing geometries. Please use `GeoIO.loadvalues(fname; rows=:invalid)` to load their values."
+  if !isempty(miss) && warn
+    @warn """
+    Dropping $(length(miss)) rows with missing geometries.
+    Please use `GeoIO.loadvalues(fname; rows=:invalid)` to
+    load their corresponding values.
+    """
   end
   valid = setdiff(1:length(geoms), miss)
 

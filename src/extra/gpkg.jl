@@ -2,9 +2,9 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function gpkgtable(fname; layer=1)
+function gpkgtable(fname; layer, warn)
   db = gpkgdatabase(fname)
-  table = gpkgextract(db; layer)
+  table = gpkgextract(db; layer, warn)
   DBInterface.close!(db)
   table
 end
@@ -40,7 +40,19 @@ function gpkgdatabase(fname)
   db
 end
 
-function gpkgextract(db; layer=1)
+function gpkgextract(db; layer, warn)
+  # display warning in case of multiple layers
+  nlayers = first(DBInterface.execute(db, "SELECT COUNT(*) as nlayers FROM gpkg_geometry_columns")).nlayers
+  if nlayers > 1 && warn
+    @warn """
+    File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+    to load a specific layer. You can disable this warning by setting `warn=false`.
+    """
+  end
+
+  # display error if layer number is out of bounds
+  1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
+
   # get the feature table given the layer number
   layerinfo = DBInterface.execute(
     db,
@@ -83,7 +95,6 @@ function gpkgextract(db; layer=1)
     """
   )
 
-  isnothing(layerinfo) && throw(ErrorException("layer $layer not found in GeoPackage"))
   metadata = first(layerinfo)
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg

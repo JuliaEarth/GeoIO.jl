@@ -28,6 +28,13 @@
     @test gtb.geometry[1] isa PolyArea
 
     @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa AbstractGeoTable
+
+    # multi-layer GeoPackage warning
+    file = joinpath(datadir, "gdal.gpkg")
+    gtb = GeoIO.load(file, warn=false)
+    @test gtb isa AbstractGeoTable
+    gtb = @test_logs (:warn, r"File has 16 layers") (:warn, r"Dropping 1 rows with missing geometries") GeoIO.load(file)
+    @test gtb isa AbstractGeoTable
   end
 
   @testset "save" begin

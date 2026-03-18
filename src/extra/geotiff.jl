@@ -2,10 +2,19 @@
 # Licensed under the MIT License. See LICENSE in the project root.
 # ------------------------------------------------------------------
 
-function geotiffread(fname; layer, kwargs...)
+function geotiffread(fname; layer, warn, kwargs...)
+  # load file from disk
   data = GeoTIFF.load(fname; kwargs...)
+
+  # extract single layer
   geotiff = if data isa GeoTIFF.GeoTIFFImageIterator
     nlayers = length(data)
+    if nlayers > 1 && warn
+      @warn """
+      File has $nlayers layers. Use `layer=i` for any `i` in the range `1:$nlayers`
+      to load a specific layer. You can disable this warning by setting `warn=false`.
+      """
+    end
     1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
     Iterators.drop(data, layer - 1) |> first
   else

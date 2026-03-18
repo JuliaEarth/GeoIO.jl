@@ -49,15 +49,17 @@
 
     # multi-layer GeoTIFF file
     file = joinpath(datadir, "iterator.tif")
-    gtb = GeoIO.load(file)
+    gtb = GeoIO.load(file, warn=false)
     @test propertynames(gtb) == [:channel1, :channel2, :geometry]
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (91, 46)
-    gtb = GeoIO.load(file, layer=2)
+    gtb = GeoIO.load(file, layer=2, warn=false)
     @test propertynames(gtb) == [:channel1, :channel2, :geometry]
     @test gtb.geometry isa TransformedGrid
     @test size(gtb.geometry) == (69, 73)
-    @test_throws ArgumentError GeoIO.load(file, layer=3)
+    @test_throws ArgumentError GeoIO.load(file, layer=3, warn=false)
+    gtb = @test_logs (:warn, r"layers") GeoIO.load(file)
+    @test gtb isa AbstractGeoTable
   end
 
   @testset "save" begin

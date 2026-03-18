@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------
 
 """
-    GeoIO.load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwargs...)
+    GeoIO.load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, warn=true, kwargs...)
 
 Load geospatial table from file `fname` stored in any format.
 
@@ -22,7 +22,9 @@ the `Repair` transform from Meshes.jl.
 It is also possible to specify the `layer` to read within the
 file, the length unit `lenunit` of the coordinates when the
 format does not include units in its specification, and the
-number type `numtype` of the coordinate values.
+number type `numtype` of the coordinate values. The function
+displays a warning whenever a file with multiple layers is
+loaded. The warning can be disabled by setting `warn=false`.
 
 Other `kwargs` options are forwarded to the backend packages
 and are documented below.
@@ -83,7 +85,7 @@ GeoIO.load("file.tiff")
 GeoIO.load("file.nc")
 ```
 """
-function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwargs...)
+function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, warn=true, kwargs...)
   # CSV format
   if endswith(fname, ".csv")
     if :coords ∉ keys(kwargs)
@@ -144,7 +146,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
 
   # GeoTiff formats
   if any(ext -> endswith(fname, ext), GEOTIFFEXTS)
-    return geotiffread(fname; layer, kwargs...)
+    return geotiffread(fname; layer, warn, kwargs...)
   end
 
   # CDM formats
@@ -153,7 +155,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
   end
 
   # GIS formats
-  geotable = gisread(fname; layer, numtype, kwargs...)
+  geotable = gisread(fname; layer, numtype, warn, kwargs...)
 
   # repair geometries
   if repair
@@ -164,7 +166,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, kwa
 end
 
 """
-    GeoIO.loadvalues(fname; rows=:all, layer=1, numtype=Float64, kwargs...)
+    GeoIO.loadvalues(fname; rows=:all, layer=1, numtype=Float64, warn=true, kwargs...)
 
 Load `values` of geospatial table from file `fname` stored in any GIS format,
 skipping the steps to build the `domain` (i.e., geometry column).
@@ -172,7 +174,7 @@ skipping the steps to build the `domain` (i.e., geometry column).
 The function is particularly useful when geometries are missing. In this case,
 the option `rows=:invalid` can be used to retrieve the values of the rows that
 were dropped by [`load`](@ref). All other `kwargs` options documented therein
-for GIS formats are supported, including the `layer` and the `numtype` options.
+for GIS formats are supported, including the `layer`, `numtype`, and `warn` options.
 
 ## Examples
 
@@ -184,9 +186,9 @@ GeoIO.loadvalues("file.shp")
 GeoIO.loadvalues("file.shp"; rows=:invalid)
 ```
 """
-function loadvalues(fname; rows=:all, layer=1, numtype=Float64, kwargs...)
+function loadvalues(fname; rows=:all, layer=1, numtype=Float64, warn=true, kwargs...)
   # extract Tables.jl table from GIS format
-  table = gistable(fname; layer, numtype, kwargs...)
+  table = gistable(fname; layer, numtype, warn, kwargs...)
 
   # retrieve variables and geometry column
   cols = Tables.columns(table)
