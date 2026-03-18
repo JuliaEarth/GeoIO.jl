@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------
+# Licensed under the MIT License. See LICENSE in the project root.
+# ------------------------------------------------------------------
+
 function geotiffread(fname; layer, warn, kwargs...)
   data = GeoTIFF.load(fname; kwargs...)
   nlayers = length(data)
