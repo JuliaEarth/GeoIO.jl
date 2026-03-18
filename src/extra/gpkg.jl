@@ -91,6 +91,7 @@ function gpkgextract(db; layer, warn)
     # the gpkg_contents table.
     """
     AND g.srs_id = c.srs_id
+    LIMIT 1 OFFSET ($layer-1)
     """
   )
 
