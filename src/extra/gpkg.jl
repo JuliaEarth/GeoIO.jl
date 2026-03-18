@@ -90,7 +90,7 @@ function gpkgextract(db; layer=1, warn=true)
     to load a specific layer. You can disable this warning by setting `warn=false`.
     """
   end
-  (layer < 1 || layer > nlayers) && throw(ArgumentError("layer $layer not found in GeoPackage (1:$nlayers)"))
+  1 ≤ layer ≤ nlayers || throw(ArgumentError("layer $layer is out of bounds. File has $nlayers layers."))
   metadata = rows[layer]
 
   # org is a case-insensitive name of the defining organization e.g. EPSG or epsg
