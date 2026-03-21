@@ -6,11 +6,13 @@
 # STL READ
 # ---------
 
-function stlread(fname; lenunit, numtype=Float64, kwargs...)
-  normals, vertices = if _isstlbin(fname)
-    stlbinread(fname, numtype)
+function stlread(fname; lenunit, numtype=nothing, kwargs...)
+  isbin = _isstlbin(fname)
+  T = numtype === nothing ? (isbin ? Float32 : Float64) : numtype
+  normals, vertices = if isbin
+    stlbinread(fname, T)
   else
-    stlasciiread(fname, numtype)
+    stlasciiread(fname, T)
   end
 
   uverts = unique(Iterators.flatten(vertices))
@@ -31,9 +33,9 @@ function stlread(fname; lenunit, numtype=Float64, kwargs...)
   georef(table, mesh)
 end
 
-function stlasciiread(fname, numtype::Type{T}=Float64) where {T}
-  normals = NTuple{3,T}[]
-  vertices = NTuple{3,NTuple{3,T}}[]
+function stlasciiread(fname, numtype)
+  normals = NTuple{3,numtype}[]
+  vertices = NTuple{3,NTuple{3,numtype}}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -41,11 +43,11 @@ function stlasciiread(fname, numtype::Type{T}=Float64) where {T}
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = _parsecoords(line[3:end], T)
+        normal = _parsecoords(line[3:end], numtype)
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end], T), 3)
+        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end], numtype), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -57,17 +59,17 @@ function stlasciiread(fname, numtype::Type{T}=Float64) where {T}
   normals, vertices
 end
 
-function stlbinread(fname, numtype::Type{T}=Float32) where {T}
-  normals = NTuple{3,T}[]
-  vertices = NTuple{3,NTuple{3,T}}[]
+function stlbinread(fname, numtype)
+  normals = NTuple{3,numtype}[]
+  vertices = NTuple{3,NTuple{3,numtype}}[]
 
   open(fname) do io
     skip(io, 80) # skip header
     ntriangles = read(io, UInt32)
     for _ in 1:ntriangles
-      normal = ntuple(_ -> T(read(io, Float32)), 3)
+      normal = ntuple(_ -> numtype(read(io, Float32)), 3)
       push!(normals, normal)
-      points = ntuple(_ -> ntuple(_ -> T(read(io, Float32)), 3), 3)
+      points = ntuple(_ -> ntuple(_ -> numtype(read(io, Float32)), 3), 3)
       push!(vertices, points)
       skip(io, 2) # skip attribute byte count
     end
@@ -179,4 +181,4 @@ end
 
 _splitline(io) = split(lowercase(readline(io)))
 
-_parsecoords(coords, ::Type{T}=Float64) where {T} = ntuple(i -> parse(T, coords[i]), 3)
+_parsecoords(coords, T) = ntuple(i -> parse(T, coords[i]), 3)

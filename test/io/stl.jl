@@ -25,6 +25,10 @@
     # numtype option
     gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"), numtype=Float32)
     @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}
+    gtb = GeoIO.load(joinpath(datadir, "tetrahedron_ascii.stl"), numtype=Float64)
+    @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
+    gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"), numtype=Float32)
+    @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}
     gtb = GeoIO.load(joinpath(datadir, "tetrahedron_bin.stl"), numtype=Float64)
     @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
   end
