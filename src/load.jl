@@ -131,7 +131,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 
   # STL format
   if endswith(fname, ".stl")
-    return stlread(fname; lenunit, kwargs...)
+    return stlread(fname; lenunit, numtype, kwargs...)
   end
 
   # VTK formats

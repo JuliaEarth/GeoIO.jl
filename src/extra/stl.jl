@@ -6,11 +6,11 @@
 # STL READ
 # ---------
 
-function stlread(fname; lenunit)
+function stlread(fname; lenunit, numtype)
   normals, vertices = if _isstlbin(fname)
-    stlbinread(fname)
+    stlbinread(fname, numtype)
   else
-    stlasciiread(fname)
+    stlasciiread(fname, numtype)
   end
 
   uverts = unique(Iterators.flatten(vertices))
@@ -31,9 +31,9 @@ function stlread(fname; lenunit)
   georef(table, mesh)
 end
 
-function stlasciiread(fname)
-  normals = NTuple{3,Float64}[]
-  vertices = NTuple{3,NTuple{3,Float64}}[]
+function stlasciiread(fname, numtype)
+  normals = NTuple{3,numtype}[]
+  vertices = NTuple{3,NTuple{3,numtype}}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -41,11 +41,11 @@ function stlasciiread(fname)
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = _parsecoords(line[3:end])
+        normal = _parsecoords(numtype, line[3:end])
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end]), 3)
+        points = ntuple(_ -> _parsecoords(numtype, _splitline(io)[2:end]), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -57,17 +57,17 @@ function stlasciiread(fname)
   normals, vertices
 end
 
-function stlbinread(fname)
-  normals = NTuple{3,Float32}[]
-  vertices = NTuple{3,NTuple{3,Float32}}[]
+function stlbinread(fname, numtype)
+  normals = NTuple{3,numtype}[]
+  vertices = NTuple{3,NTuple{3,numtype}}[]
 
   open(fname) do io
     skip(io, 80) # skip header
     ntriangles = read(io, UInt32)
     for _ in 1:ntriangles
-      normal = ntuple(_ -> read(io, Float32), 3)
+      normal = ntuple(_ -> numtype(read(io, Float32)), 3)
       push!(normals, normal)
-      points = ntuple(_ -> ntuple(_ -> read(io, Float32), 3), 3)
+      points = ntuple(_ -> ntuple(_ -> numtype(read(io, Float32)), 3), 3)
       push!(vertices, points)
       skip(io, 2) # skip attribute byte count
     end
@@ -95,10 +95,7 @@ function stlwrite(fname, geotable; ascii=false)
 end
 
 function stlasciiwrite(fname, mesh)
-  # file name for header
   name = first(splitext(basename(fname)))
-
-  # number formatter
   frmtfloat = generate_formatter("%e")
   frmtcoords(coords) = join((frmtfloat(c) for c in coords), " ")
 
@@ -182,4 +179,4 @@ end
 
 _splitline(io) = split(lowercase(readline(io)))
 
-_parsecoords(coords) = ntuple(i -> parse(Float64, coords[i]), 3)
+_parsecoords(T, coords) = ntuple(i -> parse(T, coords[i]), 3)
