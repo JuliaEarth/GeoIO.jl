@@ -60,7 +60,6 @@
     gtb2 = GeoIO.load(file2)
     @test Meshes.lentype(gtb1.geometry) <: Meshes.Met{Float64}
     @test Meshes.lentype(gtb2.geometry) <: Meshes.Met{Float64}
-
     # error: STL format only supports 3D triangle meshes
     gtb = GeoTable(CartesianGrid(2, 2, 2))
     file = joinpath(savedir, "error.stl")
