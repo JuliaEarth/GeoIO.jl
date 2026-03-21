@@ -58,6 +58,7 @@ and are documented below.
 
 * `ascii`: defines whether the file will be saved in ASCII format,
   otherwise Binary format will be used (default to `false`);
+* `numtype`: number type of coordinates (e.g. `Float32`, `Float64`);
 
 ### Common Data Model formats (NetCDF, GRIB)
 

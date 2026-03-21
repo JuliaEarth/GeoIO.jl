@@ -52,6 +52,10 @@ and are documented below.
 
 * Other options are passed to `Shapefile.read`, see the Shapefile.jl documentation for more details;
 
+### OBJ, STL
+
+* `numtype`: number type of coordinates (default to `Float64`);
+
 ### OFF
 
 * `defaultcolor`: default color of the geometries if the file does not have this data
@@ -131,7 +135,7 @@ function load(fname; repair=true, layer=1, lenunit=nothing, numtype=Float64, war
 
   # STL format
   if endswith(fname, ".stl")
-    return stlread(fname; lenunit, kwargs...)
+    return stlread(fname; lenunit, numtype, kwargs...)
   end
 
   # VTK formats

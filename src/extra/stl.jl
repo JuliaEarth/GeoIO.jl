@@ -6,11 +6,11 @@
 # STL READ
 # ---------
 
-function stlread(fname; lenunit)
+function stlread(fname; lenunit, numtype=Float64, kwargs...)
   normals, vertices = if _isstlbin(fname)
-    stlbinread(fname)
+    stlbinread(fname, numtype)
   else
-    stlasciiread(fname)
+    stlasciiread(fname, numtype)
   end
 
   uverts = unique(Iterators.flatten(vertices))
@@ -31,9 +31,9 @@ function stlread(fname; lenunit)
   georef(table, mesh)
 end
 
-function stlasciiread(fname)
-  normals = NTuple{3,Float64}[]
-  vertices = NTuple{3,NTuple{3,Float64}}[]
+function stlasciiread(fname, numtype::Type{T}=Float64) where {T}
+  normals = NTuple{3,T}[]
+  vertices = NTuple{3,NTuple{3,T}}[]
 
   open(fname) do io
     readline(io) # skip header
@@ -41,11 +41,11 @@ function stlasciiread(fname)
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = _parsecoords(line[3:end])
+        normal = _parsecoords(line[3:end], T)
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end]), 3)
+        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end], T), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -57,17 +57,17 @@ function stlasciiread(fname)
   normals, vertices
 end
 
-function stlbinread(fname)
-  normals = NTuple{3,Float32}[]
-  vertices = NTuple{3,NTuple{3,Float32}}[]
+function stlbinread(fname, numtype::Type{T}=Float32) where {T}
+  normals = NTuple{3,T}[]
+  vertices = NTuple{3,NTuple{3,T}}[]
 
   open(fname) do io
     skip(io, 80) # skip header
     ntriangles = read(io, UInt32)
     for _ in 1:ntriangles
-      normal = ntuple(_ -> read(io, Float32), 3)
+      normal = ntuple(_ -> T(read(io, Float32)), 3)
       push!(normals, normal)
-      points = ntuple(_ -> ntuple(_ -> read(io, Float32), 3), 3)
+      points = ntuple(_ -> ntuple(_ -> T(read(io, Float32)), 3), 3)
       push!(vertices, points)
       skip(io, 2) # skip attribute byte count
     end
@@ -80,7 +80,7 @@ end
 # STL WRITE
 # ----------
 
-function stlwrite(fname, geotable; ascii=false)
+function stlwrite(fname, geotable; ascii=false, numtype=nothing, kwargs...)
   mesh = domain(geotable)
 
   if !(embeddim(mesh) == 3 && eltype(mesh) <: Triangle)
@@ -88,17 +88,14 @@ function stlwrite(fname, geotable; ascii=false)
   end
 
   if ascii
-    stlasciiwrite(fname, mesh)
+    stlasciiwrite(fname, mesh; numtype)
   else
-    stlbinwrite(fname, mesh)
+    stlbinwrite(fname, mesh; numtype)
   end
 end
 
-function stlasciiwrite(fname, mesh)
-  # file name for header
+function stlasciiwrite(fname, mesh; numtype=nothing)
   name = first(splitext(basename(fname)))
-
-  # number formatter
   frmtfloat = generate_formatter("%e")
   frmtcoords(coords) = join((frmtfloat(c) for c in coords), " ")
 
@@ -107,11 +104,13 @@ function stlasciiwrite(fname, mesh)
 
     for triangle in elements(mesh)
       n = ustrip.(normal(triangle))
+      n = isnothing(numtype) ? n : numtype.(n)
       write(io, "facet normal $(frmtcoords(n))\n")
       write(io, "    outer loop\n")
 
       for point in eachvertex(triangle)
         c = ustrip.(to(point))
+        c = isnothing(numtype) ? c : numtype.(c)
         write(io, "        vertex $(frmtcoords(c))\n")
       end
 
@@ -123,8 +122,9 @@ function stlasciiwrite(fname, mesh)
   end
 end
 
-function stlbinwrite(fname, mesh)
-  if Unitful.numtype(Meshes.lentype(mesh)) <: Float64
+function stlbinwrite(fname, mesh; numtype=nothing)
+  mesh_is_float64 = Unitful.numtype(Meshes.lentype(mesh)) <: Float64
+  if mesh_is_float64 && numtype !== Float32
     @warn """
     The STL Binary format stores data with 32-bit precision.
     Use STL ASCII format, with `ascii=true`, to store data with full precision.
@@ -182,4 +182,4 @@ end
 
 _splitline(io) = split(lowercase(readline(io)))
 
-_parsecoords(coords) = ntuple(i -> parse(Float64, coords[i]), 3)
+_parsecoords(coords, ::Type{T}=Float64) where {T} = ntuple(i -> parse(T, coords[i]), 3)
