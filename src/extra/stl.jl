@@ -6,13 +6,11 @@
 # STL READ
 # ---------
 
-function stlread(fname; lenunit, numtype=nothing, kwargs...)
-  isbin = _isstlbin(fname)
-  T = numtype === nothing ? (isbin ? Float32 : Float64) : numtype
-  normals, vertices = if isbin
-    stlbinread(fname, T)
+function stlread(fname; lenunit, numtype, kwargs...)
+  normals, vertices = if _isstlbin(fname)
+    stlbinread(fname, numtype)
   else
-    stlasciiread(fname, T)
+    stlasciiread(fname, numtype)
   end
 
   uverts = unique(Iterators.flatten(vertices))
@@ -43,11 +41,11 @@ function stlasciiread(fname, numtype)
     while !eof(io)
       line = _splitline(io)
       if !isempty(line) && line[1] == "facet"
-        normal = _parsecoords(line[3:end], numtype)
+        normal = _parsecoords(numtype, line[3:end])
         push!(normals, normal)
 
         readline(io) # skip outer loop
-        points = ntuple(_ -> _parsecoords(_splitline(io)[2:end], numtype), 3)
+        points = ntuple(_ -> _parsecoords(numtype, _splitline(io)[2:end]), 3)
         push!(vertices, points)
 
         readline(io) # skip endloop
@@ -181,4 +179,4 @@ end
 
 _splitline(io) = split(lowercase(readline(io)))
 
-_parsecoords(coords, T) = ntuple(i -> parse(T, coords[i]), 3)
+_parsecoords(T, coords) = ntuple(i -> parse(T, coords[i]), 3)
