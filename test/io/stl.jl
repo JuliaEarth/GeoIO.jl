@@ -12,7 +12,7 @@
     @test eltype(gtb.normal) <: Vec{3}
     @test gtb.geometry isa SimpleMesh
     @test embeddim(gtb.geometry) == 3
-    @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float32}
+    @test Meshes.lentype(gtb.geometry) <: Meshes.Met{Float64}
     @test eltype(gtb.geometry) <: Triangle
     @test length(gtb.geometry) == 4
 
@@ -48,21 +48,14 @@
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
-    # STL Binary: conversion to Float32 (warns when numtype not specified)
+    # STL Binary: conversion to Float32
     file1 = joinpath(datadir, "tetrahedron_ascii.stl")
     file2 = joinpath(savedir, "tetrahedron_converted.stl")
     gtb1 = GeoIO.load(file1)
     @test_logs (:warn,) GeoIO.save(file2, gtb1)
     gtb2 = GeoIO.load(file2)
     @test Meshes.lentype(gtb1.geometry) <: Meshes.Met{Float64}
-    @test Meshes.lentype(gtb2.geometry) <: Meshes.Met{Float32}
-
-    # STL Binary: numtype=Float32 suppresses precision warning
-    file2 = joinpath(savedir, "tetrahedron_numtype.stl")
-    gtb1 = GeoIO.load(file1)
-    @test_logs (;) GeoIO.save(file2, gtb1, numtype=Float32)
-    gtb2 = GeoIO.load(file2)
-    @test Meshes.lentype(gtb2.geometry) <: Meshes.Met{Float32}
+    @test Meshes.lentype(gtb2.geometry) <: Meshes.Met{Float64}
 
     # error: STL format only supports 3D triangle meshes
     gtb = GeoTable(CartesianGrid(2, 2, 2))

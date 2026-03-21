@@ -80,7 +80,7 @@ end
 # STL WRITE
 # ----------
 
-function stlwrite(fname, geotable; ascii=false, numtype=nothing, kwargs...)
+function stlwrite(fname, geotable; ascii=false)
   mesh = domain(geotable)
 
   if !(embeddim(mesh) == 3 && eltype(mesh) <: Triangle)
@@ -88,13 +88,13 @@ function stlwrite(fname, geotable; ascii=false, numtype=nothing, kwargs...)
   end
 
   if ascii
-    stlasciiwrite(fname, mesh; numtype)
+    stlasciiwrite(fname, mesh)
   else
-    stlbinwrite(fname, mesh; numtype)
+    stlbinwrite(fname, mesh)
   end
 end
 
-function stlasciiwrite(fname, mesh; numtype=nothing)
+function stlasciiwrite(fname, mesh)
   name = first(splitext(basename(fname)))
   frmtfloat = generate_formatter("%e")
   frmtcoords(coords) = join((frmtfloat(c) for c in coords), " ")
@@ -104,13 +104,11 @@ function stlasciiwrite(fname, mesh; numtype=nothing)
 
     for triangle in elements(mesh)
       n = ustrip.(normal(triangle))
-      n = isnothing(numtype) ? n : numtype.(n)
       write(io, "facet normal $(frmtcoords(n))\n")
       write(io, "    outer loop\n")
 
       for point in eachvertex(triangle)
         c = ustrip.(to(point))
-        c = isnothing(numtype) ? c : numtype.(c)
         write(io, "        vertex $(frmtcoords(c))\n")
       end
 
@@ -122,9 +120,8 @@ function stlasciiwrite(fname, mesh; numtype=nothing)
   end
 end
 
-function stlbinwrite(fname, mesh; numtype=nothing)
-  mesh_is_float64 = Unitful.numtype(Meshes.lentype(mesh)) <: Float64
-  if mesh_is_float64 && numtype !== Float32
+function stlbinwrite(fname, mesh)
+  if Unitful.numtype(Meshes.lentype(mesh)) <: Float64
     @warn """
     The STL Binary format stores data with 32-bit precision.
     Use STL ASCII format, with `ascii=true`, to store data with full precision.
