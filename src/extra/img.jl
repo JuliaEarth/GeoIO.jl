@@ -3,17 +3,26 @@
 # ------------------------------------------------------------------
 
 function imgread(fname; lenunit)
+  # load raw image data
   data = FileIO.load(fname)
-  dims = size(data)
-  values = (; color=vec(data))
-  # translation followed by rotation is faster
-  transform = Translate(-dims[1], 0) → Rotate(-π / 2)
-  # construct grid
+
+  # retrieve length unit
   u = lengthunit(lenunit)
-  min = ntuple(i -> 0.0u, length(dims))
-  max = float.(dims) .* u
-  grid = CartesianGrid(min, max; dims)
-  georef(values, transform(grid))
+
+  # construct table of values
+  values = (; color=vec(data))
+
+  # construct reference grid
+  dims = size(data)
+  cmin = ntuple(i -> 0.0u, length(dims))
+  cmax = float.(dims) .* u
+  grid = CartesianGrid(cmin, cmax; dims)
+
+  # translate and rotate grid
+  trans = Translate(-dims[1] * u, 0 * u) → Rotate(-π / 2)
+  tgrid = trans(grid)
+
+  georef(values, tgrid)
 end
 
 function imgwrite(fname, geotable; kwargs...)
