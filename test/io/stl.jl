@@ -46,9 +46,9 @@
     # STL Binary
     file1 = joinpath(datadir, "tetrahedron_bin.stl")
     file2 = joinpath(savedir, "tetrahedron_bin.stl")
-    gtb1 = GeoIO.load(file1)
+    gtb1 = GeoIO.load(file1, numtype=Float32)
     GeoIO.save(file2, gtb1)
-    gtb2 = GeoIO.load(file2)
+    gtb2 = GeoIO.load(file2, numtype=Float32)
     @test gtb1 == gtb2
     @test values(gtb1, 0) == values(gtb2, 0)
 
