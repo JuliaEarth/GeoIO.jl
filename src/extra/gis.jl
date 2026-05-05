@@ -84,7 +84,7 @@ function asgeotable(rawtable; warn)
   valid = setdiff(1:length(geoms), miss)
 
   # subset table and geometries
-  stable = isnothing(table) || isempty(miss) ? table : Tables.subset(table, valid)
+  stable = isnothing(table) || isempty(miss) ? table : Tables.subset(table, valid, viewhint=true)
   sgeoms = collect(skipmissing(geoms[valid]))
 
   # convert to Meshes.jl geometries

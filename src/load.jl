@@ -206,7 +206,7 @@ function loadvalues(fname; rows=:all, layer=1, numtype=Float64, warn=true, kwarg
   if rows === :invalid
     geoms = Tables.getcolumn(cols, gcol)
     miss = findall(g -> ismissing(g) || isnothing(g), geoms)
-    Tables.subset(values, miss)
+    Tables.subset(values, miss, viewhint=true)
   elseif rows === :all
     values
   else
