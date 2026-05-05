@@ -44,7 +44,7 @@ function deltaprojjson(json1, json2; exact=false)
   # paths to ignore in approximate comparison
   # bbox, area, scope, ... are not required to
   # fully describe the coordinate reference system
-  pathstoignore = ["bbox", "area", "scope", "usages", "\$schema"]
+  pathstoignore = ["bbox", "area", "scope", "usages", "remarks", "\$schema"]
 
   # EC#1 (example 4267):
   # Sometimes GDAL's PROJJSON ellipsoid is specified using semi_minor_axis instead of inverse_flattening.
