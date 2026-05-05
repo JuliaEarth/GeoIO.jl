@@ -15,7 +15,7 @@ function csvread(fname; lenunit, coords, crs=nothing, kwargs...)
     pred(row) && push!(sinds, i)
   end
 
-  srows = Tables.subset(rows, sinds)
+  srows = Tables.subset(rows, sinds, viewhint=true)
   georef(srows, cnames; crs, lenunit)
 end
 
