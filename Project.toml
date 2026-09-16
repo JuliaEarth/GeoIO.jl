@@ -37,7 +37,7 @@ VTKBase = "4004b06d-e244-455f-a6ce-a5f9919cc534"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
-CSV = "0.10, 1"
+CSV = "1.0"
 Colors = "0.12, 0.13"
 CommonDataModel = "0.2, 0.3, 0.4"
 CoordRefSystems = "0.21"
