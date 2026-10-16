@@ -101,10 +101,10 @@ function topolygon(geom, CRS)
   toring(g) = close(tochain(g, CRS))
   outer = toring(GI.getexterior(geom))
   if GI.nhole(geom) == 0
-    PolyArea(outer)
+    Pgon(outer)
   else
     inners = map(toring, GI.gethole(geom))
-    PolyArea([outer, inners...])
+    Pgon([outer, inners...])
   end
 end
 

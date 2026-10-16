@@ -6,10 +6,10 @@
   @test GI.ngeom(Segment(points[1], points[2])) == 2
   @test GI.ngeom(Rope(points)) == 3
   @test GI.ngeom(Ring(points)) == 4
-  @test GI.ngeom(PolyArea(points)) == 1
+  @test GI.ngeom(Pgon(points)) == 1
   @test GI.ngeom(Multi(points)) == 3
   @test GI.ngeom(Multi([Rope(points), Rope(points)])) == 2
-  @test GI.ngeom(Multi([PolyArea(points), PolyArea(points)])) == 2
+  @test GI.ngeom(Multi([Pgon(points), Pgon(points)])) == 2
 
   # Shapefile.jl
   ps = [SHP.Point(0, 0), SHP.Point(2.2, 2.2), SHP.Point(0.5, 2)]
@@ -23,10 +23,10 @@
   multipoly = SHP.Polygon(box, [0, 4], repeat(exterior, 2))
   @test GeoIO.geom2meshes(point) == Point(1.0, 1.0)
   @test GeoIO.geom2meshes(chain) == Rope(points)
-  @test GeoIO.geom2meshes(poly) == PolyArea(points)
+  @test GeoIO.geom2meshes(poly) == Pgon(points)
   @test GeoIO.geom2meshes(multipoint) == Multi(points)
   @test GeoIO.geom2meshes(multichain) == Multi([Rope(points), Rope(points)])
-  @test GeoIO.geom2meshes(multipoly) == Multi([PolyArea(points), PolyArea(points)])
+  @test GeoIO.geom2meshes(multipoly) == Multi([Pgon(points), Pgon(points)])
   # degenerate chain with 2 equal points
   ps = [SHP.Point(2.2, 2.2), SHP.Point(2.2, 2.2)]
   chain = SHP.LineString{SHP.Point}(view(ps, 1:2))
@@ -41,7 +41,7 @@
   multipoint = AG.createmultipoint(ps)
   multichain = AG.createmultilinestring([ps, ps])
   multipoly = AG.createmultipolygon([[outer], [outer]])
-  polyarea = PolyArea(outer[begin:(end - 1)])
+  polyarea = Pgon(outer[begin:(end - 1)])
   @test GeoIO.geom2meshes(point) == Point(1.0, 1.0)
   @test GeoIO.geom2meshes(chain) == Rope(points)
   @test GeoIO.geom2meshes(poly) == polyarea
@@ -66,10 +66,10 @@
   )
   @test GeoIO.geom2meshes(point) == Point(LatLon(1.0f0, 1.0f0))
   @test GeoIO.geom2meshes(chain) == Rope(points)
-  @test GeoIO.geom2meshes(poly) == PolyArea(outer)
+  @test GeoIO.geom2meshes(poly) == Pgon(outer)
   @test GeoIO.geom2meshes(multipoint) == Multi(points)
   @test GeoIO.geom2meshes(multichain) == Multi([Rope(points), Rope(points)])
-  @test GeoIO.geom2meshes(multipoly) == Multi([PolyArea(outer), PolyArea(outer)])
+  @test GeoIO.geom2meshes(multipoly) == Multi([Pgon(outer), Pgon(outer)])
   # degenerate chain with 2 equal points
   chain = GJS.read("""{"type":"LineString","coordinates":[[2.2,2.2],[2.2,2.2]]}""")
   @test GeoIO.geom2meshes(chain) == Ring(Point(LatLon(2.2f0, 2.2f0)))

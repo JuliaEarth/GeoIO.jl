@@ -25,7 +25,7 @@
     @test gtb.name[1] isa String
     @test gtb.variable[1] isa Real
     @test gtb.geometry isa GeometrySet
-    @test gtb.geometry[1] isa PolyArea
+    @test gtb.geometry[1] isa Pgon
 
     @test GeoIO.load(joinpath(datadir, "lines.gpkg")) isa AbstractGeoTable
 
@@ -81,7 +81,7 @@
       Multi([
         Point(LatLon(1.0, 1.0)),
         Rope(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0)])),
-        PolyArea([
+        Pgon([
           Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
           Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
         ])
@@ -92,11 +92,11 @@
         Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
       ]),
       Multi([
-        PolyArea([
+        Pgon([
           Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
           Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
         ]),
-        PolyArea([
+        Pgon([
           Ring(Point.([LatLon(1.0, 1.0), LatLon(2.0, 1.0), LatLon(3.0, 1.0)])),
           Ring(Point.([LatLon(0.0, 0.0), LatLon(3.0, 1.0), LatLon(2.0, 1.0)]))
         ])

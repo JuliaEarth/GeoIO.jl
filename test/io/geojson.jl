@@ -25,7 +25,7 @@
     @test gtb.name[1] isa String
     @test gtb.variable[1] isa Real
     @test gtb.geometry isa GeometrySet
-    @test gtb.geometry[1] isa PolyArea
+    @test gtb.geometry[1] isa Pgon
 
     @test GeoIO.load(joinpath(datadir, "lines.geojson")) isa AbstractGeoTable
   end
