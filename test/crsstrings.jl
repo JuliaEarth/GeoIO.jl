@@ -82,6 +82,20 @@
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
       @test isempty(deltaprojjson(gdaljson, ourjson))
+      if crs.code in (2180, 3857)
+        changedjson = deepcopy(ourjson)
+        changedjson["conversion"]["parameters"][1]["value"] += 1
+        @test !isempty(deltaprojjson(gdaljson, changedjson))
+      end
     end
   end
+end
+
+@testset "PROJJSON accuracy comparison" begin
+  json1 = Dict("datum_ensemble" => Dict("accuracy" => "2"))
+  json2 = Dict("datum_ensemble" => Dict("accuracy" => "2.0"))
+  @test isempty(deltaprojjson(json1, json2))
+  json2["datum_ensemble"]["accuracy"] = "3.0"
+  @test deltaprojjson(json1, json2) == ["datum_ensemble.accuracy"]
+  @test finddiffpaths("2", "2.0", "name") == ["name"]
 end
