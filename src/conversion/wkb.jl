@@ -75,7 +75,7 @@ end
 function wkb2poly(buff, crs, swapbytes)
   nrings = read(buff, UInt32)
   rings = [wkb2chain(buff, crs, swapbytes) for _ in 1:nrings]
-  PolyArea(rings)
+  Pgon(rings)
 end
 
 function wkb2coords(buff, crs, swapbytes)

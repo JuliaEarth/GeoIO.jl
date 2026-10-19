@@ -27,7 +27,7 @@
     @test gtb.variable[1] isa Real
     @test gtb.geometry isa GeometrySet
     @test gtb.geometry[1] isa Multi
-    @test parent(gtb.geometry[1])[1] isa PolyArea
+    @test parent(gtb.geometry[1])[1] isa Pgon
 
     gtb = GeoIO.load(joinpath(datadir, "path.shp"))
     @test Tables.schema(gtb).names == (:ZONA, :geometry)

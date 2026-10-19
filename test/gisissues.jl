@@ -10,7 +10,7 @@
       Point.([LatLon(0, 0), LatLon(2, -2), LatLon(1, -1)]),
       Point.([LatLon(0, 0), LatLon(1, 1), LatLon(-2, -2)])
     ])
-  polys = PolyArea.(rings)
+  polys = Pgon.(rings)
 
   gtpoint = georef(table, points)
   gtring = georef(table, rings)
@@ -30,7 +30,7 @@
   @test isequalshp(gtb.geometry, gtring.geometry)
   @test values(gtb) == values(gtring)
 
-  # note: Shapefile saves PolyArea as MultiPolyArea
+  # note: Shapefile saves Pgon as multipart geometry
   file = joinpath(savedir, "gis-polys.shp")
   GeoIO.save(file, gtpoly, warn=false)
   gtb = GeoIO.load(file)
