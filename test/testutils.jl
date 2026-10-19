@@ -9,8 +9,10 @@ function isequalshp(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-# Convert the same WKT as GeoIO to avoid differences between EPSG database versions
+# old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
+  # convert the same WKT as GeoIO to avoid
+  # differences between EPSG database versions
   wktstr = CoordRefSystems.wkt2(EPSG{Code})
   spref = AG.importWKT(wktstr)
   wktptr = Ref{Cstring}()
