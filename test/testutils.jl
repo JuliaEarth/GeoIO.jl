@@ -11,10 +11,7 @@ end
 
 # old GDAL implementation of projjsonstring for testing
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
-  # convert the same WKT as GeoIO to avoid
-  # differences between EPSG database versions
-  wktstr = CoordRefSystems.wkt2(EPSG{Code})
-  spref = AG.importWKT(wktstr)
+  spref = AG.importUserInput("EPSG:$Code")
   wktptr = Ref{Cstring}()
   options = ["MULTILINE=$(multiline ? "YES" : "NO")"]
   AG.GDAL.osrexporttoprojjson(spref, wktptr, options)
@@ -60,18 +57,6 @@ function deltaprojjson(json1, json2; exact=false)
   # EC#2 (example 22248):
   # Sometimes GDAL's PROJJSON includes an optional base_crs.coordinate_system that we can't support
   push!(pathstoignore, "base_crs.coordinate_system")
-
-  code = get(get(json1, "id", Dict()), "code", nothing)
-
-  # PROJ 9.9 replaces the former EPSG:2180 definition with ETRS89 / PL-1992 during WKT import
-  if code == 2180 && json1["name"] == "ETRS89 / PL-1992" && json2["name"] == "ETRF2000-PL / CS92"
-    append!(pathstoignore, ["name", "base_crs.name", "base_crs.id.code", "base_crs.datum", "base_crs.datum_ensemble"])
-  end
-
-  # GDAL normalizes the WKT definition of EPSG:3857 to a WGS84 datum and an unnamed conversion
-  if code == 3857 && json1["conversion"]["name"] == "unknown" && haskey(json1["base_crs"], "datum")
-    append!(pathstoignore, ["conversion.name", "base_crs.datum", "base_crs.datum_ensemble"])
-  end
 
   # delete paths that are irrelevant for our comparison
   for p in pathstoignore
@@ -133,14 +118,7 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
 end
 
 function finddiffpaths(v1, v2, path)
-  # PROJJSON encodes ensemble accuracy as a string;
-  # WKT import may preserve "2" instead of "2.0"
-  x, y = if endswith(path, "datum_ensemble.accuracy")
-    parse(Float64, v1), parse(Float64, v2)
-  else
-    v1, v2
-  end
-  isequalvalue(x, y) ? String[] : [path]
+  isequalvalue(v1, v2) ? nothing : [path]
 end
 
 # helper function to compare values in JSON objects

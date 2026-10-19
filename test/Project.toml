@@ -11,6 +11,7 @@ GeoTables = "e502b557-6362-48c1-8219-d30d308dcdb0"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSONSchema = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
 Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
+PROJ_jll = "58948b4f-47e0-5654-a9ad-f609743f8632"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 ReadVTK = "dc215faf-f008-4882-a9f7-a79a826fadc3"
 ReferenceTests = "324d217c-45ce-50fc-942e-d289b448e8cf"
@@ -21,3 +22,4 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
 GDAL_jll = "=304.1200.400"
+PROJ_jll = "=902.800.100"

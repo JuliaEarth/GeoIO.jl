@@ -82,11 +82,6 @@
       @test isvalidprojjson(ourjson)
       gdaljson = gdalprojjsondict(EPSG{crs.code})
       @test isempty(deltaprojjson(gdaljson, ourjson))
-      if crs.code in (2180, 3857)
-        changedjson = deepcopy(ourjson)
-        changedjson["conversion"]["parameters"][1]["value"] += 1
-        @test !isempty(deltaprojjson(gdaljson, changedjson))
-      end
     end
   end
 end
