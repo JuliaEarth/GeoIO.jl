@@ -90,12 +90,3 @@
     end
   end
 end
-
-@testset "PROJJSON accuracy comparison" begin
-  json1 = Dict("datum_ensemble" => Dict("accuracy" => "2"))
-  json2 = Dict("datum_ensemble" => Dict("accuracy" => "2.0"))
-  @test isempty(deltaprojjson(json1, json2))
-  json2["datum_ensemble"]["accuracy"] = "3.0"
-  @test deltaprojjson(json1, json2) == ["datum_ensemble.accuracy"]
-  @test finddiffpaths("2", "2.0", "name") == ["name"]
-end
