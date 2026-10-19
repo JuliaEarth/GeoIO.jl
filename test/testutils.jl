@@ -9,7 +9,7 @@ function isequalshp(m::Multi, g)
   length(gs) == 1 && first(gs) == g
 end
 
-# Convert the same WKT as GeoIO to avoid differences between EPSG database versions.
+# Convert the same WKT as GeoIO to avoid differences between EPSG database versions
 function gdalprojjsonstring(::Type{EPSG{Code}}; multiline=false) where {Code}
   wktstr = CoordRefSystems.wkt2(EPSG{Code})
   spref = AG.importWKT(wktstr)
@@ -61,12 +61,12 @@ function deltaprojjson(json1, json2; exact=false)
 
   code = get(get(json1, "id", Dict()), "code", nothing)
 
-  # PROJ 9.9 replaces the former EPSG:2180 definition with ETRS89 / PL-1992 during WKT import.
+  # PROJ 9.9 replaces the former EPSG:2180 definition with ETRS89 / PL-1992 during WKT import
   if code == 2180 && json1["name"] == "ETRS89 / PL-1992" && json2["name"] == "ETRF2000-PL / CS92"
     append!(pathstoignore, ["name", "base_crs.name", "base_crs.id.code", "base_crs.datum", "base_crs.datum_ensemble"])
   end
 
-  # GDAL normalizes the WKT definition of EPSG:3857 to a WGS84 datum and an unnamed conversion.
+  # GDAL normalizes the WKT definition of EPSG:3857 to a WGS84 datum and an unnamed conversion
   if code == 3857 && json1["conversion"]["name"] == "unknown" && haskey(json1["base_crs"], "datum")
     append!(pathstoignore, ["conversion.name", "base_crs.datum", "base_crs.datum_ensemble"])
   end
@@ -135,7 +135,7 @@ function finddiffpaths(v1, v2, path)
 end
 
 function finddiffpaths(v1::AbstractString, v2::AbstractString, path)
-  # PROJJSON encodes ensemble accuracy as a string; WKT import may preserve "2" instead of "2.0".
+  # PROJJSON encodes ensemble accuracy as a string; WKT import may preserve "2" instead of "2.0"
   equal = if endswith(path, "datum_ensemble.accuracy")
     isapprox(parse(Float64, v1), parse(Float64, v2))
   else
