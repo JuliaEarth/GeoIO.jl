@@ -135,12 +135,12 @@ end
 function finddiffpaths(v1, v2, path)
   # PROJJSON encodes ensemble accuracy as a string;
   # WKT import may preserve "2" instead of "2.0"
-  equal = if endswith(path, "datum_ensemble.accuracy")
-    isapprox(parse(Float64, v1), parse(Float64, v2))
+  x, y = if endswith(path, "datum_ensemble.accuracy")
+    parse(Float64, v1), parse(Float64, v2)
   else
-    isequalvalue(v1, v2)
+    v1, v2
   end
-  equal ? String[] : [path]
+  isequalvalue(x, y) ? String[] : [path]
 end
 
 # helper function to compare values in JSON objects
