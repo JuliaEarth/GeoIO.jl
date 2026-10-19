@@ -133,11 +133,8 @@ function finddiffpaths(v1::Vector, v2::Vector, path)
 end
 
 function finddiffpaths(v1, v2, path)
-  isequalvalue(v1, v2) ? nothing : [path]
-end
-
-function finddiffpaths(v1::AbstractString, v2::AbstractString, path)
-  # PROJJSON encodes ensemble accuracy as a string; WKT import may preserve "2" instead of "2.0"
+  # PROJJSON encodes ensemble accuracy as a string;
+  # WKT import may preserve "2" instead of "2.0"
   equal = if endswith(path, "datum_ensemble.accuracy")
     isapprox(parse(Float64, v1), parse(Float64, v2))
   else
