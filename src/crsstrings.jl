@@ -374,9 +374,9 @@ function projjsoncode(json)
   code = id["code"]
   authority = id["authority"]
   if authority == "EPSG"
-    EPSG{parse(Int, code)}
+    EPSG{code}
   elseif authority == "ESRI"
-    ESRI{parse(Int, code)}
+    ESRI{code}
   else
     throw(ArgumentError("unsupported authority '$authority' in PROJJSON"))
   end
