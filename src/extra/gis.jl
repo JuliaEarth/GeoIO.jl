@@ -39,7 +39,7 @@ function giswrite(fname, geotable; warn, kwargs...)
     GJS.write(fname, geotable |> proj; kwargs...)
   elseif endswith(fname, ".parquet")
     CRS = crs(domain(geotable))
-    GPQ.write(fname, geotable, (:geometry,), projjson(CRS); kwargs...)
+    GPQ.write(fname, geotable, nothing, projjson(CRS); geometrycolumn=:geometry, kwargs...)
   elseif endswith(fname, ".gpkg")
     gpkgwrite(fname, geotable)
   else
