@@ -371,12 +371,12 @@ projjsoncode(jsonstr::AbstractString) = projjsoncode(JSON3.read(jsonstr))
 
 function projjsoncode(json)
   id = json["id"]
-  code = Int(id["code"])
+  code = id["code"]
   authority = id["authority"]
   if authority == "EPSG"
-    EPSG{code}
+    EPSG{parse(Int, code)}
   elseif authority == "ESRI"
-    ESRI{code}
+    ESRI{parse(Int, code)}
   else
     throw(ArgumentError("unsupported authority '$authority' in PROJJSON"))
   end
