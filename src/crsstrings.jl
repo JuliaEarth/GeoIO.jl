@@ -371,7 +371,7 @@ projjsoncode(jsonstr::AbstractString) = projjsoncode(JSON3.read(jsonstr))
 
 function projjsoncode(json)
   id = json["id"]
-  code = Int(id["code"])
+  code = id["code"]
   authority = id["authority"]
   if authority == "EPSG"
     EPSG{code}
